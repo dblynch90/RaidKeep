@@ -1,5 +1,4 @@
 import { Logo } from "../components/Logo";
-import { API } from "../api";
 
 export function Login() {
   return (
@@ -36,7 +35,7 @@ export function Login() {
 
                 <div className="mb-7 w-full max-w-[308px] mx-auto space-y-4">
                   <a
-                    href={`${API}/auth/battlenet`}
+                    href="/api/auth/battlenet"
                     className="flex items-center justify-center w-full py-3.5 px-5 rounded-lg bg-[#148EFF] hover:bg-[#148EFF]/90 !text-white font-bold text-base sm:text-lg transition shadow-lg shadow-blue-900/20 whitespace-nowrap"
                   >
                     Log in with Battle.net

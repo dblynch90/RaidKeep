@@ -1,5 +1,5 @@
-/** Base URL for API (e.g. /api in dev, https://api.raidkeep.com/api in prod) */
-export const API = import.meta.env.VITE_API_URL || "/api";
+/** Base URL for API - uses /api (proxied in dev by Vite, proxied in prod by Vercel) */
+const API = "/api";
 
 async function fetchApi(
   path: string,
