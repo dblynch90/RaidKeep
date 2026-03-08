@@ -1,0 +1,7 @@
+## Interface: 20505
+## Title: RaidKeep Export
+## Notes: Export your guild roster for import into RaidKeep (raidkeep.app)
+## Author: RaidKeep
+## Version: 1.0.0
+
+RaidKeepExport.lua

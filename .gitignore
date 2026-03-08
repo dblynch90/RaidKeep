@@ -1,0 +1,14 @@
+node_modules/
+dist/
+client/dist/
+server/dist/
+*.db
+server/data/
+
+# Secrets - never commit
+.env
+.env.local
+.env.*.local
+server/.env
+
+.DS_Store
