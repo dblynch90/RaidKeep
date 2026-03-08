@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Logo } from "../components/Logo";
+import { API } from "../api";
 
 export function Register() {
   const [username, setUsername] = useState("");
@@ -78,7 +79,7 @@ export function Register() {
             </div>
           </div>
           <a
-            href="/api/auth/battlenet"
+            href={`${API}/auth/battlenet`}
             className="flex items-center justify-center w-full py-2 rounded bg-[#148EFF] hover:bg-[#148EFF]/90 text-white font-bold transition"
           >
             Sign up with Battle.net

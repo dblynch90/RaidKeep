@@ -1,4 +1,5 @@
-const API = import.meta.env.VITE_API_URL || "/api";
+/** Base URL for API (e.g. /api in dev, https://api.raidkeep.com/api in prod) */
+export const API = import.meta.env.VITE_API_URL || "/api";
 
 async function fetchApi(
   path: string,
