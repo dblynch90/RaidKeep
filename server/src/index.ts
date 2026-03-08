@@ -24,7 +24,11 @@ const PORT = process.env.PORT || 3001;
 
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: [
+      "http://localhost:5173",
+      "https://raidkeep.com",
+      "https://www.raidkeep.com",
+    ],
     credentials: true,
   })
 );
@@ -34,7 +38,11 @@ app.use(
     secret: process.env.SESSION_SECRET || "raidkeep-dev-secret-change-in-prod",
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false, maxAge: 7 * 24 * 60 * 60 * 1000 },
+    cookie: {
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      sameSite: "lax",
+    },
   })
 );
 
