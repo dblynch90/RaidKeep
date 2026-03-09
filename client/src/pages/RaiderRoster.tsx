@@ -807,20 +807,29 @@ export function RaiderRoster() {
                           return (
                             <div
                               key={r.character_name}
-                              className="rounded-lg border border-slate-600 p-3"
+                              className="rounded-lg border border-slate-600 p-4"
                               style={{ borderLeftWidth: 4, borderLeftColor: classColor }}
                             >
-                              <div className="flex items-center justify-between gap-2 mb-2">
-                                <div className="min-w-0 flex items-center gap-3 flex-wrap">
-                                  <span className="font-medium" style={{ color: classColor }}>
-                                    {r.character_name}
-                                  </span>
-                                  <span className="text-slate-500 text-sm">
-                                    {guildMember ? `Lv${guildMember.level}` : ""} {r.character_class}
-                                  </span>
+                              <div className="grid grid-cols-1 md:grid-cols-[auto_1fr_1fr] gap-x-4 gap-y-3 items-start mb-3">
+                                {/* Left: name + lead/assist */}
+                                <div className="flex flex-col gap-2 min-w-0">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="font-medium text-slate-100" style={{ color: classColor }}>
+                                      {r.character_name} {guildMember ? `- Lv${guildMember.level}` : ""} {r.character_class}
+                                    </span>
+                                    {canEdit && (
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleRaider({ name: r.character_name, class: r.character_class, level: guildMember?.level ?? 0 }, false)}
+                                        className="text-slate-500 hover:text-red-400 text-xs shrink-0"
+                                      >
+                                        Remove
+                                      </button>
+                                    )}
+                                  </div>
                                   {canEdit && (
-                                    <>
-                                      <label className="flex items-center gap-1.5 text-slate-400 text-sm cursor-pointer shrink-0">
+                                    <div className="flex flex-wrap gap-3">
+                                      <label className="flex items-center gap-1.5 text-slate-400 text-sm cursor-pointer">
                                         <input
                                           type="checkbox"
                                           checked={r.raid_lead ?? false}
@@ -829,29 +838,95 @@ export function RaiderRoster() {
                                         />
                                         Raid Lead
                                       </label>
-                                      <label className="flex items-center gap-1.5 text-slate-400 text-sm cursor-pointer shrink-0">
+                                      <label className="flex items-center gap-1.5 text-slate-400 text-sm cursor-pointer">
                                         <input
                                           type="checkbox"
                                           checked={r.raid_assist ?? false}
                                           onChange={(e) => updateRaider(r.character_name, { raid_assist: e.target.checked })}
                                           className="rounded border-slate-600 bg-slate-700 text-amber-500 focus:ring-amber-500/50"
                                         />
-                                        Raid Assist
+                                        Assist
                                       </label>
-                                    </>
+                                    </div>
                                   )}
                                 </div>
-                                {canEdit && (
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleRaider({ name: r.character_name, class: r.character_class, level: guildMember?.level ?? 0 }, false)}
-                                    className="text-slate-500 hover:text-red-400 text-xs shrink-0"
-                                  >
-                                    Remove
-                                  </button>
-                                )}
+                                {/* Middle: role dropdowns */}
+                                <div className="flex flex-col gap-2">
+                                  {canEdit ? (
+                                    <>
+                                      <select
+                                        value={r.raid_role ?? ""}
+                                        onChange={(e) => updateRaider(r.character_name, { raid_role: e.target.value })}
+                                        className="px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm w-full max-w-[140px]"
+                                        title="Main role"
+                                      >
+                                        {RAID_ROLES.map((opt) => (
+                                          <option key={opt.value || "_"} value={opt.value}>{opt.label}</option>
+                                        ))}
+                                      </select>
+                                      <select
+                                        value={["tank", "healer", "dps"].includes((r.off_spec ?? "").toLowerCase()) ? (r.off_spec ?? "").toLowerCase() : ""}
+                                        onChange={(e) => updateRaider(r.character_name, { off_spec: e.target.value })}
+                                        className="px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm w-full max-w-[140px]"
+                                        title="Off role"
+                                      >
+                                        <option value="">Off Role</option>
+                                        <option value="tank">Tank</option>
+                                        <option value="healer">Healer</option>
+                                        <option value="dps">DPS</option>
+                                      </select>
+                                      <input
+                                        type="text"
+                                        placeholder="Spec"
+                                        value={r.primary_spec ?? ""}
+                                        onChange={(e) => updateRaider(r.character_name, { primary_spec: e.target.value })}
+                                        className="px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm w-full max-w-[140px]"
+                                        title="e.g. Restoration, Feral"
+                                      />
+                                    </>
+                                  ) : (
+                                    <span className="text-slate-400 text-sm py-1">
+                                      {[r.raid_role, r.off_spec, r.primary_spec].filter(Boolean).join(" · ") || "—"}
+                                    </span>
+                                  )}
+                                </div>
+                                {/* Right: notes */}
+                                <div className="flex flex-col gap-2">
+                                  {canEditRaider(r.character_name) ? (
+                                    <textarea
+                                      placeholder="Player notes..."
+                                      value={r.notes ?? ""}
+                                      onChange={(e) => updateRaider(r.character_name, { notes: e.target.value })}
+                                      rows={2}
+                                      className="px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm w-full resize-y focus:ring-1 focus:ring-sky-500/50 placeholder-slate-500"
+                                    />
+                                  ) : (
+                                    <div className="text-slate-400 text-sm py-1.5">{r.notes || "—"}</div>
+                                  )}
+                                  {canEdit && (
+                                    <label className="flex items-center gap-1.5 cursor-pointer text-slate-500 text-xs">
+                                      <input
+                                        type="checkbox"
+                                        checked={Boolean(r.notes_public)}
+                                        onChange={(e) => updateRaider(r.character_name, { notes_public: e.target.checked })}
+                                        className="rounded border-slate-600 bg-slate-700 text-sky-500"
+                                      />
+                                      Visible to roster
+                                    </label>
+                                  )}
+                                  {canEdit && (
+                                    <textarea
+                                      placeholder="Officer notes..."
+                                      value={r.officer_notes ?? ""}
+                                      onChange={(e) => updateRaider(r.character_name, { officer_notes: e.target.value })}
+                                      rows={2}
+                                      className="px-2 py-1.5 rounded bg-slate-700 border border-amber-700/50 text-slate-200 text-sm w-full resize-y focus:ring-1 focus:ring-amber-500/50 placeholder-slate-500"
+                                    />
+                                  )}
+                                </div>
                               </div>
-                              <div className="flex flex-wrap items-center gap-2 mb-2">
+                              {/* Availability */}
+                              <div className="flex items-center gap-2 pt-2 border-t border-slate-700">
                                 <span className="text-slate-500 text-xs shrink-0">Availability:</span>
                                 <div className="flex items-center gap-0.5 flex-wrap">
                                   {DAYS.map((d, i) => {
@@ -883,80 +958,6 @@ export function RaiderRoster() {
                                     );
                                   })}
                                 </div>
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                {canEdit ? (
-                                  <>
-                                    <select
-                                      value={r.raid_role ?? ""}
-                                      onChange={(e) => updateRaider(r.character_name, { raid_role: e.target.value })}
-                                      className="px-2 py-1 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm"
-                                      title="Primary role"
-                                    >
-                                      {RAID_ROLES.map((opt) => (
-                                        <option key={opt.value || "_"} value={opt.value}>
-                                          {opt.label}
-                                        </option>
-                                      ))}
-                                    </select>
-                                    <select
-                                      value={["tank", "healer", "dps"].includes((r.off_spec ?? "").toLowerCase()) ? (r.off_spec ?? "").toLowerCase() : ""}
-                                      onChange={(e) => updateRaider(r.character_name, { off_spec: e.target.value })}
-                                      className="px-2 py-1 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm"
-                                      title="Off role"
-                                    >
-                                      <option value="">— Off role</option>
-                                      <option value="tank">Tank (off)</option>
-                                      <option value="healer">Healer (off)</option>
-                                      <option value="dps">DPS (off)</option>
-                                    </select>
-                                    <input
-                                      type="text"
-                                      placeholder="Primary spec"
-                                      value={r.primary_spec ?? ""}
-                                      onChange={(e) => updateRaider(r.character_name, { primary_spec: e.target.value })}
-                                      className="px-2 py-1 rounded bg-slate-700 border border-slate-600 text-sm w-28"
-                                      title="e.g. Restoration, Feral"
-                                    />
-                                  </>
-                                ) : (
-                                  <span className="text-slate-400 text-sm">
-                                    {[r.raid_role, r.off_spec, r.primary_spec].filter(Boolean).join(" · ") || "—"}
-                                  </span>
-                                )}
-                                {canEditRaider(r.character_name) ? (
-                                  <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
-                                    <textarea
-                                      placeholder="Player notes (visible to raider)"
-                                      value={r.notes ?? ""}
-                                      onChange={(e) => updateRaider(r.character_name, { notes: e.target.value })}
-                                      rows={2}
-                                      className="px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm resize-y focus:ring-1 focus:ring-sky-500/50 placeholder-slate-500"
-                                    />
-                                    {canEdit && (
-                                      <label className="flex items-center gap-1.5 cursor-pointer text-slate-500 text-xs">
-                                        <input
-                                          type="checkbox"
-                                          checked={Boolean(r.notes_public)}
-                                          onChange={(e) => updateRaider(r.character_name, { notes_public: e.target.checked })}
-                                          className="rounded border-slate-600 bg-slate-700 text-sky-500"
-                                        />
-                                        Visible to other roster members
-                                      </label>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <span className="text-slate-400 text-sm flex-1 min-w-[180px]">{r.notes || "—"}</span>
-                                )}
-                                {canEdit && (
-                                  <textarea
-                                    placeholder="Officer notes (only visible to leads)"
-                                    value={r.officer_notes ?? ""}
-                                    onChange={(e) => updateRaider(r.character_name, { officer_notes: e.target.value })}
-                                    rows={2}
-                                    className="px-2 py-1.5 rounded bg-slate-700 border border-amber-700/50 text-slate-200 text-sm flex-1 min-w-[180px] resize-y focus:ring-1 focus:ring-amber-500/50 placeholder-slate-500"
-                                  />
-                                )}
                               </div>
                             </div>
                           );
