@@ -807,26 +807,31 @@ export function RaiderRoster() {
                           return (
                             <div
                               key={r.character_name}
-                              className="rounded-lg border border-slate-600 p-3"
+                              className="rounded-lg border border-slate-600 grid grid-cols-[32px_1fr]"
                               style={{ borderLeftWidth: 4, borderLeftColor: classColor }}
                             >
+                              {/* Left: remove control */}
+                              <div className="flex items-center justify-center py-2 pl-1">
+                                {canEdit ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleRaider({ name: r.character_name, class: r.character_class, level: guildMember?.level ?? 0 }, false)}
+                                    className="w-6 h-6 flex items-center justify-center rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 cursor-pointer transition-colors text-base leading-none"
+                                    title="Remove from roster"
+                                    aria-label="Remove from roster"
+                                  >
+                                    ×
+                                  </button>
+                                ) : null}
+                              </div>
+                              {/* Right: card content */}
+                              <div className="p-3 min-w-0">
                               <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)] gap-x-4 gap-y-2 items-start">
                                 {/* Left: character info + checkboxes + availability */}
                                 <div className="flex flex-col gap-1.5 min-w-0">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <span className="font-medium text-slate-100 truncate" style={{ color: classColor }}>
-                                      {r.character_name} {guildMember ? `- Lv${guildMember.level}` : ""} {r.character_class}
-                                    </span>
-                                    {canEdit && (
-                                      <button
-                                        type="button"
-                                        onClick={() => toggleRaider({ name: r.character_name, class: r.character_class, level: guildMember?.level ?? 0 }, false)}
-                                        className="text-slate-500 hover:text-red-400 text-xs shrink-0"
-                                      >
-                                        Remove
-                                      </button>
-                                    )}
-                                  </div>
+                                  <span className="font-medium text-slate-100 truncate" style={{ color: classColor }}>
+                                    {r.character_name} {guildMember ? `- Lv${guildMember.level}` : ""} {r.character_class}
+                                  </span>
                                   {canEdit && (
                                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                                       <label className="flex items-center gap-1 text-slate-400 text-sm cursor-pointer shrink-0">
@@ -957,6 +962,7 @@ export function RaiderRoster() {
                                     />
                                   )}
                                 </div>
+                              </div>
                               </div>
                             </div>
                           );
