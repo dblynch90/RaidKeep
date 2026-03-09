@@ -54,6 +54,7 @@ interface RaiderEntry {
   character_class: string;
   primary_spec?: string;
   off_spec?: string;
+  secondary_spec?: string;
   notes?: string;
   officer_notes?: string;
   notes_public?: boolean;
@@ -160,8 +161,8 @@ export function RaidRoster() {
       if (!roleFilter) return true;
       const rf = roleFilter.toLowerCase();
       if ((r.raid_role || "").toLowerCase() === rf) return true;
-      const ps = (r.primary_spec || "").toLowerCase();
-      if (["tank", "healer", "dps"].includes(ps) && ps === rf) return true;
+      const off = (r.off_spec || "").toLowerCase();
+      if (["tank", "healer", "dps"].includes(off) && off === rf) return true;
       return false;
     };
     const availabilityMatches = (r: RaiderEntry) => {
@@ -195,6 +196,8 @@ export function RaidRoster() {
           ...(updates.notes !== undefined && { notes: updates.notes }),
           ...(updates.raid_role !== undefined && { raid_role: updates.raid_role }),
           ...(updates.primary_spec !== undefined && { primary_spec: updates.primary_spec }),
+          ...(updates.off_spec !== undefined && { off_spec: updates.off_spec }),
+          ...(updates.secondary_spec !== undefined && { secondary_spec: updates.secondary_spec }),
           ...(updates.notes_public !== undefined && { notes_public: updates.notes_public }),
         }
       : updates;
@@ -238,6 +241,7 @@ export function RaidRoster() {
           character_class: r.character_class,
           primary_spec: r.primary_spec || null,
           off_spec: r.off_spec || null,
+          secondary_spec: r.secondary_spec || null,
           notes: r.notes || null,
           officer_notes: r.officer_notes || null,
           notes_public: r.notes_public ? 1 : 0,
@@ -256,6 +260,8 @@ export function RaidRoster() {
             notes: r.notes ?? "",
             raid_role: r.raid_role ?? "",
             primary_spec: r.primary_spec ?? "",
+            off_spec: r.off_spec ?? "",
+            secondary_spec: r.secondary_spec ?? "",
             notes_public: r.notes_public ?? false,
           }));
         if (myUpdates.length > 0) {
@@ -272,6 +278,7 @@ export function RaidRoster() {
               character_class: x.character_class ?? "",
               primary_spec: x.primary_spec ?? "",
               off_spec: x.off_spec ?? "",
+              secondary_spec: (x as RaiderEntry & { secondary_spec?: string }).secondary_spec ?? "",
               notes: x.notes ?? "",
               officer_notes: x.officer_notes ?? "",
               notes_public: x.notes_public === 1,
@@ -415,11 +422,13 @@ export function RaidRoster() {
             {/* Table container - header sticks during scroll */}
             <div className="max-h-[60vh] overflow-auto overflow-x-auto">
               {/* Table header - sticky */}
-              <div className="sticky top-0 z-10 grid grid-cols-[minmax(140px,2fr)_minmax(320px,3fr)_110px_110px_80px_40px_40px_40px] gap-x-2 gap-y-0 px-4 py-2 h-10 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700/60 text-slate-400 text-xs font-medium uppercase tracking-wider min-w-[860px] items-center shrink-0">
+              <div className="sticky top-0 z-10 grid grid-cols-[minmax(140px,2fr)_minmax(320px,3fr)_90px_90px_90px_90px_80px_40px_40px_40px] gap-x-2 gap-y-0 px-4 py-2 h-10 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700/60 text-slate-400 text-xs font-medium uppercase tracking-wider min-w-[1000px] items-center shrink-0">
                 <span className="truncate" title="The character or player assigned to the roster.">Player</span>
                 <span className="truncate" title="Days this player is available to participate in raids.">General Availability</span>
                 <span className="truncate" title="The player's primary role for this raid.">Role</span>
+                <span className="truncate" title="Primary spec (e.g. Restoration, Feral).">Primary Spec</span>
                 <span className="truncate" title="A secondary role the player can switch to if needed.">Off Role</span>
+                <span className="truncate" title="Secondary spec (e.g. Protection, Discipline).">Secondary Spec</span>
                 <span className="truncate" title="The raid team this player is assigned to.">Team</span>
                 <span className="flex items-center justify-center" title="Marks this player as the raid leader.">Lead</span>
                 <span className="flex items-center justify-center" title="Marks this player as a raid assistant.">Assist</span>
@@ -439,7 +448,7 @@ export function RaidRoster() {
                   return (
                     <div
                       key={r.character_name}
-                      className="group grid grid-cols-[minmax(140px,2fr)_minmax(320px,3fr)_110px_110px_80px_40px_40px_40px] gap-x-2 gap-y-0 px-4 py-0 h-10 min-h-10 items-center border-b border-slate-700/30 min-w-[860px] hover:bg-slate-700/20 transition-colors"
+                      className="group grid grid-cols-[minmax(140px,2fr)_minmax(320px,3fr)_90px_90px_90px_90px_80px_40px_40px_40px] gap-x-2 gap-y-0 px-4 py-0 h-10 min-h-10 items-center border-b border-slate-700/30 min-w-[1000px] hover:bg-slate-700/20 transition-colors"
                       style={{ borderLeftWidth: 4, borderLeftColor: classColor }}
                     >
                       {/* Player */}
@@ -489,7 +498,7 @@ export function RaidRoster() {
                           <select
                             value={r.raid_role ?? ""}
                             onChange={(e) => updateRaider(r.character_name, { raid_role: e.target.value })}
-                            className="h-7 w-full min-w-0 max-w-[110px] px-1.5 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500/50 truncate"
+                            className="h-7 w-full min-w-0 max-w-[90px] px-1.5 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500/50 truncate"
                           >
                             {RAID_ROLES.map((opt) => (
                               <option key={opt.value || "_"} value={opt.value}>{opt.label}</option>
@@ -501,13 +510,28 @@ export function RaidRoster() {
                           </span>
                         )}
                       </span>
+                      {/* Primary Spec */}
+                      <span className="min-w-0 shrink-0">
+                        {canEditRaider(r.character_name) ? (
+                          <input
+                            type="text"
+                            value={r.primary_spec ?? ""}
+                            onChange={(e) => updateRaider(r.character_name, { primary_spec: e.target.value })}
+                            placeholder="Spec"
+                            className="h-7 w-full min-w-0 px-1.5 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500/50 truncate placeholder-slate-500"
+                            title="Primary spec (e.g. Restoration, Feral)"
+                          />
+                        ) : (
+                          <span className="text-slate-400 text-sm truncate block">{r.primary_spec || "—"}</span>
+                        )}
+                      </span>
                       {/* Off Role */}
                       <span className="min-w-0 shrink-0">
                         {canEditRaider(r.character_name) ? (
                           <select
-                            value={["tank", "healer", "dps"].includes((r.primary_spec ?? "").toLowerCase()) ? (r.primary_spec ?? "").toLowerCase() : ""}
-                            onChange={(e) => updateRaider(r.character_name, { primary_spec: e.target.value })}
-                            className="h-7 w-full min-w-0 max-w-[110px] px-1.5 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500/50 truncate"
+                            value={["tank", "healer", "dps"].includes((r.off_spec ?? "").toLowerCase()) ? (r.off_spec ?? "").toLowerCase() : ""}
+                            onChange={(e) => updateRaider(r.character_name, { off_spec: e.target.value })}
+                            className="h-7 w-full min-w-0 max-w-[90px] px-1.5 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500/50 truncate"
                           >
                             {RAID_ROLES.map((opt) => (
                               <option key={opt.value || "_"} value={opt.value}>{opt.label}</option>
@@ -516,13 +540,28 @@ export function RaidRoster() {
                         ) : (
                           <span className="text-slate-400 text-sm truncate block">
                             {(() => {
-                              const p = (r.primary_spec ?? "").toLowerCase();
-                              if (p === "dps") return "DPS";
-                              if (p === "tank") return "Tank";
-                              if (p === "healer") return "Healer";
-                              return p ? (r.primary_spec || "").charAt(0).toUpperCase() + (r.primary_spec || "").slice(1) : "—";
+                              const off = (r.off_spec ?? "").toLowerCase();
+                              if (off === "dps") return "DPS";
+                              if (off === "tank") return "Tank";
+                              if (off === "healer") return "Healer";
+                              return r.off_spec ? (r.off_spec || "").charAt(0).toUpperCase() + (r.off_spec || "").slice(1) : "—";
                             })()}
                           </span>
+                        )}
+                      </span>
+                      {/* Secondary Spec */}
+                      <span className="min-w-0 shrink-0">
+                        {canEditRaider(r.character_name) ? (
+                          <input
+                            type="text"
+                            value={r.secondary_spec ?? ""}
+                            onChange={(e) => updateRaider(r.character_name, { secondary_spec: e.target.value })}
+                            placeholder="Spec"
+                            className="h-7 w-full min-w-0 px-1.5 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500/50 truncate placeholder-slate-500"
+                            title="Secondary spec (e.g. Protection, Discipline)"
+                          />
+                        ) : (
+                          <span className="text-slate-400 text-sm truncate block">{r.secondary_spec || "—"}</span>
                         )}
                       </span>
                       {/* Team - read-only in member area */}

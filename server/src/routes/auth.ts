@@ -1318,7 +1318,7 @@ authRoutes.patch("/me/raider-roster/self", requireAuth, (req, res) => {
      AND (bnc.server_type = ? OR (bnc.server_type IS NULL AND ? = 'Retail'))`
   ).all(userId, realmSlug, guild_name, guild_name, serverType, serverType) as Array<{ name: string }>;
   const myCharSet = new Set(myCharRows.map((r) => r.name));
-  for (const u of updates as Array<{ character_name: string; availability?: string; notes?: string; raid_role?: string; primary_spec?: string; notes_public?: number | boolean }>) {
+  for (const u of updates as Array<{ character_name: string; availability?: string; notes?: string; raid_role?: string; primary_spec?: string; off_spec?: string; secondary_spec?: string; notes_public?: number | boolean }>) {
     const charName = (u.character_name || "").trim();
     if (!charName || !myCharSet.has(charName.toLowerCase())) continue;
     const sets: string[] = [];
@@ -1338,6 +1338,14 @@ authRoutes.patch("/me/raider-roster/self", requireAuth, (req, res) => {
     if (typeof u.primary_spec === "string") {
       sets.push("primary_spec = ?");
       vals.push(u.primary_spec.trim() || null);
+    }
+    if (typeof u.off_spec === "string") {
+      sets.push("off_spec = ?");
+      vals.push(u.off_spec.trim() || null);
+    }
+    if (typeof u.secondary_spec === "string") {
+      sets.push("secondary_spec = ?");
+      vals.push(u.secondary_spec.trim() || null);
     }
     if (u.notes_public === true || u.notes_public === 1) {
       sets.push("notes_public = 1");

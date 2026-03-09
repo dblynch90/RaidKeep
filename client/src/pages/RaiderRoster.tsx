@@ -40,7 +40,7 @@ interface RosterMember {
 }
 
 const RAID_ROLES = [
-  { value: "", label: "—" },
+  { value: "", label: "Primary" },
   { value: "tank", label: "Tank" },
   { value: "healer", label: "Healer" },
   { value: "dps", label: "DPS" },
