@@ -1221,6 +1221,14 @@ authRoutes.get("/me/raider-roster", requireAuth, (req, res) => {
         .all(guildOwner.user_id, realmSlug, guildName, serverType);
     }
   }
+  // Hide officer_notes from view-only users (only guild/raid leads can see)
+  if (!perms?.manage_raid_roster) {
+    raiders = (raiders as Array<Record<string, unknown>>).map((r) => {
+      const copy = { ...r };
+      delete copy.officer_notes;
+      return copy;
+    });
+  }
   res.json({ raiders });
 });
 
@@ -1242,10 +1250,10 @@ authRoutes.put("/me/raider-roster", requireAuth, (req, res) => {
     "DELETE FROM raider_roster WHERE user_id = ? AND guild_realm_slug = ? AND guild_name = ? AND server_type = ?"
   ).run(userId, realmSlug, guild_name, server_type || "Retail");
   const insert = db.prepare(
-    `INSERT INTO raider_roster (user_id, guild_name, guild_realm_slug, server_type, character_name, character_class, primary_spec, off_spec, notes, raid_role, raid_lead, raid_assist, availability)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO raider_roster (user_id, guild_name, guild_realm_slug, server_type, character_name, character_class, primary_spec, off_spec, notes, officer_notes, raid_role, raid_lead, raid_assist, availability)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
-  for (const r of raiders as Array<{ character_name: string; character_class: string; primary_spec?: string; off_spec?: string; notes?: string; raid_role?: string; raid_lead?: number; raid_assist?: number; availability?: string }>) {
+  for (const r of raiders as Array<{ character_name: string; character_class: string; primary_spec?: string; off_spec?: string; notes?: string; officer_notes?: string; raid_role?: string; raid_lead?: number; raid_assist?: number; availability?: string }>) {
     if (r.character_name && r.character_class) {
       const avail = normalizeAvailability(r.availability);
       insert.run(
@@ -1258,6 +1266,7 @@ authRoutes.put("/me/raider-roster", requireAuth, (req, res) => {
         r.primary_spec || null,
         r.off_spec || null,
         r.notes || null,
+        r.officer_notes || null,
         r.raid_role || null,
         r.raid_lead ? 1 : 0,
         r.raid_assist ? 1 : 0,

@@ -65,6 +65,7 @@ interface RaiderEntry {
   primary_spec?: string;
   off_spec?: string;
   notes?: string;
+  officer_notes?: string;
   raid_role?: string;
   raid_lead?: boolean;
   raid_assist?: boolean;
@@ -172,12 +173,13 @@ export function RaiderRoster() {
         setPermissions(perms);
         setGuildRoster(members);
         setRaiders(
-          raidersList.map((r: { character_name: string; character_class: string; primary_spec?: string; off_spec?: string; notes?: string; raid_role?: string; raid_lead?: number | boolean; raid_assist?: number | boolean; availability?: string }) => ({
+          raidersList.map((r: { character_name: string; character_class: string; primary_spec?: string; off_spec?: string; notes?: string; officer_notes?: string; raid_role?: string; raid_lead?: number | boolean; raid_assist?: number | boolean; availability?: string }) => ({
             character_name: r.character_name,
             character_class: r.character_class,
             primary_spec: r.primary_spec ?? "",
             off_spec: r.off_spec ?? "",
             notes: r.notes ?? "",
+            officer_notes: r.officer_notes ?? "",
             raid_role: r.raid_role ?? "",
             raid_lead: Boolean(r.raid_lead),
             raid_assist: Boolean(r.raid_assist),
@@ -284,6 +286,7 @@ export function RaiderRoster() {
           primary_spec: "",
           off_spec: "",
           notes: "",
+          officer_notes: "",
           raid_role: "",
           raid_lead: false,
           raid_assist: false,
@@ -313,6 +316,7 @@ export function RaiderRoster() {
           primary_spec: "",
           off_spec: "",
           notes: "",
+          officer_notes: "",
           raid_role: "",
           raid_lead: false,
           raid_assist: false,
@@ -351,6 +355,7 @@ export function RaiderRoster() {
   }, [displayGuildMembers, raiderMap, selectedGuildMembers]);
 
   const updateRaider = (name: string, updates: Partial<RaiderEntry>) => {
+    if (updates.officer_notes !== undefined && !canEdit) return;
     if (!canEditRaider(name)) return;
     const filtered = canEditOwnAvailabilityAndNotes
       ? { ...(updates.availability !== undefined && { availability: updates.availability }), ...(updates.notes !== undefined && { notes: updates.notes }) }
@@ -392,6 +397,7 @@ export function RaiderRoster() {
             primary_spec: r.primary_spec || null,
             off_spec: r.off_spec || null,
             notes: r.notes || null,
+            officer_notes: r.officer_notes || null,
             raid_role: r.raid_role || null,
             raid_lead: r.raid_lead ? 1 : 0,
             raid_assist: r.raid_assist ? 1 : 0,
@@ -415,12 +421,13 @@ export function RaiderRoster() {
             updates: myUpdates,
           });
           setRaiders(
-            (res.raiders ?? []).map((r: { character_name?: string; character_class?: string; primary_spec?: string; off_spec?: string; notes?: string; raid_role?: string; raid_lead?: unknown; raid_assist?: unknown; availability?: string }) => ({
+            (res.raiders ?? []).map((r: { character_name?: string; character_class?: string; primary_spec?: string; off_spec?: string; notes?: string; officer_notes?: string; raid_role?: string; raid_lead?: unknown; raid_assist?: unknown; availability?: string }) => ({
               character_name: r.character_name ?? "",
               character_class: r.character_class ?? "",
               primary_spec: r.primary_spec ?? "",
               off_spec: r.off_spec ?? "",
               notes: r.notes ?? "",
+              officer_notes: r.officer_notes ?? "",
               raid_role: r.raid_role ?? "",
               raid_lead: Boolean(r.raid_lead),
               raid_assist: Boolean(r.raid_assist),
@@ -919,7 +926,7 @@ export function RaiderRoster() {
                                 )}
                                 {canEditRaider(r.character_name) ? (
                                   <textarea
-                                    placeholder="Your notes..."
+                                    placeholder="Player notes (visible to raider)"
                                     value={r.notes ?? ""}
                                     onChange={(e) => updateRaider(r.character_name, { notes: e.target.value })}
                                     rows={2}
@@ -927,6 +934,15 @@ export function RaiderRoster() {
                                   />
                                 ) : (
                                   <span className="text-slate-400 text-sm flex-1 min-w-[180px]">{r.notes || "—"}</span>
+                                )}
+                                {canEdit && (
+                                  <textarea
+                                    placeholder="Officer notes (only visible to leads)"
+                                    value={r.officer_notes ?? ""}
+                                    onChange={(e) => updateRaider(r.character_name, { officer_notes: e.target.value })}
+                                    rows={2}
+                                    className="px-2 py-1.5 rounded bg-slate-700 border border-amber-700/50 text-slate-200 text-sm flex-1 min-w-[180px] resize-y focus:ring-1 focus:ring-amber-500/50 placeholder-slate-500"
+                                  />
                                 )}
                               </div>
                             </div>

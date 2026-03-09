@@ -63,6 +63,7 @@ interface RaiderEntry {
   primary_spec?: string;
   off_spec?: string;
   notes?: string;
+  officer_notes?: string;
   raid_role?: string;
   raid_lead?: boolean;
   raid_assist?: boolean;
@@ -135,7 +136,7 @@ export function RaidRoster() {
       api.get<{ raiders: RaiderEntry[] }>(
         `/auth/me/raider-roster?guild_realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
       ).then((r) =>
-        (r.raiders ?? []).map((x: { character_name: string; character_class: string; primary_spec?: string; off_spec?: string; notes?: string; raid_role?: string; raid_lead?: unknown; raid_assist?: unknown; availability?: string }) => ({
+        (r.raiders ?? []).map((x: { character_name: string; character_class: string; primary_spec?: string; off_spec?: string; notes?: string; officer_notes?: string; raid_role?: string; raid_lead?: unknown; raid_assist?: unknown; availability?: string }) => ({
           ...x,
           raid_lead: Boolean(x.raid_lead),
           raid_assist: Boolean(x.raid_assist),
@@ -223,6 +224,7 @@ export function RaidRoster() {
           primary_spec: "",
           off_spec: "",
           notes: "",
+          officer_notes: "",
           raid_role: "",
           raid_lead: false,
           raid_assist: false,
@@ -235,6 +237,7 @@ export function RaidRoster() {
   };
 
   const updateRaider = (name: string, updates: Partial<RaiderEntry>) => {
+    if (updates.officer_notes !== undefined && !canEdit) return; // Only guild/raid leads can edit officer notes
     if (!canEditRaider(name)) return;
     const filtered = canEditOwnAvailabilityAndNotes
       ? { ...(updates.availability !== undefined && { availability: updates.availability }), ...(updates.notes !== undefined && { notes: updates.notes }) }
@@ -334,6 +337,7 @@ export function RaidRoster() {
           primary_spec: r.primary_spec || null,
           off_spec: r.off_spec || null,
           notes: r.notes || null,
+          officer_notes: r.officer_notes || null,
           raid_role: r.raid_role || null,
           raid_lead: r.raid_lead ? 1 : 0,
           raid_assist: r.raid_assist ? 1 : 0,
@@ -357,12 +361,13 @@ export function RaidRoster() {
             updates: myUpdates,
           });
           setRaiders(
-            (res.raiders ?? []).map((x: { character_name?: string; character_class?: string; primary_spec?: string; off_spec?: string; notes?: string; raid_role?: string; raid_lead?: unknown; raid_assist?: unknown; availability?: string }) => ({
+            (res.raiders ?? []).map((x: { character_name?: string; character_class?: string; primary_spec?: string; off_spec?: string; notes?: string; officer_notes?: string; raid_role?: string; raid_lead?: unknown; raid_assist?: unknown; availability?: string }) => ({
               character_name: x.character_name ?? "",
               character_class: x.character_class ?? "",
               primary_spec: x.primary_spec ?? "",
               off_spec: x.off_spec ?? "",
               notes: x.notes ?? "",
+              officer_notes: x.officer_notes ?? "",
               raid_role: x.raid_role ?? "",
               raid_lead: Boolean(x.raid_lead),
               raid_assist: Boolean(x.raid_assist),
@@ -623,7 +628,7 @@ export function RaidRoster() {
                 <span className="truncate" title="The raid team this player is assigned to.">Team</span>
                 <span className="flex items-center justify-center" title="Marks this player as the raid leader.">Lead</span>
                 <span className="flex items-center justify-center" title="Marks this player as a raid assistant.">Assist</span>
-                <span className="flex items-center justify-center" title="Add or edit notes for this player.">📝</span>
+                <span className="flex items-center justify-center" title="Add or edit player and officer notes.">📝</span>
               </div>
               {raiders.length === 0 ? (
                 <div className="p-12 text-center text-slate-500">
@@ -797,9 +802,9 @@ export function RaidRoster() {
                           type="button"
                           onClick={() => setNotesFor(r.character_name)}
                           className={`w-7 h-7 flex items-center justify-center rounded text-sm transition-colors ${
-                            r.notes ? "text-sky-400 hover:bg-sky-500/20" : "text-slate-500 hover:bg-slate-600/50"
+                            (r.notes || (canEdit && r.officer_notes)) ? "text-sky-400 hover:bg-sky-500/20" : "text-slate-500 hover:bg-slate-600/50"
                           }`}
-                          title={r.notes ? `Notes: ${r.notes}` : "Add or edit notes for this player."}
+                          title={(r.notes || (canEdit && r.officer_notes)) ? `Player: ${r.notes || "—"}${canEdit && r.officer_notes ? ` · Officer: ${r.officer_notes}` : ""}` : "Add or edit notes."}
                         >
                           📝
                         </button>
@@ -883,17 +888,38 @@ export function RaidRoster() {
                   </h3>
                   <button type="button" onClick={() => setNotesFor(null)} className="text-slate-400 hover:text-slate-200 text-xl leading-none">×</button>
                 </div>
-                <div className="p-4">
-                  {canEditRaider(r?.character_name ?? "") && r ? (
-                    <textarea
-                      value={r.notes ?? ""}
-                      onChange={(e) => updateRaider(r.character_name, { notes: e.target.value })}
-                      placeholder="Add notes..."
-                      rows={5}
-                      className="w-full px-3 py-2 rounded bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-500 text-sm resize-y focus:ring-1 focus:ring-sky-500/50"
-                    />
-                  ) : r ? (
-                    <p className="text-slate-300 text-sm whitespace-pre-wrap">{r.notes || "No notes."}</p>
+                <div className="p-4 space-y-4">
+                  {r ? (
+                    <>
+                      <div>
+                        <label className="block text-slate-400 text-xs font-medium uppercase tracking-wider mb-1.5">Player Notes</label>
+                        <p className="text-slate-500 text-xs mb-1">Visible to the player; they can edit their own.</p>
+                        {canEditRaider(r.character_name) ? (
+                          <textarea
+                            value={r.notes ?? ""}
+                            onChange={(e) => updateRaider(r.character_name, { notes: e.target.value })}
+                            placeholder="Add player notes..."
+                            rows={3}
+                            className="w-full px-3 py-2 rounded bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-500 text-sm resize-y focus:ring-1 focus:ring-sky-500/50"
+                          />
+                        ) : (
+                          <p className="text-slate-300 text-sm whitespace-pre-wrap py-2">{r.notes || "No notes."}</p>
+                        )}
+                      </div>
+                      {canEdit ? (
+                        <div>
+                          <label className="block text-slate-400 text-xs font-medium uppercase tracking-wider mb-1.5">Officer Notes</label>
+                          <p className="text-slate-500 text-xs mb-1">Only visible to guild/raid leads.</p>
+                          <textarea
+                            value={r.officer_notes ?? ""}
+                            onChange={(e) => updateRaider(r.character_name, { officer_notes: e.target.value })}
+                            placeholder="Add officer notes..."
+                            rows={3}
+                            className="w-full px-3 py-2 rounded bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-500 text-sm resize-y focus:ring-1 focus:ring-sky-500/50"
+                          />
+                        </div>
+                      ) : null}
+                    </>
                   ) : (
                     <p className="text-slate-500 text-sm">Character not found.</p>
                   )}

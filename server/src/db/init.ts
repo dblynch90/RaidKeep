@@ -339,6 +339,9 @@ export function initDb() {
     if (!rrCols.some((c) => c.name === "availability")) {
       db.exec("ALTER TABLE raider_roster ADD COLUMN availability TEXT DEFAULT '0000000'");
     }
+    if (!rrCols.some((c) => c.name === "officer_notes")) {
+      db.exec("ALTER TABLE raider_roster ADD COLUMN officer_notes TEXT");
+    }
   } catch {
     // Column may already exist
   }

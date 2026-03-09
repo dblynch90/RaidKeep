@@ -436,7 +436,7 @@ adminRoutes.post("/guild/:realmSlug/:guildName/roster", requireAdmin, (req, res)
   const realmSlug = (req.params.realmSlug as string)?.toLowerCase().replace(/\s+/g, "-");
   const guildName = decodeURIComponent((req.params.guildName as string) || "");
   const serverType = (req.body.server_type as string) || "Retail";
-  const { character_name, character_class, primary_spec, off_spec, notes, raid_role, raid_lead, raid_assist } = req.body;
+  const { character_name, character_class, primary_spec, off_spec, notes, officer_notes, raid_role, raid_lead, raid_assist } = req.body;
   if (!realmSlug || !guildName || !character_name || typeof character_name !== "string") {
     res.status(400).json({ error: "realm, guild_name, and character_name required" });
     return;
@@ -455,8 +455,8 @@ adminRoutes.post("/guild/:realmSlug/:guildName/roster", requireAdmin, (req, res)
     ? String((req.body as { availability: string }).availability).slice(0, 7).padEnd(7, "0").replace(/[^01]/g, "0")
     : "0000000";
   db.prepare(
-    `INSERT INTO raider_roster (user_id, guild_name, guild_realm_slug, server_type, character_name, character_class, primary_spec, off_spec, notes, raid_role, raid_lead, raid_assist, availability)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO raider_roster (user_id, guild_name, guild_realm_slug, server_type, character_name, character_class, primary_spec, off_spec, notes, officer_notes, raid_role, raid_lead, raid_assist, availability)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     uid,
     guildName,
@@ -467,6 +467,7 @@ adminRoutes.post("/guild/:realmSlug/:guildName/roster", requireAdmin, (req, res)
     typeof primary_spec === "string" ? primary_spec.trim() || null : null,
     typeof off_spec === "string" ? off_spec.trim() || null : null,
     typeof notes === "string" ? notes.trim() || null : null,
+    typeof officer_notes === "string" ? officer_notes.trim() || null : null,
     typeof raid_role === "string" ? raid_role.trim() || null : null,
     raid_lead ? 1 : 0,
     raid_assist ? 1 : 0,
@@ -480,7 +481,7 @@ adminRoutes.put("/guild/:realmSlug/:guildName/roster/:charName", requireAdmin, (
   const guildName = decodeURIComponent((req.params.guildName as string) || "");
   const charName = decodeURIComponent((req.params.charName as string) || "");
   const serverType = (req.body.server_type as string) || "Retail";
-  const { character_class, primary_spec, off_spec, notes, raid_role, raid_lead, raid_assist, availability } = req.body;
+  const { character_class, primary_spec, off_spec, notes, officer_notes, raid_role, raid_lead, raid_assist, availability } = req.body;
   if (!realmSlug || !guildName || !charName) {
     res.status(400).json({ error: "realm, guild_name, and character_name required" });
     return;
@@ -510,6 +511,10 @@ adminRoutes.put("/guild/:realmSlug/:guildName/roster/:charName", requireAdmin, (
   if (typeof notes === "string") {
     updates.push("notes = ?");
     values.push(notes.trim() || null);
+  }
+  if (typeof officer_notes === "string") {
+    updates.push("officer_notes = ?");
+    values.push(officer_notes.trim() || null);
   }
   if (typeof raid_role === "string") {
     updates.push("raid_role = ?");

@@ -219,7 +219,9 @@ export function Dashboard() {
         if (updates.favorite_guilds !== undefined) next.favorite_guilds = JSON.stringify(updates.favorite_guilds);
         return api.put("/auth/me/preferences", { preferences: next });
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.warn("Failed to save preferences:", err);
+      });
   };
 
   const toggleFavorite = (guild: { guildName: string; realmSlug: string; serverType: string }) => {
@@ -263,8 +265,9 @@ export function Dashboard() {
       try {
         const prefsRes = await fetchPreferences().catch(() => ({ preferences: {} }));
         const prefs = prefsRes.preferences ?? {};
-        const gameVersion = (prefs as Record<string, string>).game_version?.trim();
-        const serverType = gameVersion && gameVersion !== "Please Select" ? gameVersion : undefined;
+        const gv = (prefs as Record<string, string>).game_version?.trim();
+        setGameVersion(gv || ""); // Explicitly set from saved user preferences
+        const serverType = gv && gv !== "Please Select" ? gv : undefined;
 
         const [charsRes, raidsRes] = await Promise.all([
           fetchCharacters(serverType).catch(() => ({ characters: [], syncStatus: { lastSyncAt: null } })),
