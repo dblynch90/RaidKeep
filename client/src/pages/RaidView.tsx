@@ -5,6 +5,7 @@ import type { MyCharacter } from "../api";
 import { useToast } from "../context/ToastContext";
 import { formatRaidDateTime } from "../utils/raidDateTime";
 import { GuildBreadcrumbs } from "../components/GuildBreadcrumbs";
+import type { GuildPermissions } from "./GuildPermissions";
 
 const CLASS_COLORS: Record<string, string> = {
   Warrior: "#C69B6D",
@@ -70,6 +71,7 @@ export function RaidView() {
   const [backups, setBackups] = useState<Array<{ character_name: string; character_class: string }>>([]);
   const [available, setAvailable] = useState<Array<{ character_name: string; character_class: string }>>([]);
   const [myCharacters, setMyCharacters] = useState<MyCharacter[]>([]);
+  const [permissions, setPermissions] = useState<GuildPermissions | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<number | null>(null);
@@ -97,21 +99,37 @@ export function RaidView() {
     }
     setLoading(true);
     setError(null);
-    Promise.all([
-      api.get<{
+    api
+      .get<{
         raid: Raid;
         slots: RaidSlotRow[];
         backups?: Array<{ character_name: string; character_class: string }>;
         available?: Array<{ character_name: string; character_class: string }>;
-      }>(`/auth/me/saved-raids/${id}`),
-      api.get<{ characters: MyCharacter[] }>("/auth/me/characters"),
-    ])
-      .then(([raidRes, charsRes]) => {
+      }>(`/auth/me/saved-raids/${id}`)
+      .then((raidRes) => {
         setRaid(raidRes.raid);
         setSlots(raidRes.slots);
         setBackups(raidRes.backups ?? []);
         setAvailable(raidRes.available ?? []);
-        setMyCharacters(charsRes.characters ?? []);
+        const r = raidRes.raid;
+        const realm = r.guild_realm_slug ?? r.guild_realm?.toLowerCase().replace(/\s+/g, "-") ?? "";
+        const guildName = r.guild_name ?? "";
+        const serverType = r.server_type ?? "Retail";
+        return Promise.all([
+          api.get<{ characters: MyCharacter[] }>("/auth/me/characters"),
+          realm && guildName
+            ? api
+                .get<{ permissions: GuildPermissions }>(
+                  `/auth/me/guild-permissions?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
+                )
+                .then((p) => p.permissions)
+                .catch(() => null)
+            : Promise.resolve(null),
+        ]);
+      })
+      .then(([charsRes, perms]) => {
+        if (charsRes) setMyCharacters(charsRes.characters ?? []);
+        if (perms !== undefined) setPermissions(perms ?? null);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load raid"))
       .finally(() => setLoading(false));
@@ -157,6 +175,7 @@ export function RaidView() {
   const raidRealmSlug = (raid.guild_realm_slug ?? "").toLowerCase().replace(/\s+/g, "-");
   const raidServerType = raid.server_type ?? "Retail";
   const myCharNames = new Set(myCharacters.map((c) => c.name.toLowerCase()));
+  const canEditAvailabilityForOthers = Boolean(permissions?.manage_raid_roster || permissions?.manage_raids);
   const inParty = new Set(slots.map((s) => s.character_name.toLowerCase()));
   const inBackup = new Set(backups.map((b) => b.character_name.toLowerCase()));
   const inAvailable = new Set(available.map((a) => a.character_name.toLowerCase()));
@@ -278,14 +297,14 @@ export function RaidView() {
                           {s.is_raid_assist && (
                             <span className="text-sky-400 text-xs ml-0.5" title="Raid Assist">🛡 RA</span>
                           )}
-                          {isMySlot && (
+                          {(isMySlot || canEditAvailabilityForOthers) && (
                             <span className="ml-auto flex items-center gap-0.5">
                               <button
                                 type="button"
                                 onClick={() => handleConfirm(s.id, "confirmed")}
                                 disabled={confirming === s.id}
                                 className={`w-5 h-5 rounded flex items-center justify-center text-xs ${status === "confirmed" ? "bg-emerald-500/30 text-emerald-400" : "text-slate-500 hover:bg-slate-600 hover:text-emerald-400"}`}
-                                title="Confirm available"
+                                title={isMySlot ? "Confirm available" : `Confirm available for ${s.character_name}`}
                                 aria-label={`Confirm available for ${s.character_name}`}
                               >
                                 ✓
@@ -295,17 +314,17 @@ export function RaidView() {
                                 onClick={() => handleConfirm(s.id, "unavailable")}
                                 disabled={confirming === s.id}
                                 className={`w-5 h-5 rounded flex items-center justify-center text-xs ${status === "unavailable" ? "bg-red-500/30 text-red-400" : "text-slate-500 hover:bg-slate-600 hover:text-red-400"}`}
-                                title="Not available"
+                                title={isMySlot ? "Not available" : `Mark ${s.character_name} as unavailable`}
                                 aria-label={`Decline availability for ${s.character_name}`}
                               >
                                 ✗
                               </button>
                             </span>
                           )}
-                          {!isMySlot && status === "confirmed" && (
+                          {!isMySlot && !canEditAvailabilityForOthers && status === "confirmed" && (
                             <span className="text-emerald-400 text-xs ml-auto" title="Confirmed">✓</span>
                           )}
-                          {!isMySlot && status === "unavailable" && (
+                          {!isMySlot && !canEditAvailabilityForOthers && status === "unavailable" && (
                             <span className="text-red-400 text-xs ml-auto" title="Unavailable">✗</span>
                           )}
                         </div>

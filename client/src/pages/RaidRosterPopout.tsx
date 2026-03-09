@@ -140,37 +140,27 @@ export function RaidRosterPopout() {
 
       {/* Excel-style table - full width */}
       <div className="overflow-auto p-4" style={{ minHeight: "calc(100vh - 60px)" }}>
-        <table className="w-full border-collapse text-sm table-fixed" style={{ minWidth: 1100 }}>
+        <table className="w-full border-collapse text-sm table-fixed" style={{ minWidth: 800 }}>
           <colgroup>
-            <col style={{ width: "12%" }} />
-            <col style={{ width: "18%" }} />
-            <col style={{ width: "7%" }} />
-            <col style={{ width: "8%" }} />
-            <col style={{ width: "7%" }} />
-            <col style={{ width: "8%" }} />
-            <col style={{ width: "8%" }} />
-            <col style={{ width: "5%" }} />
-            <col style={{ width: "5%" }} />
+            <col style={{ width: "14%" }} />
             <col style={{ width: "22%" }} />
+            <col style={{ width: "24%" }} />
+            <col style={{ width: "10%" }} />
+            <col style={{ width: "30%" }} />
           </colgroup>
           <thead>
             <tr className="border-b border-slate-600">
               <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Player</th>
               <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">General Availability</th>
-              <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Role</th>
-              <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Primary Spec</th>
-              <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Off Role</th>
-              <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Secondary Spec</th>
+              <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Role 1 Spec 1 Role 2 Spec 2</th>
               <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Team</th>
-              <th className="text-center py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Lead</th>
-              <th className="text-center py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Assist</th>
               <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Notes</th>
             </tr>
           </thead>
           <tbody>
             {sortedRaiders.length === 0 ? (
               <tr>
-                <td colSpan={10} className="py-12 text-center text-slate-500">
+                <td colSpan={5} className="py-12 text-center text-slate-500">
                   No raiders in roster.
                 </td>
               </tr>
@@ -204,21 +194,15 @@ export function RaidRosterPopout() {
                         ))}
                       </span>
                     </td>
-                    <td className="py-2 px-3 text-slate-300">
-                      {(r.raid_role || "—").charAt(0).toUpperCase() + (r.raid_role || "").slice(1).toLowerCase()}
-                    </td>
                     <td className="py-2 px-3 text-slate-400">
-                      {r.primary_spec ? (r.primary_spec as string).charAt(0).toUpperCase() + (r.primary_spec as string).slice(1).toLowerCase() : "—"}
-                    </td>
-                    <td className="py-2 px-3 text-slate-400">
-                      {(r.off_spec || "—").charAt(0).toUpperCase() + (r.off_spec || "").slice(1).toLowerCase()}
-                    </td>
-                    <td className="py-2 px-3 text-slate-400">
-                      {r.secondary_spec ? (r.secondary_spec as string).charAt(0).toUpperCase() + (r.secondary_spec as string).slice(1).toLowerCase() : "—"}
+                      {[
+                        (r.raid_role || "—").charAt(0).toUpperCase() + (r.raid_role || "").slice(1).toLowerCase(),
+                        r.primary_spec ? (r.primary_spec as string).charAt(0).toUpperCase() + (r.primary_spec as string).slice(1).toLowerCase() : "—",
+                        (r.off_spec || "—").charAt(0).toUpperCase() + (r.off_spec || "").slice(1).toLowerCase(),
+                        r.secondary_spec ? (r.secondary_spec as string).charAt(0).toUpperCase() + (r.secondary_spec as string).slice(1).toLowerCase() : "—",
+                      ].join(" ")}
                     </td>
                     <td className="py-2 px-3 text-slate-400">{team ? team.team_name : "—"}</td>
-                    <td className="py-2 px-3 text-center">{r.raid_lead ? "★" : "—"}</td>
-                    <td className="py-2 px-3 text-center">{r.raid_assist ? "🛡" : "—"}</td>
                     <td className="py-2 px-3 align-top whitespace-pre-wrap break-words">
                       {r.notes ? (
                         <div className="text-slate-400 mb-1"><span className="text-slate-500 text-xs uppercase">Player:</span> {r.notes}</div>

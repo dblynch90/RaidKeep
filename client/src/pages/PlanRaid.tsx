@@ -176,6 +176,7 @@ export function PlanRaid() {
   const [backups, setBackups] = useState<Array<{ characterName: string; characterClass: string }>>([]);
   const [signedUp, setSignedUp] = useState<Array<{ character_name: string; character_class: string }>>([]);
   const [unavailableSlots, setUnavailableSlots] = useState<RaidSlot[]>([]);
+  const [showGuildRosterDrawer, setShowGuildRosterDrawer] = useState(false);
 
   const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
 
@@ -401,6 +402,12 @@ export function PlanRaid() {
   const loadFromPreviousRaid = async (raidIdToLoad: number) => {
     try {
       const res = await api.get<{
+        raid?: {
+          raid_name?: string;
+          raid_instance?: string | null;
+          start_time?: string | null;
+          finish_time?: string | null;
+        };
         slots: Array<{
           party_index: number;
           slot_index: number;
@@ -413,6 +420,14 @@ export function PlanRaid() {
         }>;
         backups?: Array<{ character_name: string; character_class: string }>;
       }>(`/auth/me/saved-raids/${raidIdToLoad}`);
+      const r = res.raid;
+      if (r) {
+        setRaidName(r.raid_name ?? "");
+        setRaidInstance(r.raid_instance ?? "");
+        setStartTime(r.start_time ?? "");
+        setFinishTime(r.finish_time ?? "");
+        // Date intentionally not copied - leave empty for new raid
+      }
       const partySlots = (res.slots ?? []).filter((s) => (s.availability_status || "pending") !== "unavailable");
       const byParty = new Map<number, (RaidSlot | null)[]>();
       for (const s of partySlots) {
@@ -780,102 +795,24 @@ export function PlanRaid() {
               </div>
             </Card>
 
-            <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-8">
-              <div>
-                <Card className="rounded-xl shadow-md bg-slate-800/70 border-slate-700/60">
-                  <div className="p-5">
-                    <h3 className="text-slate-400 font-normal text-sm uppercase tracking-wider mb-3">Guild Roster</h3>
-                    <div className="flex flex-wrap items-center gap-2 mb-3">
-                      <button
-                        type="button"
-                        onClick={() => setRosterSource("guild")}
-                        className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition ${rosterSource === "guild" ? "bg-sky-600 text-white border border-sky-500/50" : "bg-slate-700/80 text-slate-400 border border-slate-600 hover:border-slate-500 hover:text-slate-300"}`}
-                      >
-                        All
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRosterSource("raiders")}
-                        className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition ${rosterSource === "raiders" ? "bg-sky-600 text-white border border-sky-500/50" : "bg-slate-700/80 text-slate-400 border border-slate-600 hover:border-slate-500 hover:text-slate-300"}`}
-                      >
-                        Raiders only
-                      </button>
-                    </div>
-                    <input
-                      type="text"
-                      placeholder="Search player..."
-                      value={playerSearch}
-                      onChange={(e) => setPlayerSearch(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-700/60 border border-slate-600 text-slate-100 placeholder-slate-600 text-sm mb-3 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50"
-                    />
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-slate-500 text-xs">Level:</span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={100}
-                        placeholder="Min"
-                        value={minLevel}
-                        onChange={(e) => setMinLevel(e.target.value)}
-                        className="w-14 px-2 py-1 rounded-md bg-slate-700/60 border border-slate-600 text-slate-100 text-xs placeholder-slate-600"
-                      />
-                      <span className="text-slate-600">–</span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={100}
-                        placeholder="Max"
-                        value={maxLevel}
-                        onChange={(e) => setMaxLevel(e.target.value)}
-                        className="w-14 px-2 py-1 rounded-md bg-slate-700/60 border border-slate-600 text-slate-100 text-xs placeholder-slate-600"
-                      />
-                      {(minLevel || maxLevel) && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setMinLevel("");
-                            setMaxLevel("");
-                          }}
-                          className="text-slate-500 hover:text-slate-300 text-xs"
-                        >
-                          Clear
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-slate-500 text-xs mb-2">Click a character to add to raid</p>
-                    <div className="max-h-72 overflow-y-auto rounded-lg overflow-hidden">
-                      {displayedRosterMembers.length === 0 ? (
-                        <p className="text-slate-500 text-sm py-4 px-2">
-                          {data?.members?.length
-                            ? "No players match your search or level filter"
-                            : "No roster loaded"}
-                        </p>
-                      ) : (
-                        displayedRosterMembers.map((m, idx) => (
-                          <div
-                            key={m.name}
-                            className={`border-b border-slate-700/40 last:border-0 ${idx % 2 === 1 ? "bg-slate-700/15" : ""}`}
-                          >
-                            <RosterAddButton
-                              member={m}
-                              onAdd={handleRosterAdd}
-                              onAddBackup={addBackup}
-                              canAddAsBackup={!backupNames.has(m.name.toLowerCase())}
-                            />
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </Card>
-              </div>
-
-              <div>
+            <div className="flex gap-0 relative">
+              <div className="flex-1 min-w-0">
                 <Card className="rounded-xl shadow-lg bg-slate-800/95 border-slate-700/80">
                   <div className="p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
                       <h3 className="text-slate-400 font-normal text-sm uppercase tracking-wider">Raid Composition</h3>
                       <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowGuildRosterDrawer((s) => !s)}
+                          className={`text-sm px-3 py-1.5 rounded-lg font-medium border transition ${
+                            showGuildRosterDrawer
+                              ? "bg-sky-600 text-white border-sky-500/50"
+                              : "bg-slate-700/80 text-slate-300 border-slate-600 hover:border-slate-500 hover:bg-slate-600/80"
+                          }`}
+                        >
+                          {showGuildRosterDrawer ? "Close Roster" : "Add From Guild"}
+                        </button>
                         {(teams.length > 0 || pastRaidsForLoad.length > 0) && (
                           <select
                             className="px-2.5 py-1.5 rounded-md bg-slate-800/50 border border-slate-600 text-slate-300 text-sm hover:border-slate-500 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
@@ -995,6 +932,15 @@ export function PlanRaid() {
                     <BackupDropZone
                       backups={backups}
                       onDropFromParty={moveSlotToBackup}
+                      onDropFromRoster={(name, charClass) => {
+                        const member = displayedRosterMembers.find((m) => m.name === name);
+                        if (member && !backupNames.has(member.name.toLowerCase())) addBackup(member);
+                      }}
+                      onAddBackupFromCharacter={(characterName, characterClass) => {
+                        if (!backupNames.has(characterName.toLowerCase())) {
+                          addBackup({ name: characterName, class: characterClass, level: 0 });
+                        }
+                      }}
                       onRemoveBackup={removeBackup}
                       getClassColor={getClassColor}
                     />
@@ -1002,7 +948,7 @@ export function PlanRaid() {
                       <div className="mt-6 pt-6 border-t border-slate-700/80 rounded-xl p-4 bg-slate-800/30">
                         <h4 className="text-slate-300 font-semibold text-sm mb-2">Signed Up</h4>
                         <p className="text-slate-500 text-xs mb-2">
-                          Characters who have signed up but are not yet assigned to slots or backups
+                          Characters who have signed up but are not yet assigned. Drag to party slots or backups.
                         </p>
                         <div className="flex flex-wrap gap-2.5">
                           {signedUp
@@ -1014,7 +960,18 @@ export function PlanRaid() {
                             .map((s) => (
                               <div
                                 key={s.character_name}
-                                className="inline-flex items-center gap-2 rounded-lg px-2.5 py-2 min-h-[36px] border border-slate-600/80 bg-slate-800/80"
+                                draggable
+                                onDragStart={(e) => {
+                                  e.dataTransfer.setData(
+                                    DRAG_TYPE_BACKUP,
+                                    JSON.stringify({
+                                      characterName: s.character_name,
+                                      characterClass: s.character_class,
+                                    })
+                                  );
+                                  e.dataTransfer.effectAllowed = "move";
+                                }}
+                                className="inline-flex items-center gap-2 rounded-lg px-2.5 py-2 min-h-[36px] border border-slate-600/80 bg-slate-800/80 cursor-grab active:cursor-grabbing hover:border-slate-500 hover:shadow-md hover:ring-1 hover:ring-slate-500/50 transition-all duration-150"
                                 style={{
                                   borderLeftWidth: 4,
                                   borderLeftColor: getClassColor(s.character_class),
@@ -1082,6 +1039,105 @@ export function PlanRaid() {
                   </div>
                 </Card>
               </div>
+
+              {showGuildRosterDrawer && (
+                <div className="w-[340px] shrink-0 border-l border-slate-700 bg-slate-800/95 flex flex-col overflow-hidden">
+                  <div className="p-4 border-b border-slate-700 flex items-center justify-between">
+                    <h3 className="text-slate-300 font-medium text-sm">Guild Roster</h3>
+                    <button
+                      type="button"
+                      onClick={() => setShowGuildRosterDrawer(false)}
+                      className="w-8 h-8 flex items-center justify-center rounded text-slate-500 hover:text-slate-200 hover:bg-slate-700"
+                      aria-label="Close"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="p-4 flex-1 overflow-auto">
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                      <button
+                        type="button"
+                        onClick={() => setRosterSource("guild")}
+                        className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition ${rosterSource === "guild" ? "bg-sky-600 text-white border border-sky-500/50" : "bg-slate-700/80 text-slate-400 border border-slate-600 hover:border-slate-500 hover:text-slate-300"}`}
+                      >
+                        All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRosterSource("raiders")}
+                        className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition ${rosterSource === "raiders" ? "bg-sky-600 text-white border border-sky-500/50" : "bg-slate-700/80 text-slate-400 border border-slate-600 hover:border-slate-500 hover:text-slate-300"}`}
+                      >
+                        Raiders only
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Search player..."
+                      value={playerSearch}
+                      onChange={(e) => setPlayerSearch(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-700/60 border border-slate-600 text-slate-100 placeholder-slate-600 text-sm mb-3 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50"
+                    />
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-slate-500 text-xs">Level:</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={100}
+                        placeholder="Min"
+                        value={minLevel}
+                        onChange={(e) => setMinLevel(e.target.value)}
+                        className="w-14 px-2 py-1 rounded-md bg-slate-700/60 border border-slate-600 text-slate-100 text-xs placeholder-slate-600"
+                      />
+                      <span className="text-slate-600">–</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={100}
+                        placeholder="Max"
+                        value={maxLevel}
+                        onChange={(e) => setMaxLevel(e.target.value)}
+                        className="w-14 px-2 py-1 rounded-md bg-slate-700/60 border border-slate-600 text-slate-100 text-xs placeholder-slate-600"
+                      />
+                      {(minLevel || maxLevel) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMinLevel("");
+                            setMaxLevel("");
+                          }}
+                          className="text-slate-500 hover:text-slate-300 text-xs"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-slate-500 text-xs mb-2">Drag to raid slots or backups, or click to assign</p>
+                    <div className="space-y-1">
+                      {displayedRosterMembers.length === 0 ? (
+                        <p className="text-slate-500 text-sm py-4 px-2">
+                          {data?.members?.length
+                            ? "No players match your search or level filter"
+                            : "No roster loaded"}
+                        </p>
+                      ) : (
+                        displayedRosterMembers.map((m, idx) => (
+                          <div
+                            key={m.name}
+                            className={`rounded-lg ${idx % 2 === 1 ? "bg-slate-700/15" : ""}`}
+                          >
+                            <RosterAddButton
+                              member={m}
+                              onAdd={handleRosterAdd}
+                              onAddBackup={addBackup}
+                              canAddAsBackup={!backupNames.has(m.name.toLowerCase())}
+                            />
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="pt-4 flex items-center gap-3">
@@ -1113,11 +1169,15 @@ const DRAG_TYPE_BACKUP = "application/x-raidkeep-backup";
 function BackupDropZone({
   backups,
   onDropFromParty,
+  onDropFromRoster,
+  onAddBackupFromCharacter,
   onRemoveBackup,
   getClassColor,
 }: {
   backups: Array<{ characterName: string; characterClass: string }>;
   onDropFromParty: (slotData: RaidSlot, fromPartyIdx: number, fromSlotIdx: number) => void;
+  onDropFromRoster?: (name: string, charClass: string) => void;
+  onAddBackupFromCharacter?: (characterName: string, characterClass: string) => void;
   onRemoveBackup: (characterName: string) => void;
   getClassColor: (className: string) => string;
 }) {
@@ -1125,28 +1185,58 @@ function BackupDropZone({
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    if (e.dataTransfer.types.includes(DRAG_TYPE_PARTY_SLOT)) {
+    const canAccept =
+      e.dataTransfer.types.includes(DRAG_TYPE_PARTY_SLOT) ||
+      (onDropFromRoster && e.dataTransfer.types.includes(DRAG_TYPE_ROSTER)) ||
+      (onAddBackupFromCharacter && e.dataTransfer.types.includes(DRAG_TYPE_BACKUP));
+    if (canAccept) {
       e.dataTransfer.dropEffect = "move";
       setDragOver(true);
     }
   };
 
-  const handleDragLeave = () => setDragOver(false);
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false);
+  };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
     const partyRaw = e.dataTransfer.getData(DRAG_TYPE_PARTY_SLOT);
-    if (!partyRaw) return;
-    try {
-      const { slotData, fromPartyIdx, fromSlotIdx } = JSON.parse(partyRaw) as {
-        slotData: RaidSlot;
-        fromPartyIdx: number;
-        fromSlotIdx: number;
-      };
-      onDropFromParty(slotData, fromPartyIdx, fromSlotIdx);
-    } catch {
-      // ignore invalid drag data
+    if (partyRaw) {
+      try {
+        const { slotData, fromPartyIdx, fromSlotIdx } = JSON.parse(partyRaw) as {
+          slotData: RaidSlot;
+          fromPartyIdx: number;
+          fromSlotIdx: number;
+        };
+        onDropFromParty(slotData, fromPartyIdx, fromSlotIdx);
+      } catch {
+        // ignore invalid drag data
+      }
+      return;
+    }
+    const rosterRaw = e.dataTransfer.getData(DRAG_TYPE_ROSTER);
+    if (rosterRaw && onDropFromRoster) {
+      try {
+        const { name, class: charClass } = JSON.parse(rosterRaw) as { name: string; class: string };
+        if (name) onDropFromRoster(name, charClass);
+      } catch {
+        // ignore invalid drag data
+      }
+      return;
+    }
+    const backupRaw = e.dataTransfer.getData(DRAG_TYPE_BACKUP);
+    if (backupRaw && onAddBackupFromCharacter) {
+      try {
+        const { characterName, characterClass } = JSON.parse(backupRaw) as {
+          characterName: string;
+          characterClass: string;
+        };
+        if (characterName) onAddBackupFromCharacter(characterName, characterClass);
+      } catch {
+        // ignore invalid drag data
+      }
     }
   };
 
@@ -1164,9 +1254,17 @@ function BackupDropZone({
         Standby raiders. Drag to/from parties, or click roster → &quot;Add as backup&quot;
       </p>
       {backups.length === 0 ? (
-        <p className="text-slate-500 text-sm">
-          {dragOver ? "Drop here to add as backup" : "No backups. Drag from parties or add from roster."}
-        </p>
+        <div
+          className={`min-h-[72px] flex items-center justify-center rounded-lg border-2 border-dashed transition-colors ${
+            dragOver
+              ? "border-sky-500 bg-sky-500/10"
+              : "border-slate-600 hover:border-slate-500"
+          }`}
+        >
+          <p className="text-slate-500 text-sm px-4">
+            {dragOver ? "Drop here to add as backup" : "No backups. Drag from parties or roster, or click roster → Add as backup"}
+          </p>
+        </div>
       ) : (
         <div className="flex flex-wrap gap-2.5">
           {backups.map((b) => (

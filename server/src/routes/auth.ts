@@ -519,20 +519,37 @@ authRoutes.post("/me/saved-raids/:id/confirm-availability", requireAuth, (req, r
   }
   const db = getDb();
   const userId = req.session!.user!.id;
-  const charNames = db.prepare("SELECT DISTINCT LOWER(name) as name FROM battle_net_characters WHERE user_id = ?").all(userId) as Array<{ name: string }>;
-  const names = charNames.map((c) => c.name);
-  if (names.length === 0) {
-    res.status(403).json({ error: "No characters" });
+  const raid = db.prepare("SELECT guild_realm_slug, guild_name, server_type FROM saved_raids WHERE id = ?").get(raidId) as
+    | { guild_realm_slug: string; guild_name: string; server_type: string }
+    | undefined;
+  if (!raid) {
+    res.status(404).json({ error: "Raid not found" });
     return;
   }
-  const slot = db.prepare("SELECT character_name FROM saved_raid_slots WHERE id = ? AND raid_id = ?").get(slot_id, raidId) as { character_name: string } | undefined;
+  const perms = getEffectiveGuildPermissions(
+    db,
+    userId,
+    raid.guild_realm_slug ?? "",
+    raid.guild_name ?? "",
+    raid.server_type ?? "Retail"
+  );
+  const canEditForOthers = perms?.manage_raid_roster || perms?.manage_raids;
+  const slot = db.prepare("SELECT character_name FROM saved_raid_slots WHERE id = ? AND raid_id = ?").get(slot_id, raidId) as
+    | { character_name: string }
+    | undefined;
   if (!slot || !slot.character_name) {
     res.status(404).json({ error: "Slot not found" });
     return;
   }
-  if (!names.includes(String(slot.character_name).toLowerCase())) {
-    res.status(403).json({ error: "Not your slot" });
-    return;
+  if (!canEditForOthers) {
+    const charNames = db.prepare("SELECT DISTINCT LOWER(name) as name FROM battle_net_characters WHERE user_id = ?").all(userId) as Array<{
+      name: string;
+    }>;
+    const names = charNames.map((c) => c.name);
+    if (names.length === 0 || !names.includes(String(slot.character_name).toLowerCase())) {
+      res.status(403).json({ error: "Not your slot" });
+      return;
+    }
   }
   db.prepare("UPDATE saved_raid_slots SET availability_status = ? WHERE id = ?").run(status, slot_id);
   const updated = db.prepare("SELECT * FROM saved_raid_slots WHERE id = ?").get(slot_id);
