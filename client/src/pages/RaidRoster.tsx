@@ -46,14 +46,6 @@ const RAID_ROLES = [
   { value: "dps", label: "DPS" },
 ] as const;
 
-interface RosterMember {
-  name: string;
-  class: string;
-  level: number;
-  role?: string;
-  race?: string;
-}
-
 const DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"] as const;
 const DEFAULT_AVAILABILITY = "0000000";
 
@@ -83,7 +75,6 @@ export function RaidRoster() {
   const serverType = searchParams.get("server_type") ?? "Retail";
 
   const [permissions, setPermissions] = useState<GuildPermissions | null>(null);
-  const [guildRoster, setGuildRoster] = useState<RosterMember[]>([]);
   const [raiders, setRaiders] = useState<RaiderEntry[]>([]);
   const [teams, setTeams] = useState<RaidTeam[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,15 +86,7 @@ export function RaidRoster() {
   const [roleFilter, setRoleFilter] = useState<string>("");
   const [teamFilter, setTeamFilter] = useState<string>("");
   const [availabilityFilter, setAvailabilityFilter] = useState<string>("");
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [addModalSearch, setAddModalSearch] = useState("");
-  const [addModalClassFilter, setAddModalClassFilter] = useState("");
-  const [addModalLevelMin, setAddModalLevelMin] = useState<string>("");
-  const [addModalLevelMax, setAddModalLevelMax] = useState<string>("");
   const [notesFor, setNotesFor] = useState<string | null>(null);
-  const [showManageTeamsModal, setShowManageTeamsModal] = useState(false);
-  const [newTeamName, setNewTeamName] = useState("");
-  const [selectedAddModalMembers, setSelectedAddModalMembers] = useState<Set<string>>(new Set());
   const [myCharacters, setMyCharacters] = useState<import("../api").MyCharacter[]>([]);
 
   const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
@@ -129,9 +112,6 @@ export function RaidRoster() {
       api.get<{ permissions: GuildPermissions }>(
         `/auth/me/guild-permissions?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
       ).then((r) => r.permissions).catch(() => DEFAULT_PERMISSIONS),
-      api.get<{ members: RosterMember[] }>(
-        `/auth/me/guild-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
-      ).then((r) => r.members),
       api.get<{ characters: import("../api").MyCharacter[] }>("/auth/me/characters").then((r) => r.characters ?? []).catch(() => []),
       api.get<{ raiders: RaiderEntry[] }>(
         `/auth/me/raider-roster?guild_realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
@@ -147,9 +127,8 @@ export function RaidRoster() {
         `/auth/me/raid-teams?guild_realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
       ).then((r) => r.teams ?? []),
     ])
-      .then(([perms, members, chars, raidersList, teamsList]) => {
+      .then(([perms, chars, raidersList, teamsList]) => {
         setPermissions(perms);
-        setGuildRoster(members);
         setMyCharacters(chars);
         setRaiders(raidersList);
         setTeams(teamsList);
@@ -157,14 +136,6 @@ export function RaidRoster() {
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
       .finally(() => setLoading(false));
   }, [realm, realmSlug, guildName, serverType]);
-
-  const raiderMap = useMemo(() => {
-    const m = new Map<string, RaiderEntry>();
-    for (const r of raiders) {
-      m.set(r.character_name.toLowerCase(), r);
-    }
-    return m;
-  }, [raiders]);
 
   const characterToTeamId = useMemo(() => {
     const m = new Map<string, number>();
@@ -213,34 +184,16 @@ export function RaidRoster() {
       .sort((a, b) => a.character_name.localeCompare(b.character_name, undefined, { sensitivity: "base" }));
   }, [raiders, searchQuery, classFilter, roleFilter, teamFilter, availabilityFilter, characterToTeamId, teams]);
 
-  const toggleRaider = (member: RosterMember, add: boolean) => {
-    if (!canEdit) return;
-    if (add) {
-      setRaiders((prev) => [
-        ...prev.filter((r) => r.character_name.toLowerCase() !== member.name.toLowerCase()),
-        {
-          character_name: member.name,
-          character_class: member.class,
-          primary_spec: "",
-          off_spec: "",
-          notes: "",
-          officer_notes: "",
-          raid_role: "",
-          raid_lead: false,
-          raid_assist: false,
-          availability: DEFAULT_AVAILABILITY,
-        },
-      ]);
-    } else {
-      setRaiders((prev) => prev.filter((r) => r.character_name.toLowerCase() !== member.name.toLowerCase()));
-    }
-  };
-
   const updateRaider = (name: string, updates: Partial<RaiderEntry>) => {
     if (updates.officer_notes !== undefined && !canEdit) return; // Only guild/raid leads can edit officer notes
     if (!canEditRaider(name)) return;
     const filtered = canEditOwnAvailabilityAndNotes
-      ? { ...(updates.availability !== undefined && { availability: updates.availability }), ...(updates.notes !== undefined && { notes: updates.notes }) }
+      ? {
+          ...(updates.availability !== undefined && { availability: updates.availability }),
+          ...(updates.notes !== undefined && { notes: updates.notes }),
+          ...(updates.raid_role !== undefined && { raid_role: updates.raid_role }),
+          ...(updates.primary_spec !== undefined && { primary_spec: updates.primary_spec }),
+        }
       : updates;
     if (Object.keys(filtered).length === 0) return;
     setRaiders((prev) =>
@@ -256,60 +209,6 @@ export function RaidRoster() {
         const a = (r.availability || DEFAULT_AVAILABILITY).padEnd(7, "0").slice(0, 7).split("");
         a[dayIndex] = a[dayIndex] === "1" ? "0" : "1";
         return { ...r, availability: a.join("") };
-      })
-    );
-  };
-
-  const assignToTeam = async (characterName: string, teamId: number | null) => {
-    if (!canEdit) return;
-    const nameLower = characterName.toLowerCase();
-    const currentTeamId = characterToTeamId.get(nameLower);
-
-    if (teamId === null) {
-      if (currentTeamId) {
-        const team = teams.find((t) => t.id === currentTeamId);
-        if (team) {
-          const newMembers = team.members.filter((m) => m.character_name.toLowerCase() !== nameLower);
-          await api.put(`/auth/me/raid-teams/${currentTeamId}/members`, { members: newMembers });
-          setTeams((prev) =>
-            prev.map((t) =>
-              t.id === currentTeamId
-                ? { ...t, members: t.members.filter((m) => m.character_name.toLowerCase() !== nameLower) }
-                : t
-            )
-          );
-        }
-      }
-      return;
-    }
-
-    const team = teams.find((t) => t.id === teamId);
-    if (!team) return;
-
-    const raider = raiders.find((r) => r.character_name.toLowerCase() === nameLower);
-    if (!raider) return;
-
-    if (currentTeamId === teamId) return;
-
-    if (currentTeamId) {
-      const oldTeam = teams.find((t) => t.id === currentTeamId);
-      if (oldTeam) {
-        const oldMembers = oldTeam.members.filter((m) => m.character_name.toLowerCase() !== nameLower);
-        await api.put(`/auth/me/raid-teams/${currentTeamId}/members`, { members: oldMembers });
-      }
-    }
-
-    const newMembers = [...team.members.filter((m) => m.character_name.toLowerCase() !== nameLower), { character_name: raider.character_name, character_class: raider.character_class }];
-    await api.put(`/auth/me/raid-teams/${teamId}/members`, { members: newMembers });
-    setTeams((prev) =>
-      prev.map((t) => {
-        if (t.id === currentTeamId) {
-          return { ...t, members: t.members.filter((m) => m.character_name.toLowerCase() !== nameLower) };
-        }
-        if (t.id === teamId) {
-          return { ...t, members: newMembers };
-        }
-        return t;
       })
     );
   };
@@ -351,6 +250,8 @@ export function RaidRoster() {
             character_name: r.character_name,
             availability: (r.availability || DEFAULT_AVAILABILITY).padEnd(7, "0").slice(0, 7),
             notes: r.notes ?? "",
+            raid_role: r.raid_role ?? "",
+            primary_spec: r.primary_spec ?? "",
           }));
         if (myUpdates.length > 0) {
           const res = await api.patch<{ raiders: RaiderEntry[] }>("/auth/me/raider-roster/self", {
@@ -383,110 +284,6 @@ export function RaidRoster() {
       setSaving(false);
     }
   };
-
-  const addTeam = async () => {
-    if (!canEdit || !newTeamName.trim()) return;
-    try {
-      const res = await api.post<{ team: RaidTeam }>("/auth/me/raid-teams", {
-        guild_name: guildName,
-        guild_realm: realm,
-        guild_realm_slug: realm,
-        server_type: serverType,
-        team_name: newTeamName.trim(),
-      });
-      setTeams((prev) => [...prev, res.team]);
-      setNewTeamName("");
-    } catch {
-      // ignore
-    }
-  };
-
-  const deleteTeam = async (teamId: number) => {
-    if (!canEdit) return;
-    const team = teams.find((t) => t.id === teamId);
-    if (!team || !confirm(`Delete team "${team.team_name}"? Raiders will be unassigned from this team (they remain on the roster).`)) return;
-    try {
-      await api.delete(`/auth/me/raid-teams/${teamId}`);
-      setTeams((prev) => prev.filter((t) => t.id !== teamId));
-      if (teamFilter === team.team_name) setTeamFilter("");
-    } catch {
-      // ignore
-    }
-  };
-
-  const unassignedGuildMembers = useMemo(() => {
-    return guildRoster
-      .filter((m) => !raiderMap.has(m.name.toLowerCase()))
-      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
-  }, [guildRoster, raiderMap]);
-
-  const guildMaxLevel = useMemo(() => {
-    if (!guildRoster.length) return 80;
-    return Math.max(...guildRoster.map((m) => m.level));
-  }, [guildRoster]);
-
-  const addModalMaxLevel = useMemo(() => {
-    if (!unassignedGuildMembers.length) return guildMaxLevel;
-    return Math.max(...unassignedGuildMembers.map((m) => m.level));
-  }, [unassignedGuildMembers, guildMaxLevel]);
-
-  const filteredAddModalMembers = useMemo(() => {
-    const q = addModalSearch.trim().toLowerCase();
-    const minLvl = addModalLevelMin.trim() ? parseInt(addModalLevelMin, 10) : null;
-    const maxLvl = addModalLevelMax.trim() ? parseInt(addModalLevelMax, 10) : null;
-    return unassignedGuildMembers.filter((m) => {
-      if (q && !m.name.toLowerCase().includes(q)) return false;
-      if (addModalClassFilter && m.class !== addModalClassFilter) return false;
-      if (minLvl != null && !isNaN(minLvl) && m.level < minLvl) return false;
-      if (maxLvl != null && !isNaN(maxLvl) && m.level > maxLvl) return false;
-      return true;
-    });
-  }, [unassignedGuildMembers, addModalSearch, addModalClassFilter, addModalLevelMin, addModalLevelMax]);
-
-  const addModalClassList = useMemo(() => {
-    const set = new Set(unassignedGuildMembers.map((m) => m.class));
-    return [...set].sort((a, b) => a.localeCompare(b));
-  }, [unassignedGuildMembers]);
-
-  const openAddModal = () => {
-    const maxLvl = addModalMaxLevel;
-    setAddModalLevelMin(String(maxLvl));
-    setAddModalLevelMax(String(maxLvl));
-    setAddModalSearch("");
-    setAddModalClassFilter("");
-    setSelectedAddModalMembers(new Set());
-    setShowAddModal(true);
-  };
-
-  const toggleAddModalMemberSelection = (name: string) => {
-    const key = name.toLowerCase();
-    setSelectedAddModalMembers((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
-
-  const selectAllAddModalMembers = () => {
-    setSelectedAddModalMembers(new Set(filteredAddModalMembers.map((m) => m.name.toLowerCase())));
-  };
-
-  const clearAddModalSelection = () => setSelectedAddModalMembers(new Set());
-
-  const addSelectedMembers = () => {
-    const toAdd = filteredAddModalMembers.filter((m) => selectedAddModalMembers.has(m.name.toLowerCase()));
-    if (toAdd.length === 0) return;
-    for (const m of toAdd) {
-      toggleRaider(m, true);
-    }
-    setSelectedAddModalMembers(new Set());
-    setShowAddModal(false);
-  };
-
-  const selectedAddModalCount = filteredAddModalMembers.filter((m) =>
-    selectedAddModalMembers.has(m.name.toLowerCase())
-  ).length;
 
   const perms = permissions ?? DEFAULT_PERMISSIONS;
 
@@ -597,24 +394,6 @@ export function RaidRoster() {
               >
                 ⧉ Open in new window
               </button>
-              {canEdit && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setShowManageTeamsModal(true)}
-                    className="h-8 px-3 rounded bg-slate-700 hover:bg-slate-600 border border-slate-600 text-slate-200 text-sm font-medium inline-flex items-center justify-center leading-none"
-                  >
-                    Manage Teams
-                  </button>
-                  <button
-                    type="button"
-                    onClick={openAddModal}
-                    className="h-8 px-3 rounded bg-slate-700 hover:bg-slate-600 border border-slate-600 text-slate-200 text-sm font-medium inline-flex items-center justify-center leading-none"
-                  >
-                    + Add from Guild
-                  </button>
-                </>
-              )}
               {(canEdit || canEditOwnAvailabilityAndNotes) && (
                 <button
                   type="button"
@@ -630,8 +409,7 @@ export function RaidRoster() {
             {/* Table container - header sticks during scroll */}
             <div className="max-h-[60vh] overflow-auto overflow-x-auto">
               {/* Table header - sticky */}
-              <div className="sticky top-0 z-10 grid grid-cols-[40px_minmax(140px,2fr)_minmax(320px,3fr)_110px_110px_80px_40px_40px_40px] gap-x-2 gap-y-0 px-4 py-2 h-10 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700/60 text-slate-400 text-xs font-medium uppercase tracking-wider min-w-[900px] items-center shrink-0">
-                <span className="flex items-center justify-center" title="Remove this player from the roster.">×</span>
+              <div className="sticky top-0 z-10 grid grid-cols-[minmax(140px,2fr)_minmax(320px,3fr)_110px_110px_80px_40px_40px_40px] gap-x-2 gap-y-0 px-4 py-2 h-10 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700/60 text-slate-400 text-xs font-medium uppercase tracking-wider min-w-[860px] items-center shrink-0">
                 <span className="truncate" title="The character or player assigned to the roster.">Player</span>
                 <span className="truncate" title="Days this player is available to participate in raids.">General Availability</span>
                 <span className="truncate" title="The player's primary role for this raid.">Role</span>
@@ -644,7 +422,6 @@ export function RaidRoster() {
               {raiders.length === 0 ? (
                 <div className="p-12 text-center text-slate-500">
                   <p>No raiders yet.</p>
-                  {canEdit && <p className="text-sm mt-2">Click &quot;+ Add from Guild&quot; to add members.</p>}
                 </div>
               ) : filteredRaiders.length === 0 ? (
                 <div className="p-12 text-center text-slate-500">No raiders match the current filters.</div>
@@ -656,24 +433,9 @@ export function RaidRoster() {
                   return (
                     <div
                       key={r.character_name}
-                      className="group grid grid-cols-[40px_minmax(140px,2fr)_minmax(320px,3fr)_110px_110px_80px_40px_40px_40px] gap-x-2 gap-y-0 px-4 py-0 h-10 min-h-10 items-center border-b border-slate-700/30 min-w-[900px] hover:bg-slate-700/20 transition-colors"
+                      className="group grid grid-cols-[minmax(140px,2fr)_minmax(320px,3fr)_110px_110px_80px_40px_40px_40px] gap-x-2 gap-y-0 px-4 py-0 h-10 min-h-10 items-center border-b border-slate-700/30 min-w-[860px] hover:bg-slate-700/20 transition-colors"
                       style={{ borderLeftWidth: 4, borderLeftColor: classColor }}
                     >
-                      {/* Remove */}
-                      <span className="flex items-center justify-center shrink-0">
-                        {canEdit ? (
-                          <button
-                            type="button"
-                            onClick={() => toggleRaider({ name: r.character_name, class: r.character_class, level: 0 }, false)}
-                            className="w-7 h-7 flex items-center justify-center rounded text-slate-500 hover:text-red-400 hover:bg-red-500/20 transition-colors"
-                            title="Remove this player from the roster."
-                          >
-                            ×
-                          </button>
-                        ) : (
-                          <span className="w-7" />
-                        )}
-                      </span>
                       {/* Player */}
                       <span className="font-semibold text-slate-100 truncate min-w-0" style={{ color: classColor }} title={r.character_name}>
                         {r.character_name}
@@ -717,7 +479,7 @@ export function RaidRoster() {
                       </span>
                       {/* Role */}
                       <span className="min-w-0 shrink-0">
-                        {canEdit ? (
+                        {canEditRaider(r.character_name) ? (
                           <select
                             value={r.raid_role ?? ""}
                             onChange={(e) => updateRaider(r.character_name, { raid_role: e.target.value })}
@@ -735,7 +497,7 @@ export function RaidRoster() {
                       </span>
                       {/* Off Role */}
                       <span className="min-w-0 shrink-0">
-                        {canEdit ? (
+                        {canEditRaider(r.character_name) ? (
                           <select
                             value={["tank", "healer", "dps"].includes((r.primary_spec ?? "").toLowerCase()) ? (r.primary_spec ?? "").toLowerCase() : ""}
                             onChange={(e) => updateRaider(r.character_name, { primary_spec: e.target.value })}
@@ -757,55 +519,17 @@ export function RaidRoster() {
                           </span>
                         )}
                       </span>
-                      {/* Team */}
+                      {/* Team - read-only in member area */}
                       <span className="min-w-0 shrink-0">
-                        {canEdit ? (
-                          <select
-                            value={teamId ?? ""}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              assignToTeam(r.character_name, v ? parseInt(v, 10) : null);
-                            }}
-                            className="h-7 w-full min-w-0 max-w-[80px] px-1.5 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500/50 truncate"
-                          >
-                            <option value="">—</option>
-                            {teams.map((t) => (
-                              <option key={t.id} value={t.id}>{t.team_name}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className="text-slate-400 text-sm truncate block">{team ? team.team_name : "—"}</span>
-                        )}
+                        <span className="text-slate-400 text-sm truncate block">{team ? team.team_name : "—"}</span>
                       </span>
-                      {/* Lead */}
+                      {/* Lead - read-only in member area */}
                       <span className="flex items-center justify-center shrink-0">
-                        {canEdit ? (
-                          <button
-                            type="button"
-                            onClick={() => updateRaider(r.character_name, { raid_lead: !r.raid_lead })}
-                            className={`w-7 h-7 flex items-center justify-center rounded text-xs transition-colors ${r.raid_lead ? "text-sky-400 bg-sky-500/20" : "text-slate-500 hover:text-sky-400/80"}`}
-                            title="Raid Lead"
-                          >
-                            ★
-                          </button>
-                        ) : (
-                          <span className="text-xs w-7 flex justify-center">{r.raid_lead ? "★" : "—"}</span>
-                        )}
+                        <span className="text-xs w-7 flex justify-center">{r.raid_lead ? "★" : "—"}</span>
                       </span>
-                      {/* Assist */}
+                      {/* Assist - read-only in member area */}
                       <span className="flex items-center justify-center shrink-0">
-                        {canEdit ? (
-                          <button
-                            type="button"
-                            onClick={() => updateRaider(r.character_name, { raid_assist: !r.raid_assist })}
-                            className={`w-7 h-7 flex items-center justify-center rounded text-xs transition-colors ${r.raid_assist ? "text-sky-400 bg-sky-500/20" : "text-slate-500 hover:text-sky-400/80"}`}
-                            title="Raid Assist"
-                          >
-                            🛡
-                          </button>
-                        ) : (
-                          <span className="text-xs w-7 flex justify-center">{r.raid_assist ? "🛡" : "—"}</span>
-                        )}
+                        <span className="text-xs w-7 flex justify-center">{r.raid_assist ? "🛡" : "—"}</span>
                       </span>
                       {/* Notes */}
                       <span className="flex items-center justify-center shrink-0">
@@ -826,64 +550,6 @@ export function RaidRoster() {
               )}
             </div>
           </div>
-        )}
-
-        {/* Manage Teams modal */}
-        {showManageTeamsModal && canEdit && (
-          <>
-            <div className="fixed inset-0 bg-black/60 z-40" onClick={() => setShowManageTeamsModal(false)} aria-hidden />
-            <div className="fixed inset-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-md bg-slate-800 border border-slate-600 rounded-xl shadow-xl z-50 overflow-hidden flex flex-col">
-              <div className="p-4 border-b border-slate-700 flex items-center justify-between">
-                <h3 className="font-medium text-sky-400">Manage Teams</h3>
-                <button type="button" onClick={() => setShowManageTeamsModal(false)} className="text-slate-400 hover:text-slate-200 text-xl leading-none">×</button>
-              </div>
-              <div className="p-4 flex flex-col gap-4">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newTeamName}
-                    onChange={(e) => setNewTeamName(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && addTeam()}
-                    placeholder="New team name"
-                    className="flex-1 px-3 py-2 rounded bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-500 text-sm focus:ring-1 focus:ring-sky-500/50"
-                  />
-                  <button
-                    type="button"
-                    onClick={addTeam}
-                    disabled={!newTeamName.trim()}
-                    className="h-9 px-3 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-sm font-medium shrink-0"
-                  >
-                    Add
-                  </button>
-                </div>
-                <div>
-                  <p className="text-slate-400 text-xs mb-2">Teams (deleting only removes assignments; raiders stay on the roster)</p>
-                  <ul className="space-y-1 max-h-48 overflow-y-auto">
-                    {teams.length === 0 ? (
-                      <li className="text-slate-500 text-sm py-2">No teams yet.</li>
-                    ) : (
-                      teams.map((t) => (
-                        <li
-                          key={t.id}
-                          className="flex items-center justify-between gap-2 px-3 py-2 rounded bg-slate-700/50 border border-slate-600"
-                        >
-                          <span className="text-slate-200 truncate">{t.team_name}</span>
-                          <button
-                            type="button"
-                            onClick={() => deleteTeam(t.id)}
-                            className="shrink-0 w-7 h-7 flex items-center justify-center rounded text-slate-500 hover:text-red-400 hover:bg-red-500/20 transition-colors"
-                            title={`Delete team "${t.team_name}"`}
-                          >
-                            ×
-                          </button>
-                        </li>
-                      ))
-                    )}
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </>
         )}
 
         {/* Notes modal */}
@@ -930,6 +596,21 @@ export function RaidRoster() {
                           />
                         </div>
                       ) : null}
+                      {canEditRaider(r.character_name) && (
+                        <div className="flex justify-end pt-2">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await handleSave();
+                              setNotesFor(null);
+                            }}
+                            disabled={saving}
+                            className="px-4 py-2 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-medium text-sm"
+                          >
+                            {saving ? "Saving..." : "Save"}
+                          </button>
+                        </div>
+                      )}
                     </>
                   ) : (
                     <p className="text-slate-500 text-sm">Character not found.</p>
@@ -939,126 +620,6 @@ export function RaidRoster() {
             </>
           );
         })()}
-
-        {/* Add from Guild modal */}
-        {showAddModal && (
-          <>
-            <div className="fixed inset-0 bg-black/60 z-40" onClick={() => setShowAddModal(false)} aria-hidden />
-            <div className="fixed inset-4 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-md bg-slate-800 border border-slate-600 rounded-xl shadow-xl z-50 overflow-hidden flex flex-col">
-              <div className="p-4 border-b border-slate-700 flex items-center justify-between">
-                <h3 className="font-medium text-sky-300">Add from Guild</h3>
-                <button type="button" onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-200 text-xl leading-none">×</button>
-              </div>
-              <div className="p-4 border-b border-slate-700 space-y-2">
-                <input
-                  type="text"
-                  placeholder="Search by name..."
-                  value={addModalSearch}
-                  onChange={(e) => setAddModalSearch(e.target.value)}
-                  className="w-full h-8 px-2.5 rounded bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-500 text-sm focus:ring-1 focus:ring-sky-500/50"
-                />
-                <div className="flex gap-2">
-                  <select
-                    value={addModalClassFilter}
-                    onChange={(e) => setAddModalClassFilter(e.target.value)}
-                    className="h-8 px-2.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm flex-1 focus:ring-1 focus:ring-sky-500/50"
-                  >
-                    <option value="">All classes</option>
-                    {addModalClassList.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-slate-500 text-xs shrink-0">Lvl</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={guildMaxLevel}
-                      value={addModalLevelMin}
-                      onChange={(e) => setAddModalLevelMin(e.target.value)}
-                      placeholder="Min"
-                      className="w-14 h-8 px-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm"
-                    />
-                    <span className="text-slate-500">–</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={guildMaxLevel}
-                      value={addModalLevelMax}
-                      onChange={(e) => setAddModalLevelMax(e.target.value)}
-                      placeholder="Max"
-                      className="w-14 h-8 px-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm"
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="flex-1 overflow-y-auto p-4 max-h-64">
-                {unassignedGuildMembers.length === 0 ? (
-                  <p className="text-slate-500 text-sm">All guild members are already in the roster.</p>
-                ) : filteredAddModalMembers.length === 0 ? (
-                  <p className="text-slate-500 text-sm">No guild members match the current filters.</p>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-2 mb-3">
-                      <button
-                        type="button"
-                        onClick={selectAllAddModalMembers}
-                        className="px-2 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
-                      >
-                        Select all
-                      </button>
-                      <button
-                        type="button"
-                        onClick={clearAddModalSelection}
-                        className="px-2 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
-                      >
-                        Clear
-                      </button>
-                      <button
-                        type="button"
-                        onClick={addSelectedMembers}
-                        disabled={selectedAddModalCount === 0}
-                        className="ml-auto px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium"
-                      >
-                        Add selected {selectedAddModalCount > 0 ? `(${selectedAddModalCount})` : ""}
-                      </button>
-                    </div>
-                    <div className="space-y-1">
-                      {filteredAddModalMembers.map((m) => {
-                        const cc = getClassColor(m.class);
-                        const isSelected = selectedAddModalMembers.has(m.name.toLowerCase());
-                        return (
-                          <div
-                            key={m.name}
-                            className="flex items-center gap-2 px-3 py-2 rounded hover:bg-slate-700/50"
-                            style={{ borderLeftWidth: 4, borderLeftColor: cc }}
-                          >
-                            <label className="shrink-0 flex items-center cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => toggleAddModalMemberSelection(m.name)}
-                                className="rounded border-slate-600 bg-slate-700 text-sky-500 focus:ring-sky-500/50"
-                              />
-                            </label>
-                            <button
-                              type="button"
-                              onClick={() => { toggleRaider(m, true); setShowAddModal(false); }}
-                              className="flex-1 text-left min-w-0"
-                            >
-                              <span className="font-medium" style={{ color: cc }}>{m.name}</span>
-                              <span className="text-slate-500 text-sm"> · Lv{m.level} · {m.class}</span>
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          </>
-        )}
 
         {/* Save toast - bottom right, auto-dismiss */}
         {saveMsg && (

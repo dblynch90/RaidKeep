@@ -139,23 +139,21 @@ export function RaidRosterPopout() {
 
       {/* Excel-style table - full width */}
       <div className="overflow-auto p-4" style={{ minHeight: "calc(100vh - 60px)" }}>
-        <table className="w-full border-collapse text-sm table-fixed" style={{ minWidth: 1000 }}>
+        <table className="w-full border-collapse text-sm table-fixed" style={{ minWidth: 900 }}>
           <colgroup>
-            <col style={{ width: "12%" }} />
-            <col style={{ width: "9%" }} />
-            <col style={{ width: "12%" }} />
-            <col style={{ width: "6%" }} />
-            <col style={{ width: "7%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "22%" }} />
+            <col style={{ width: "8%" }} />
+            <col style={{ width: "8%" }} />
             <col style={{ width: "10%" }} />
-            <col style={{ width: "4%" }} />
-            <col style={{ width: "4%" }} />
-            <col style={{ width: "36%" }} />
+            <col style={{ width: "5%" }} />
+            <col style={{ width: "5%" }} />
+            <col style={{ width: "28%" }} />
           </colgroup>
           <thead>
             <tr className="border-b border-slate-600">
               <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Player</th>
-              <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Class</th>
-              <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Availability</th>
+              <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">General Availability</th>
               <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Role</th>
               <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Off Role</th>
               <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Team</th>
@@ -167,7 +165,7 @@ export function RaidRosterPopout() {
           <tbody>
             {sortedRaiders.length === 0 ? (
               <tr>
-                <td colSpan={9} className="py-12 text-center text-slate-500">
+                <td colSpan={8} className="py-12 text-center text-slate-500">
                   No raiders in roster.
                 </td>
               </tr>
@@ -186,7 +184,6 @@ export function RaidRosterPopout() {
                     <td className="py-2 px-3 font-medium" style={{ color: classColor }}>
                       {r.character_name}
                     </td>
-                    <td className="py-2 px-3 text-slate-400">{r.character_class}</td>
                     <td className="py-2 px-3">
                       <span className="flex gap-0.5 flex-wrap">
                         {DAYS.map((d, i) => (

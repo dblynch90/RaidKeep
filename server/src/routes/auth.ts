@@ -1303,7 +1303,7 @@ authRoutes.patch("/me/raider-roster/self", requireAuth, (req, res) => {
      AND (bnc.server_type = ? OR (bnc.server_type IS NULL AND ? = 'Retail'))`
   ).all(userId, realmSlug, guild_name, guild_name, serverType, serverType) as Array<{ name: string }>;
   const myCharSet = new Set(myCharRows.map((r) => r.name));
-  for (const u of updates as Array<{ character_name: string; availability?: string; notes?: string }>) {
+  for (const u of updates as Array<{ character_name: string; availability?: string; notes?: string; raid_role?: string; primary_spec?: string }>) {
     const charName = (u.character_name || "").trim();
     if (!charName || !myCharSet.has(charName.toLowerCase())) continue;
     const sets: string[] = [];
@@ -1315,6 +1315,14 @@ authRoutes.patch("/me/raider-roster/self", requireAuth, (req, res) => {
     if (typeof u.notes === "string") {
       sets.push("notes = ?");
       vals.push(u.notes.trim() || null);
+    }
+    if (typeof u.raid_role === "string") {
+      sets.push("raid_role = ?");
+      vals.push(u.raid_role.trim() || null);
+    }
+    if (typeof u.primary_spec === "string") {
+      sets.push("primary_spec = ?");
+      vals.push(u.primary_spec.trim() || null);
     }
     if (sets.length > 0) {
       vals.push(realmSlug, guild_name, serverType, charName);
