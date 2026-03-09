@@ -559,7 +559,7 @@ export function RaiderRoster() {
                     Guild Members
                   </button>
                 </nav>
-                {activeTab === "roster" && (canEdit || canEditOwnAvailabilityAndNotes) ? (
+                {activeTab === "roster" && canEdit ? (
                   <button
                     type="button"
                     onClick={handleSave}

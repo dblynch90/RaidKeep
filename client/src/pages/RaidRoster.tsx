@@ -599,7 +599,7 @@ export function RaidRoster() {
                   </button>
                 </>
               )}
-              {(canEdit || canEditOwnAvailabilityAndNotes) && (
+              {canEdit && (
                 <button
                   type="button"
                   onClick={handleSave}
