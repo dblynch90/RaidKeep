@@ -180,6 +180,7 @@ export function PlanRaid() {
   const [unavailableSlots, setUnavailableSlots] = useState<RaidSlot[]>([]);
   const [showGuildRosterDrawer, setShowGuildRosterDrawer] = useState(false);
   const [unavailableExpanded, setUnavailableExpanded] = useState(false);
+  const [showLoadFromModal, setShowLoadFromModal] = useState(false);
 
   const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
 
@@ -420,6 +421,31 @@ export function PlanRaid() {
 
   const addParty = () => {
     setParties((prev) => [...prev, Array(SLOTS_PER_PARTY).fill(null)]);
+  };
+
+  const loadFromTeam = (teamId: number) => {
+    const team = teams.find((t) => t.id === teamId);
+    if (!team?.members.length) return;
+    const slots: RaidSlot[] = team.members.map((m) => {
+      const raiderData = getRaiderData(m.character_name);
+      return {
+        characterName: m.character_name,
+        characterClass: m.character_class,
+        role: raidRoleToMainRole(raiderData?.raid_role ?? ""),
+        isRaidLead: raiderData?.raid_lead ?? false,
+        isRaidAssist: raiderData?.raid_assist ?? false,
+      };
+    });
+    const newParties: (RaidSlot | null)[][] = [];
+    for (let i = 0; i < slots.length; i += SLOTS_PER_PARTY) {
+      const party: (RaidSlot | null)[] = [];
+      for (let j = 0; j < SLOTS_PER_PARTY; j++) {
+        party.push(slots[i + j] ?? null);
+      }
+      newParties.push(party);
+    }
+    if (newParties.length === 0) newParties.push(Array(SLOTS_PER_PARTY).fill(null));
+    setParties(newParties);
   };
 
   const loadFromPreviousRaid = async (raidIdToLoad: number) => {
@@ -1031,63 +1057,13 @@ export function PlanRaid() {
                           </button>
                         )}
                         {(teams.length > 0 || raidsForCopy.length > 0) && (
-                          <select
-                            className="px-2.5 py-1.5 rounded-md bg-slate-800/50 border border-slate-600 text-slate-300 text-sm hover:border-slate-500 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
-                            defaultValue=""
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              e.target.value = "";
-                              if (!val) return;
-                              const [type, idStr] = val.split(":");
-                              const id = parseInt(idStr ?? "0", 10);
-                              if (type === "team" && id) {
-                                const team = teams.find((t) => t.id === id);
-                                if (!team?.members.length) return;
-                                const slots: RaidSlot[] = team.members.map((m) => {
-                                  const raiderData = getRaiderData(m.character_name);
-                                  return {
-                                    characterName: m.character_name,
-                                    characterClass: m.character_class,
-                                    role: raidRoleToMainRole(raiderData?.raid_role ?? ""),
-                                    isRaidLead: raiderData?.raid_lead ?? false,
-                                    isRaidAssist: raiderData?.raid_assist ?? false,
-                                  };
-                                });
-                                const newParties: (RaidSlot | null)[][] = [];
-                                for (let i = 0; i < slots.length; i += SLOTS_PER_PARTY) {
-                                  const party: (RaidSlot | null)[] = [];
-                                  for (let j = 0; j < SLOTS_PER_PARTY; j++) {
-                                    party.push(slots[i + j] ?? null);
-                                  }
-                                  newParties.push(party);
-                                }
-                                if (newParties.length === 0) newParties.push(Array(SLOTS_PER_PARTY).fill(null));
-                                setParties(newParties);
-                              } else if (type === "raid" && id) {
-                                loadFromPreviousRaid(id);
-                              }
-                            }}
+                          <button
+                            type="button"
+                            onClick={() => setShowLoadFromModal(true)}
+                            className="px-2.5 py-1.5 rounded-md bg-slate-800/50 border border-slate-600 text-slate-300 text-sm hover:border-slate-500 hover:bg-slate-700/50 transition"
                           >
-                            <option value="">Load from...</option>
-                            {teams.length > 0 && (
-                              <optgroup label="Raid Team">
-                                {teams.map((t) => (
-                                  <option key={`team-${t.id}`} value={`team:${t.id}`}>
-                                    {t.team_name} ({t.members.length})
-                                  </option>
-                                ))}
-                              </optgroup>
-                            )}
-                            {raidsForCopy.length > 0 && (
-                              <optgroup label="Previous Raid">
-                                {raidsForCopy.map((r) => (
-                                  <option key={`raid-${r.id}`} value={`raid:${r.id}`}>
-                                    {r.raid_name} — {formatRaidDateShort(r.raid_date)}
-                                  </option>
-                                ))}
-                              </optgroup>
-                            )}
-                          </select>
+                            Load From...
+                          </button>
                         )}
                         <button
                           type="button"
@@ -1298,6 +1274,85 @@ export function PlanRaid() {
                   {saveMessage.text}
                 </span>
               </div>
+            )}
+
+            {showLoadFromModal && (
+              <>
+                <div
+                  className="fixed inset-0 z-50 bg-black/60"
+                  onClick={() => setShowLoadFromModal(false)}
+                  aria-hidden
+                />
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+                  <div
+                    className="pointer-events-auto w-full max-w-md rounded-xl border border-slate-600 bg-slate-800 shadow-xl"
+                    style={{
+                      background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+                    }}
+                  >
+                    <div className="flex items-center justify-between p-4 border-b border-slate-700">
+                      <h3 className="text-slate-200 font-semibold">Load from Team or Previous Raid</h3>
+                      <button
+                        type="button"
+                        onClick={() => setShowLoadFromModal(false)}
+                        className="w-8 h-8 flex items-center justify-center rounded text-slate-500 hover:text-slate-200 hover:bg-slate-700"
+                        aria-label="Close"
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <div className="p-4 max-h-[60vh] overflow-y-auto space-y-6">
+                      {teams.length > 0 && (
+                        <section>
+                          <h4 className="text-slate-400 text-xs font-medium uppercase tracking-wider mb-2">Raid Team</h4>
+                          <div className="space-y-1">
+                            {teams.map((t) => (
+                              <button
+                                key={`team-${t.id}`}
+                                type="button"
+                                onClick={() => {
+                                  loadFromTeam(t.id);
+                                  setShowLoadFromModal(false);
+                                }}
+                                disabled={!t.members.length}
+                                className="w-full text-left px-4 py-3 rounded-lg bg-slate-700/50 hover:bg-slate-600/60 border border-slate-600/80 text-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                              >
+                                <span className="font-medium">{t.team_name}</span>
+                                <span className="text-slate-500 text-sm ml-2">({t.members.length})</span>
+                              </button>
+                            ))}
+                          </div>
+                        </section>
+                      )}
+                      {raidsForCopy.length > 0 && (
+                        <section>
+                          <h4 className="text-slate-400 text-xs font-medium uppercase tracking-wider mb-2">Previous Raid</h4>
+                          <div className="space-y-1">
+                            {raidsForCopy.map((r) => (
+                              <button
+                                key={`raid-${r.id}`}
+                                type="button"
+                                onClick={() => {
+                                  loadFromPreviousRaid(r.id);
+                                  setShowLoadFromModal(false);
+                                }}
+                                className="w-full text-left px-4 py-3 rounded-lg bg-slate-700/50 hover:bg-slate-600/60 border border-slate-600/80 text-slate-200 transition"
+                              >
+                                <span className="font-medium">{r.raid_name}</span>
+                                <span className="text-slate-500 text-sm ml-2">
+                                  {formatRaidDateShort(r.raid_date)}
+                                  {r.raid_instance ? ` · ${r.raid_instance}` : ""}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </section>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </>
             )}
           </div>
         )}
@@ -1651,7 +1706,7 @@ function RaidSlotCard({
 
   return (
     <div
-      className={`rounded-lg border min-h-[76px] min-w-[120px] flex flex-col transition-all duration-150 ${
+      className={`rounded-lg border min-h-[76px] min-w-[140px] flex flex-col transition-all duration-150 ${
         slot
           ? `border-slate-600/80 ${dragOver ? "ring-2 ring-sky-500 ring-inset bg-sky-500/10" : "hover:shadow-md hover:border-slate-500 hover:ring-1 hover:ring-slate-500/50"}`
           : dragOver
@@ -1675,6 +1730,7 @@ function RaidSlotCard({
               e.preventDefault();
               return;
             }
+            setShowRoleHover(false);
             e.dataTransfer.setData(
               DRAG_TYPE_PARTY_SLOT,
               JSON.stringify({ slotData: slot, fromPartyIdx: partyIdx, fromSlotIdx: slotIdx })
@@ -1689,9 +1745,9 @@ function RaidSlotCard({
           }}
         >
           <div className="flex justify-between items-start gap-2">
-            <div className="flex-1 min-w-0 overflow-hidden">
+            <div className="flex-1 min-w-0">
               <span
-                className="font-medium text-slate-100 text-sm block truncate"
+                className="font-medium text-slate-100 text-sm block break-words"
                 title={slot.characterName}
               >
                 {slot.characterName}
