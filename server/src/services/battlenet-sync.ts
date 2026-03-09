@@ -32,23 +32,31 @@ function generateCode() {
 
 /**
  * Sync guilds from user's WoW profile.
- * When preferredServerType is set, only fetches that game version to speed up login.
+ * @param serverTypesToFetch - If empty/null, skips all API calls (for new users who haven't selected a version).
+ *   For returning users: array of server types to fetch (e.g. ["Retail", "Seasons of Discovery"]).
+ *   Should include: user's default game version + server types where they have cached guilds.
  */
 export async function syncGuildsFromBattleNet(
   userId: number,
   accessToken: string,
   region: string,
-  preferredServerType?: string
+  serverTypesToFetch: string[] | null
 ): Promise<{ guildsImported: number; charactersImported: number }> {
   let guildsImported = 0;
   let charactersImported = 0;
 
-  let profileFetches =
-    preferredServerType && preferredServerType !== "Please Select"
-      ? PROFILE_FETCHES.filter((p) => p.serverType === preferredServerType)
-      : PROFILE_FETCHES;
+  if (!serverTypesToFetch || serverTypesToFetch.length === 0) {
+    console.log("Battle.net sync: skipped (no server types to fetch - new user or no selection)");
+    return { guildsImported, charactersImported };
+  }
+
+  const validTypes = new Set(PROFILE_FETCHES.map((p) => p.serverType));
+  const profileFetches = PROFILE_FETCHES.filter((p) =>
+    serverTypesToFetch.includes(p.serverType) && validTypes.has(p.serverType)
+  );
   if (profileFetches.length === 0) {
-    profileFetches = PROFILE_FETCHES;
+    console.log("Battle.net sync: no valid server types to fetch");
+    return { guildsImported, charactersImported };
   }
 
   const debugLog: Array<{ serverType: string; status: string; accounts: number; rawChars: number; parsed: number; sample?: unknown }> = [];

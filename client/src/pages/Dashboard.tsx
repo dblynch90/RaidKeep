@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import type { MyCharacter } from "../api";
@@ -198,6 +198,7 @@ export function Dashboard() {
   const [guildsSynced, setGuildsSynced] = useState(false);
   const [characterFactionFilter, setCharacterFactionFilter] = useState<string>("");
   const [characterRealmFilter, setCharacterRealmFilter] = useState<string>("");
+  const syncedVersionsRef = useRef<Set<string>>(new Set());
 
   const fetchPreferences = () =>
     api.get<{ preferences: Record<string, string> }>("/auth/me/preferences").then((res) => {
@@ -329,14 +330,29 @@ export function Dashboard() {
     if (!initialLoadDone || !gameVersion || gameVersion === "Please Select") return;
     const hasDataForVersion = allCharacters.some((c) => (c.server_type ?? "Retail") === gameVersion);
     if (hasDataForVersion) return;
+    const v = gameVersion;
     setLoading(true);
-    Promise.all([
-      api.get<{ characters: MyCharacter[]; syncStatus?: { lastSyncAt: string | null } }>(`/auth/me/characters?server_type=${encodeURIComponent(gameVersion)}`),
-      api.get<{ raids: SavedRaid[] }>(`/auth/me/saved-raids/my-assignments?server_type=${encodeURIComponent(gameVersion)}`),
-    ])
-      .then(([charsRes, raidsRes]) => {
+    const loadForVersion = (ver: string) =>
+      Promise.all([
+        api.get<{ characters: MyCharacter[]; syncStatus?: { lastSyncAt: string | null } }>(`/auth/me/characters?server_type=${encodeURIComponent(ver)}`),
+        api.get<{ raids: SavedRaid[] }>(`/auth/me/saved-raids/my-assignments?server_type=${encodeURIComponent(ver)}`),
+      ]);
+    loadForVersion(v)
+      .then(async ([charsRes, raidsRes]) => {
         setAllCharacters(charsRes.characters ?? []);
         setMyAssignmentRaids(raidsRes.raids ?? []);
+        // New user / uncached version: fetch returned empty, trigger on-demand sync
+        if ((charsRes.characters?.length ?? 0) === 0 && !syncedVersionsRef.current.has(v)) {
+          syncedVersionsRef.current.add(v);
+          try {
+            await api.post<{ ok: boolean }>("/auth/me/sync", { server_type: v });
+            const [afterChars, afterRaids] = await loadForVersion(v);
+            setAllCharacters(afterChars.characters ?? []);
+            setMyAssignmentRaids(afterRaids.raids ?? []);
+          } catch {
+            syncedVersionsRef.current.delete(v);
+          }
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false));

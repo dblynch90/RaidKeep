@@ -1324,6 +1324,35 @@ authRoutes.delete("/me/saved-raids/:id", requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// On-demand sync when user selects a game version (e.g. new user, or adding another version)
+authRoutes.post("/me/sync", requireAuth, async (req, res) => {
+  const serverType = (req.body?.server_type ?? req.query?.server_type) as string | undefined;
+  if (!serverType || serverType === "Please Select" || !serverType.trim()) {
+    res.status(400).json({ error: "server_type is required (e.g. Retail, Seasons of Discovery)" });
+    return;
+  }
+  const validTypes = ["Retail", "Classic Era", "Classic Hardcore", "TBC Anniversary", "MOP Classic", "Seasons of Discovery"];
+  if (!validTypes.includes(serverType)) {
+    res.status(400).json({ error: "Invalid server_type" });
+    return;
+  }
+  const userId = req.session!.user!.id;
+  const accessToken = (req.session as unknown as Record<string, unknown>).battlenetAccessToken as string | undefined;
+  const region = (req.session as unknown as Record<string, unknown>).battlenetRegion as string | undefined;
+  const expiresAt = (req.session as unknown as Record<string, unknown>).battlenetTokenExpiresAt as number | undefined;
+  if (!accessToken || !region || !expiresAt || Date.now() > expiresAt) {
+    res.status(401).json({ error: "Battle.net session expired. Please log in again with Battle.net to sync." });
+    return;
+  }
+  try {
+    const result = await syncGuildsFromBattleNet(userId, accessToken, region, [serverType]);
+    res.json({ ok: true, guildsImported: result.guildsImported, charactersImported: result.charactersImported });
+  } catch (err) {
+    console.error("On-demand sync error:", err);
+    res.status(502).json({ error: err instanceof Error ? err.message : "Sync failed" });
+  }
+});
+
 // Sync a single character's guild from Blizzard (when viewing character)
 authRoutes.post("/me/characters/:id/sync-guild", requireAuth, async (req, res) => {
   const characterId = parseInt(paramStr(req.params.id), 10);
@@ -1458,15 +1487,29 @@ authRoutes.post("/battlenet/callback", async (req, res) => {
       username: user.username,
       role: user.role,
     };
+    (req.session as unknown as Record<string, unknown>).battlenetAccessToken = tokenRes.access_token;
+    (req.session as unknown as Record<string, unknown>).battlenetRegion = region;
+    (req.session as unknown as Record<string, unknown>).battlenetTokenExpiresAt = Date.now() + (tokenRes.expires_in ?? 86400) * 1000;
 
     // Return immediately to avoid timeout (Vercel/Render ~30s). Sync runs in background.
     res.json({ user: req.session!.user });
 
+    // New user: no API calls until they select a game version. Returning user: only sync server types they have guilds in + default.
+    const guildServerTypes = db.prepare(
+      "SELECT DISTINCT g.server_type FROM guilds g JOIN guild_members gm ON gm.guild_id = g.id WHERE gm.user_id = ?"
+    ).all(user.id) as Array<{ server_type: string }>;
     const prefRow = db.prepare("SELECT pref_value FROM user_preferences WHERE user_id = ? AND pref_key = ?").get(user.id, "game_version") as { pref_value: string } | undefined;
-    const preferredGameVersion = prefRow?.pref_value?.trim();
-    const serverType = preferredGameVersion && preferredGameVersion !== "Please Select" ? preferredGameVersion : undefined;
+    const defaultGameVersion = prefRow?.pref_value?.trim();
+    const hasCachedData = guildServerTypes.length > 0 || (!!defaultGameVersion && defaultGameVersion !== "Please Select");
 
-    syncGuildsFromBattleNet(user.id, tokenRes.access_token, region, serverType)
+    let serverTypesToFetch: string[] | null = null;
+    if (hasCachedData) {
+      const types = new Set<string>(guildServerTypes.map((r) => r.server_type));
+      if (defaultGameVersion && defaultGameVersion !== "Please Select") types.add(defaultGameVersion);
+      serverTypesToFetch = [...types];
+    }
+
+    syncGuildsFromBattleNet(user.id, tokenRes.access_token, region, serverTypesToFetch)
       .then((syncResult) => {
         if (syncResult.guildsImported > 0) {
           console.log(`Synced ${syncResult.guildsImported} guild(s) for user ${user.username}`);

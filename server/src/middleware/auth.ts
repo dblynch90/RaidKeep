@@ -9,6 +9,9 @@ export interface SessionUser {
 declare module "express-session" {
   interface SessionData {
     user?: SessionUser;
+    battlenetAccessToken?: string;
+    battlenetRegion?: string;
+    battlenetTokenExpiresAt?: number;
   }
 }
 
