@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://api.raidkeep.com/api/:path*"
+      "destination": "https://raidkeep-b9fb.onrender.com/api/:path*"
     }
   ]
 }
