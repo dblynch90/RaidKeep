@@ -932,13 +932,18 @@ export function PlanRaid() {
                     <BackupDropZone
                       backups={backups}
                       onDropFromParty={moveSlotToBackup}
-                      onDropFromRoster={(name, charClass) => {
+                      onDropFromRoster={(name) => {
                         const member = displayedRosterMembers.find((m) => m.name === name);
                         if (member && !backupNames.has(member.name.toLowerCase())) addBackup(member);
                       }}
                       onAddBackupFromCharacter={(characterName, characterClass) => {
                         if (!backupNames.has(characterName.toLowerCase())) {
-                          addBackup({ name: characterName, class: characterClass, level: 0 });
+                          addBackup({
+                            name: characterName,
+                            class: characterClass,
+                            level: 0,
+                            role: "",
+                          });
                         }
                       }}
                       onRemoveBackup={removeBackup}
