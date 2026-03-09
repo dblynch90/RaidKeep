@@ -110,6 +110,7 @@ export function RaiderRoster() {
   const [activeTab, setActiveTab] = useState<"guild" | "roster" | "teams">("roster");
   const [guildMemberFilter, setGuildMemberFilter] = useState<"all" | "raider" | "non-raider">("all");
   const [teamNameDrafts, setTeamNameDrafts] = useState<Record<number, string>>({});
+  const [selectedGuildMembers, setSelectedGuildMembers] = useState<Set<string>>(new Set());
 
   const manageUrl = `/manage-raids?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
 
@@ -238,6 +239,56 @@ export function RaiderRoster() {
       );
     }
   };
+
+  const addSelectedMembers = () => {
+    const toAdd = displayGuildMembers.filter(
+      (m) => !raiderMap.has(m.name.toLowerCase()) && selectedGuildMembers.has(m.name.toLowerCase())
+    );
+    if (toAdd.length === 0) return;
+    setRaiders((prev) => {
+      const existing = new Set(prev.map((r) => r.character_name.toLowerCase()));
+      const newRaiders = toAdd
+        .filter((m) => !existing.has(m.name.toLowerCase()))
+        .map((m) => ({
+          character_name: m.name,
+          character_class: m.class,
+          primary_spec: "",
+          off_spec: "",
+          notes: "",
+          raid_role: "",
+          raid_lead: false,
+          raid_assist: false,
+        }));
+      return [...prev, ...newRaiders];
+    });
+    setSelectedGuildMembers(new Set());
+  };
+
+  const toggleGuildMemberSelection = (name: string) => {
+    const key = name.toLowerCase();
+    if (raiderMap.has(key)) return;
+    setSelectedGuildMembers((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const selectAllNonRaiders = () => {
+    const nonRaiders = displayGuildMembers
+      .filter((m) => !raiderMap.has(m.name.toLowerCase()))
+      .map((m) => m.name.toLowerCase());
+    setSelectedGuildMembers(new Set(nonRaiders));
+  };
+
+  const clearGuildMemberSelection = () => setSelectedGuildMembers(new Set());
+
+  const selectedNonRaiderCount = useMemo(() => {
+    return displayGuildMembers.filter(
+      (m) => !raiderMap.has(m.name.toLowerCase()) && selectedGuildMembers.has(m.name.toLowerCase())
+    ).length;
+  }, [displayGuildMembers, raiderMap, selectedGuildMembers]);
 
   const updateRaider = (name: string, updates: Partial<RaiderEntry>) => {
     setRaiders((prev) =>
@@ -425,7 +476,7 @@ export function RaiderRoster() {
               {activeTab === "guild" && (
                 <>
                   <p className="text-slate-500 text-sm mb-3">
-                    Add members to your raid roster. Raiders are marked with ✓ Raider in green.
+                    Add members to your raid roster. Select multiple and add at once, or add individually. Raiders are marked with ✓ Raider.
                   </p>
                   <div className="flex flex-wrap gap-3 mb-3">
                     <input
@@ -484,6 +535,30 @@ export function RaiderRoster() {
                         ))}
                       </div>
                     </div>
+                    <div className="flex items-center gap-2 ml-auto flex-wrap">
+                      <button
+                        type="button"
+                        onClick={selectAllNonRaiders}
+                        className="px-2 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 border border-slate-600"
+                      >
+                        Select all non-raiders
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearGuildMemberSelection}
+                        className="px-2 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 border border-slate-600"
+                      >
+                        Clear selection
+                      </button>
+                      <button
+                        type="button"
+                        onClick={addSelectedMembers}
+                        disabled={selectedNonRaiderCount === 0}
+                        className="px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium border border-sky-500/50"
+                      >
+                        Add selected {selectedNonRaiderCount > 0 ? `(${selectedNonRaiderCount})` : ""}
+                      </button>
+                    </div>
                   </div>
                   <div className="max-h-[420px] overflow-y-auto space-y-1.5">
                     {displayGuildMembers.length === 0 ? (
@@ -494,12 +569,25 @@ export function RaiderRoster() {
                       displayGuildMembers.map((m) => {
                         const classColor = getClassColor(m.class);
                         const isRaider = raiderMap.has(m.name.toLowerCase());
+                        const isSelected = selectedGuildMembers.has(m.name.toLowerCase());
                         return (
                           <div
                             key={m.name}
                             className="flex items-center gap-2 rounded-lg border border-slate-600 p-2 hover:bg-slate-800/50"
                             style={{ borderLeftWidth: 4, borderLeftColor: classColor }}
                           >
+                            {!isRaider ? (
+                              <label className="shrink-0 flex items-center cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => toggleGuildMemberSelection(m.name)}
+                                  className="rounded border-slate-600 bg-slate-700 text-sky-500 focus:ring-sky-500/50"
+                                />
+                              </label>
+                            ) : (
+                              <span className="w-4 shrink-0" />
+                            )}
                             <span className="truncate flex-1 min-w-0 text-sm">
                               <span className="font-medium text-sm" style={{ color: classColor }}>{m.name}</span>
                               <span className="text-slate-500"> – {m.level} – {m.class}</span>
@@ -516,7 +604,7 @@ export function RaiderRoster() {
                                 className="shrink-0 h-7 px-2 flex items-center justify-center rounded bg-sky-600/90 hover:bg-sky-500 text-white text-sm font-medium border border-sky-500/50"
                                 title="Add to roster"
                               >
-                                Add to Raid Roster
+                                Add
                               </button>
                             )}
                           </div>
