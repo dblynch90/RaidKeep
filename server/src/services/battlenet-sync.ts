@@ -11,14 +11,12 @@ import {
   fetchGuildRoster,
 } from "./blizzard.js";
 
-// Blizzard API: Retail, Classic Era, Classic Hardcore, TBC Anniversary, MOP Classic, and Seasons of Discovery.
-// Note: "classic" namespace returns SoD/Wrath/MoP chars; we store as Seasons of Discovery. MOP Classic shares this namespace.
+// Blizzard API: Retail, Classic Era, TBC Anniversary, MOP Classic
 const PROFILE_FETCHES: Array<{ serverType: string; apiNamespace: "retail" | "classic-era" | "classic" | "classicann" }> = [
   { serverType: "Retail", apiNamespace: "retail" },
   { serverType: "Classic Era", apiNamespace: "classic-era" },
-  { serverType: "Classic Hardcore", apiNamespace: "classic-era" },
   { serverType: "TBC Anniversary", apiNamespace: "classicann" },
-  { serverType: "Seasons of Discovery", apiNamespace: "classic" },
+  { serverType: "MOP Classic", apiNamespace: "classic" },
 ];
 
 function generateCode() {
@@ -33,7 +31,7 @@ function generateCode() {
 /**
  * Sync guilds from user's WoW profile.
  * @param serverTypesToFetch - If empty/null, skips all API calls (for new users who haven't selected a version).
- *   For returning users: array of server types to fetch (e.g. ["Retail", "Seasons of Discovery"]).
+ *   For returning users: array of server types to fetch (e.g. ["Retail", "MOP Classic"]).
  *   Should include: user's default game version + server types where they have cached guilds.
  */
 export async function syncGuildsFromBattleNet(

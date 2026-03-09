@@ -17,15 +17,6 @@ const RAID_INSTANCES_BY_VERSION: Record<string, string[]> = {
     "Naxxramas",
     "Zul'Gurub",
   ],
-  "Classic Hardcore": [
-    "Molten Core",
-    "Onyxia's Lair",
-    "Blackwing Lair",
-    "Temple of Ahn'Qiraj",
-    "Ruins of Ahn'Qiraj",
-    "Naxxramas",
-    "Zul'Gurub",
-  ],
   "TBC Anniversary": [
     "Karazhan",
     "Gruul's Lair",
@@ -35,15 +26,6 @@ const RAID_INSTANCES_BY_VERSION: Record<string, string[]> = {
     "Battle for Mount Hyjal",
     "Black Temple",
     "Sunwell Plateau",
-  ],
-  "Seasons of Discovery": [
-    "Molten Core",
-    "Onyxia's Lair",
-    "Blackwing Lair",
-    "Temple of Ahn'Qiraj",
-    "Ruins of Ahn'Qiraj",
-    "Naxxramas",
-    "Zul'Gurub",
   ],
   "MOP Classic": [
     "Mogu'shan Vaults",

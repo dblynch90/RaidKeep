@@ -36,7 +36,7 @@ guildRoutes.get("/", requireAuth, (req, res) => {
   res.json({ guilds });
 });
 
-const VALID_SERVER_TYPES = ["Retail", "Classic Era", "Classic Hardcore", "TBC Anniversary", "MOP Classic", "Seasons of Discovery"];
+const VALID_SERVER_TYPES = ["Retail", "Classic Era", "TBC Anniversary", "MOP Classic"];
 
 // Create guild (leader only)
 guildRoutes.post("/", requireAuth, (req, res) => {
@@ -130,7 +130,7 @@ guildRoutes.post("/import-export", requireAuth, async (req, res) => {
     return;
   }
   if (!VALID_SERVER_TYPES.includes(serverType)) {
-    res.status(400).json({ error: "Invalid server_type. Use: Retail, Classic Era, Classic Hardcore, TBC Anniversary, MOP Classic, Seasons of Discovery" });
+    res.status(400).json({ error: "Invalid server_type. Use: Retail, Classic Era, TBC Anniversary, MOP Classic" });
     return;
   }
 

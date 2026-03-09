@@ -779,11 +779,11 @@ authRoutes.put("/me/preferences", requireAuth, (req, res) => {
 });
 
 // Guild permissions (rank-based access control)
-type PermissionKey = "view_guild_dashboard" | "view_guild_roster" | "view_raid_roster" | "view_raid_schedule" | "manage_raids" | "manage_raid_roster" | "manage_permissions";
+type PermissionKey = "view_guild_dashboard" | "view_guild_roster" | "view_raid_roster" | "view_raid_schedule" | "manage_raids" | "manage_raid_roster" | "manage_permissions" | "manage_guild_crafters";
 
 const PERMISSION_KEYS: PermissionKey[] = [
   "view_guild_dashboard", "view_guild_roster", "view_raid_roster", "view_raid_schedule",
-  "manage_raids", "manage_raid_roster", "manage_permissions",
+  "manage_raids", "manage_raid_roster", "manage_permissions", "manage_guild_crafters",
 ];
 
 const DEFAULT_PERMISSIONS: Record<PermissionKey, boolean> = {
@@ -794,6 +794,7 @@ const DEFAULT_PERMISSIONS: Record<PermissionKey, boolean> = {
   manage_raids: true,
   manage_raid_roster: true,
   manage_permissions: true,
+  manage_guild_crafters: true,
 };
 
 const NO_PERMISSIONS: Record<PermissionKey, boolean> = {
@@ -804,6 +805,7 @@ const NO_PERMISSIONS: Record<PermissionKey, boolean> = {
   manage_raids: false,
   manage_raid_roster: false,
   manage_permissions: false,
+  manage_guild_crafters: false,
 };
 
 function defaultConfigForRank(rankIndex: number): Record<PermissionKey, boolean> {
@@ -817,6 +819,7 @@ function defaultConfigForRank(rankIndex: number): Record<PermissionKey, boolean>
       manage_raids: true,
       manage_raid_roster: true,
       manage_permissions: false,
+      manage_guild_crafters: true,
     };
   }
   return {
@@ -827,6 +830,7 @@ function defaultConfigForRank(rankIndex: number): Record<PermissionKey, boolean>
     manage_raids: false,
     manage_raid_roster: false,
     manage_permissions: false,
+    manage_guild_crafters: false,
   };
 }
 
@@ -931,6 +935,7 @@ authRoutes.get("/me/guild-permissions", requireAuth, (req, res) => {
         manage_raids: perms.manage_raids || override.manage_raids,
         manage_raid_roster: perms.manage_raid_roster || override.manage_raid_roster,
         manage_permissions: perms.manage_permissions || override.manage_permissions,
+        manage_guild_crafters: perms.manage_guild_crafters || override.manage_guild_crafters,
       };
     }
   }
@@ -1094,6 +1099,7 @@ function getEffectiveGuildPermissions(
         manage_raids: perms.manage_raids || override.manage_raids,
         manage_raid_roster: perms.manage_raid_roster || override.manage_raid_roster,
         manage_permissions: perms.manage_permissions || override.manage_permissions,
+        manage_guild_crafters: perms.manage_guild_crafters || override.manage_guild_crafters,
       };
     }
   }
@@ -1195,6 +1201,53 @@ authRoutes.delete("/me/guild-character-overrides", requireAuth, (req, res) => {
     return { character_name: o.character_name, permissions: p };
   });
   res.json({ character_overrides });
+});
+
+const PROFESSION_TYPES = [
+  "Alchemy", "Blacksmithing", "Enchanting", "Engineering", "Herbalism",
+  "Inscription", "Jewelcrafting", "Leatherworking", "Mining", "Skinning", "Tailoring",
+] as const;
+
+authRoutes.put("/me/guild-profession-star", requireAuth, (req, res) => {
+  const { realm, guild_name, server_type, character_name, profession_type, starred } = req.body;
+  if (!realm || !guild_name || !character_name || typeof character_name !== "string" || !profession_type || typeof profession_type !== "string") {
+    res.status(400).json({ error: "realm, guild_name, character_name, and profession_type required" });
+    return;
+  }
+  if (!(PROFESSION_TYPES as readonly string[]).includes(profession_type)) {
+    res.status(400).json({ error: "Invalid profession_type" });
+    return;
+  }
+  const db = getDb();
+  const userId = req.session!.user!.id;
+  const realmSlug = String(realm).toLowerCase().replace(/\s+/g, "-");
+  const serverType = server_type || "Retail";
+  const charName = String(character_name).trim();
+  const perms = getEffectiveGuildPermissions(db, userId, realmSlug, guild_name, serverType);
+  if (!perms?.manage_guild_crafters) {
+    res.status(403).json({ error: "You do not have permission to manage guild crafters" });
+    return;
+  }
+  const inRoster = db.prepare(
+    `SELECT 1 FROM raider_roster
+     WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?) LIMIT 1`
+  ).get(realmSlug, guild_name, serverType, charName);
+  if (!inRoster) {
+    res.status(400).json({ error: "Character must be on the raid roster to be starred as a guild crafter" });
+    return;
+  }
+  if (starred) {
+    db.prepare(
+      `INSERT OR IGNORE INTO guild_profession_stars (guild_realm_slug, guild_name, server_type, character_name, profession_type)
+       VALUES (?, ?, ?, ?, ?)`
+    ).run(realmSlug, guild_name, serverType, charName, profession_type);
+  } else {
+    db.prepare(
+      `DELETE FROM guild_profession_stars
+       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?) AND profession_type = ?`
+    ).run(realmSlug, guild_name, serverType, charName, profession_type);
+  }
+  res.json({ ok: true });
 });
 
 function normalizeAvailability(s: string | undefined): string {
@@ -1657,10 +1710,10 @@ authRoutes.delete("/me/saved-raids/:id", requireAuth, (req, res) => {
 authRoutes.post("/me/sync", requireAuth, async (req, res) => {
   const serverType = (req.body?.server_type ?? req.query?.server_type) as string | undefined;
   if (!serverType || serverType === "Please Select" || !serverType.trim()) {
-    res.status(400).json({ error: "server_type is required (e.g. Retail, Seasons of Discovery)" });
+    res.status(400).json({ error: "server_type is required (e.g. Retail, MOP Classic)" });
     return;
   }
-  const validTypes = ["Retail", "Classic Era", "Classic Hardcore", "TBC Anniversary", "MOP Classic", "Seasons of Discovery"];
+  const validTypes = ["Retail", "Classic Era", "TBC Anniversary", "MOP Classic"];
   if (!validTypes.includes(serverType)) {
     res.status(400).json({ error: "Invalid server_type" });
     return;

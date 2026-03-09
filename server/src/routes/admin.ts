@@ -200,6 +200,7 @@ adminRoutes.get("/guild/:realmSlug/:guildName/permissions", requireAdmin, (req, 
       manage_raids: i <= 3,
       manage_raid_roster: i <= 3,
       manage_permissions: i === 0,
+      manage_guild_crafters: i <= 3,
     };
   }
   let config = { ...defaultConfig };

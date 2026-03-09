@@ -6,14 +6,7 @@ import type { GuildPermissions } from "./GuildPermissions";
 import { LoadingOverlay } from "../components/LoadingOverlay";
 import { RaidCard } from "../components/RaidCard";
 
-const GAME_VERSIONS = [
-  "Retail",
-  "Classic Era",
-  "Classic Hardcore",
-  "TBC Anniversary",
-  "MOP Classic",
-  "Seasons of Discovery",
-];
+const GAME_VERSIONS = ["Retail", "Classic Era", "TBC Anniversary", "MOP Classic"];
 
 const ALLIANCE_RACES = ["Human", "Dwarf", "Night Elf", "Gnome", "Draenei", "Worgen", "Void Elf", "Lightforged Draenei", "Dark Iron Dwarf", "Kul Tiran", "Mechagnome"];
 const HORDE_RACES = ["Orc", "Undead", "Tauren", "Troll", "Blood Elf", "Goblin", "Nightborne", "Highmountain Tauren", "Mag'har Orc", "Zandalari Troll", "Vulpera"];
@@ -209,7 +202,12 @@ export function Dashboard() {
   const [characterRealmFilter, setCharacterRealmFilter] = useState<string>("");
   const [pendingGuildClick, setPendingGuildClick] = useState<FavoriteGuild | null>(null);
   const syncedVersionsRef = useRef<Set<string>>(new Set());
+  const gameVersionRef = useRef("");
   const navigate = useNavigate();
+
+  useEffect(() => {
+    gameVersionRef.current = gameVersion;
+  }, [gameVersion]);
 
   const fetchPreferences = () =>
     api.get<{ preferences: Record<string, string> }>("/auth/me/preferences").then((res) => {
@@ -284,9 +282,12 @@ export function Dashboard() {
         const prefs = prefsRes.preferences ?? {};
         const gv = (prefs as Record<string, string>).game_version?.trim();
         const gvStr = gv || "";
-        setGameVersion(gvStr);
-        setSavedDefaultGameVersion(gvStr);
-        const serverType = gv && gv !== "Please Select" ? gv : undefined;
+        // Only overwrite from prefs when we have a saved value; avoid reverting a new user's selection during retries
+        if (gvStr && gvStr !== "Please Select") {
+          setGameVersion(gvStr);
+          setSavedDefaultGameVersion(gvStr);
+        }
+        const serverType = gvStr && gvStr !== "Please Select" ? gvStr : (gameVersionRef.current && gameVersionRef.current !== "Please Select" ? gameVersionRef.current : undefined);
 
         const [charsRes, raidsRes] = await Promise.all([
           fetchCharacters(serverType).catch(() => ({ characters: [], syncStatus: { lastSyncAt: null } })),

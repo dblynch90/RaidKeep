@@ -4,7 +4,7 @@ import { fetchRealms } from "../services/blizzard.js";
 
 export const blizzardRoutes = Router();
 
-const VALID_SERVER_TYPES = ["Retail", "Classic Era", "Classic Hardcore", "TBC Anniversary", "MOP Classic", "Seasons of Discovery"];
+const VALID_SERVER_TYPES = ["Retail", "Classic Era", "TBC Anniversary", "MOP Classic"];
 
 blizzardRoutes.get("/realms", requireAuth, async (req, res) => {
   const region = req.query.region as string;
