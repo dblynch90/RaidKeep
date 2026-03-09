@@ -22,6 +22,9 @@ initDb();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Required when behind reverse proxy (Vercel -> Render) so secure cookies and X-Forwarded-* are trusted
+app.set("trust proxy", 1);
+
 app.use(
   cors({
     origin: [
@@ -38,6 +41,7 @@ app.use(
     secret: process.env.SESSION_SECRET || "raidkeep-dev-secret-change-in-prod",
     resave: false,
     saveUninitialized: false,
+    proxy: process.env.NODE_ENV === "production", // Trust X-Forwarded-Proto for secure cookie when behind proxy
     cookie: {
       secure: process.env.NODE_ENV === "production",
       maxAge: 7 * 24 * 60 * 60 * 1000,
