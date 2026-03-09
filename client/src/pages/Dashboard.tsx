@@ -123,12 +123,25 @@ function GuildCard({
   const guildDashboardUrl = `/guild-dashboard?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
   return (
     <div
-      className="block rounded-xl border border-white/[0.05] hover:border-sky-600/50 transition overflow-hidden"
+      className="block rounded-xl border border-white/[0.05] hover:border-sky-600/50 transition overflow-hidden relative"
       style={{
         background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)",
         boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
       }}
     >
+      {!permissionsLoaded && (
+        <div
+          className="absolute inset-0 z-20 flex items-center justify-center rounded-xl bg-slate-900/70"
+          aria-busy="true"
+          aria-label="Syncing guild data"
+        >
+          <div
+            className="h-10 w-10 rounded-full border-4 border-slate-600 border-t-sky-500 animate-spin"
+            role="status"
+            aria-hidden="true"
+          />
+        </div>
+      )}
       <div className="p-4 relative">
         <button
           type="button"
