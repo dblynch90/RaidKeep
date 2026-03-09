@@ -668,10 +668,43 @@ async function fetchCharacterProfileWithNamespace(
   return data;
 }
 
+// Cache for character guild lookups (5 min TTL, max 500 entries) - avoids redundant API calls on repeat syncs
+const characterGuildCache = new Map<
+  string,
+  { value: { guildName: string; realmSlug: string }; expiresAt: number }
+>();
+const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_MAX_SIZE = 500;
+
+function getCachedCharacterGuild(
+  key: string
+): { guildName: string; realmSlug: string } | null {
+  const entry = characterGuildCache.get(key);
+  if (!entry || Date.now() > entry.expiresAt) return null;
+  return entry.value;
+}
+
+function setCachedCharacterGuild(
+  key: string,
+  value: { guildName: string; realmSlug: string }
+): void {
+  if (characterGuildCache.size >= CACHE_MAX_SIZE) {
+    const oldest = [...characterGuildCache.entries()].sort(
+      (a, b) => a[1].expiresAt - b[1].expiresAt
+    )[0];
+    if (oldest) characterGuildCache.delete(oldest[0]);
+  }
+  characterGuildCache.set(key, {
+    value,
+    expiresAt: Date.now() + CACHE_TTL_MS,
+  });
+}
+
 /**
  * Fetch character profile to get guild. Uses app token (public data).
  * serverType determines which API (Retail vs Classic) to use.
  * For Classic TBC, tries profile-classicann first (TBC Anniversary realms).
+ * Results are cached for 5 min to speed up repeat syncs.
  */
 export async function fetchCharacterGuild(
   realmSlug: string,
@@ -679,6 +712,9 @@ export async function fetchCharacterGuild(
   region: string,
   serverType: string = "Retail"
 ): Promise<{ guildName: string; realmSlug: string } | null> {
+  const cacheKey = `${region}:${realmSlug.toLowerCase()}:${characterName.toLowerCase()}:${serverType}`;
+  const cached = getCachedCharacterGuild(cacheKey);
+  if (cached) return cached;
   const origin = region.toLowerCase() as "us" | "eu" | "kr" | "tw";
   const realmLower = realmSlug.toLowerCase().replace(/\s+/g, "-");
   const nameLower = characterName.toLowerCase().replace(/\s+/g, "-");
@@ -689,10 +725,12 @@ export async function fetchCharacterGuild(
         const data = await fetchCharacterProfileWithNamespace(realmLower, nameLower, origin, ns);
         const guild = data?.guild;
         if (guild?.name) {
-          return {
+          const result = {
             guildName: guild.name,
             realmSlug: guild.realm?.slug ?? realmLower,
           };
+          setCachedCharacterGuild(cacheKey, result);
+          return result;
         }
       } catch {
         continue;
@@ -718,10 +756,12 @@ export async function fetchCharacterGuild(
     const data = response.data as { guild?: { name?: string; realm?: { slug?: string } } };
     const guild = data?.guild;
     if (!guild?.name) return null;
-    return {
+    const result = {
       guildName: guild.name,
       realmSlug: guild.realm?.slug ?? realmLower,
     };
+    setCachedCharacterGuild(cacheKey, result);
+    return result;
   } catch {
     return null;
   }

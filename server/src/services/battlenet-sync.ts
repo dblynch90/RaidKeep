@@ -131,14 +131,23 @@ export async function syncGuildsFromBattleNet(
     const updateGuildName = db.prepare(
       "UPDATE battle_net_characters SET guild_name = ? WHERE user_id = ? AND LOWER(name) = ? AND realm_slug = ? AND server_type = ?"
     );
-    // Fetch guild info for ALL characters in parallel (Blizzard allows many concurrent requests)
-    const guildResults = await Promise.all(
-      allChars.map((c) =>
-        fetchCharacterGuild(c.realmSlug, c.name, region, c.serverType)
-          .then((info) => ({ char: c, info }))
-          .catch(() => ({ char: c, info: null }))
-      )
-    );
+    // Fetch guild info in batches of 8 to avoid Blizzard rate limiting
+    const BATCH_SIZE = 8;
+    const guildResults: Array<{ char: (typeof allChars)[0]; info: { guildName: string; realmSlug: string } | null }> = [];
+    for (let i = 0; i < allChars.length; i += BATCH_SIZE) {
+      const batch = allChars.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batch.map((c) =>
+          fetchCharacterGuild(c.realmSlug, c.name, region, c.serverType)
+            .then((info) => ({ char: c, info }))
+            .catch(() => ({ char: c, info: null }))
+        )
+      );
+      guildResults.push(...batchResults);
+      if (i + BATCH_SIZE < allChars.length) {
+        await new Promise((r) => setTimeout(r, 150));
+      }
+    }
     for (const { char, info } of guildResults) {
       if (!info) continue;
       updateGuildName.run(info.guildName, userId, char.name.toLowerCase(), char.realmSlug, char.serverType);
@@ -154,15 +163,31 @@ export async function syncGuildsFromBattleNet(
       guildsToImport.get(key)!.myChars.add(char.name.toLowerCase());
     }
 
-    for (const [, { realmSlug, guildName, serverType, myChars }] of guildsToImport) {
-      try {
-        const roster = await fetchGuildRoster(
-          region,
-          realmSlug,
-          guildName,
-          serverType
-        );
+    // Fetch all guild rosters in parallel
+    const guildEntries = Array.from(guildsToImport.entries());
+    const rosterResults = await Promise.allSettled(
+      guildEntries.map(async ([, g]) => {
+        const roster = await fetchGuildRoster(region, g.realmSlug, g.guildName, g.serverType);
+        return { ...g, roster };
+      })
+    );
 
+    for (let i = 0; i < rosterResults.length; i++) {
+      const result = rosterResults[i];
+      const [, { realmSlug, guildName, serverType, myChars }] = guildEntries[i];
+      if (result.status === "rejected") {
+        const err = result.reason;
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        if (status === 404) {
+          console.warn(`Battle.net sync: guild ${guildName} not found (404) - roster may not be available for this game version`);
+        } else {
+          console.error(`Battle.net sync: guild import failed for ${guildName}:`, err);
+        }
+        continue;
+      }
+      const { roster } = result.value;
+
+      try {
         const existing = db
           .prepare("SELECT id, join_code FROM guilds WHERE name = ? AND server = ? AND server_type = ?")
           .get(roster.name, roster.realm, serverType) as { id: number; join_code: string } | undefined;
@@ -183,12 +208,12 @@ export async function syncGuildsFromBattleNet(
           while (db.prepare("SELECT 1 FROM guilds WHERE join_code = ?").get(code)) {
             code = generateCode();
           }
-          const result = db
+          const insertResult = db
             .prepare(
               "INSERT INTO guilds (name, server, server_type, join_code) VALUES (?, ?, ?, ?)"
             )
             .run(roster.name, roster.realm, serverType, code);
-          guildId = result.lastInsertRowid as number;
+          guildId = insertResult.lastInsertRowid as number;
           db.prepare(
             "INSERT INTO guild_members (guild_id, user_id, is_leader) VALUES (?, ?, 0)"
           ).run(guildId, userId);
@@ -227,12 +252,7 @@ export async function syncGuildsFromBattleNet(
           }
         }
       } catch (err: unknown) {
-        const status = (err as { response?: { status?: number } })?.response?.status;
-        if (status === 404) {
-          console.warn(`Battle.net sync: guild ${guildName} not found (404) - roster may not be available for this game version`);
-        } else {
-          console.error(`Battle.net sync: guild import failed for ${guildName}:`, err);
-        }
+        console.error(`Battle.net sync: DB error for guild ${guildName}:`, err);
       }
     }
 
