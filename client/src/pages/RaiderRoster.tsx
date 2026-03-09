@@ -44,6 +44,9 @@ const RAID_ROLES = [
   { value: "dps", label: "DPS" },
 ] as const;
 
+const DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"] as const;
+const DEFAULT_AVAILABILITY = "0000000";
+
 interface RaiderEntry {
   character_name: string;
   character_class: string;
@@ -53,6 +56,7 @@ interface RaiderEntry {
   raid_role?: string;
   raid_lead?: boolean;
   raid_assist?: boolean;
+  availability?: string;
 }
 
 interface RaidTeam {
@@ -136,7 +140,7 @@ export function RaiderRoster() {
       .then(([members, raidersList, teamsList]) => {
         setGuildRoster(members);
         setRaiders(
-          raidersList.map((r: { character_name: string; character_class: string; primary_spec?: string; off_spec?: string; notes?: string; raid_role?: string; raid_lead?: number | boolean; raid_assist?: number | boolean }) => ({
+          raidersList.map((r: { character_name: string; character_class: string; primary_spec?: string; off_spec?: string; notes?: string; raid_role?: string; raid_lead?: number | boolean; raid_assist?: number | boolean; availability?: string }) => ({
             character_name: r.character_name,
             character_class: r.character_class,
             primary_spec: r.primary_spec ?? "",
@@ -145,6 +149,7 @@ export function RaiderRoster() {
             raid_role: r.raid_role ?? "",
             raid_lead: Boolean(r.raid_lead),
             raid_assist: Boolean(r.raid_assist),
+            availability: typeof r.availability === "string" ? r.availability.padEnd(7, "0").slice(0, 7) : DEFAULT_AVAILABILITY,
           }))
         );
         setTeams(teamsList);
@@ -231,6 +236,7 @@ export function RaiderRoster() {
           raid_role: "",
           raid_lead: false,
           raid_assist: false,
+          availability: DEFAULT_AVAILABILITY,
         },
       ]);
     } else {
@@ -258,6 +264,7 @@ export function RaiderRoster() {
           raid_role: "",
           raid_lead: false,
           raid_assist: false,
+          availability: DEFAULT_AVAILABILITY,
         }));
       return [...prev, ...newRaiders];
     });
@@ -298,6 +305,17 @@ export function RaiderRoster() {
     );
   };
 
+  const toggleAvailabilityDay = (name: string, dayIndex: number) => {
+    setRaiders((prev) =>
+      prev.map((r) => {
+        if (r.character_name.toLowerCase() !== name.toLowerCase()) return r;
+        const a = (r.availability || DEFAULT_AVAILABILITY).padEnd(7, "0").slice(0, 7).split("");
+        a[dayIndex] = a[dayIndex] === "1" ? "0" : "1";
+        return { ...r, availability: a.join("") };
+      })
+    );
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setSaveMsg(null);
@@ -316,6 +334,7 @@ export function RaiderRoster() {
           raid_role: r.raid_role || null,
           raid_lead: r.raid_lead ? 1 : 0,
           raid_assist: r.raid_assist ? 1 : 0,
+          availability: (r.availability || DEFAULT_AVAILABILITY).padEnd(7, "0").slice(0, 7),
         })),
       });
       setSaveMsg("Raid team saved.");
@@ -721,12 +740,40 @@ export function RaiderRoster() {
                                   Remove
                                 </button>
                               </div>
+                              <div className="flex flex-wrap items-center gap-2 mb-2">
+                                <span className="text-slate-500 text-xs shrink-0">Availability:</span>
+                                <div className="flex items-center gap-0.5 flex-wrap">
+                                  {DAYS.map((d, i) => {
+                                    const avail = (r.availability || DEFAULT_AVAILABILITY).padEnd(7, "0");
+                                    const checked = avail[i] === "1";
+                                    return (
+                                      <label
+                                        key={i}
+                                        className={`flex items-center justify-center shrink-0 w-9 h-6 rounded text-[9px] font-medium cursor-pointer transition-colors ${
+                                          checked
+                                            ? "bg-sky-500/30 text-sky-400 border border-sky-500/50"
+                                            : "bg-slate-700/50 text-slate-500 border border-slate-600 hover:border-slate-500"
+                                        }`}
+                                        title={d}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={checked}
+                                          onChange={() => toggleAvailabilityDay(r.character_name, i)}
+                                          className="sr-only"
+                                        />
+                                        {d}
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              </div>
                               <div className="flex flex-wrap gap-2">
                                 <select
                                   value={r.raid_role ?? ""}
                                   onChange={(e) => updateRaider(r.character_name, { raid_role: e.target.value })}
                                   className="px-2 py-1 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm"
-                                  title="Raid role"
+                                  title="Primary role"
                                 >
                                   {RAID_ROLES.map((opt) => (
                                     <option key={opt.value || "_"} value={opt.value}>
@@ -734,26 +781,31 @@ export function RaiderRoster() {
                                     </option>
                                   ))}
                                 </select>
+                                <select
+                                  value={["tank", "healer", "dps"].includes((r.off_spec ?? "").toLowerCase()) ? (r.off_spec ?? "").toLowerCase() : ""}
+                                  onChange={(e) => updateRaider(r.character_name, { off_spec: e.target.value })}
+                                  className="px-2 py-1 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm"
+                                  title="Off role"
+                                >
+                                  <option value="">— Off role</option>
+                                  <option value="tank">Tank (off)</option>
+                                  <option value="healer">Healer (off)</option>
+                                  <option value="dps">DPS (off)</option>
+                                </select>
                                 <input
                                   type="text"
                                   placeholder="Primary spec"
                                   value={r.primary_spec ?? ""}
                                   onChange={(e) => updateRaider(r.character_name, { primary_spec: e.target.value })}
                                   className="px-2 py-1 rounded bg-slate-700 border border-slate-600 text-sm w-28"
+                                  title="e.g. Restoration, Feral"
                                 />
-                                <input
-                                  type="text"
-                                  placeholder="Off-spec"
-                                  value={r.off_spec ?? ""}
-                                  onChange={(e) => updateRaider(r.character_name, { off_spec: e.target.value })}
-                                  className="px-2 py-1 rounded bg-slate-700 border border-slate-600 text-sm w-28"
-                                />
-                                <input
-                                  type="text"
-                                  placeholder="Notes"
+                                <textarea
+                                  placeholder="Your notes..."
                                   value={r.notes ?? ""}
                                   onChange={(e) => updateRaider(r.character_name, { notes: e.target.value })}
-                                  className="px-2 py-1 rounded bg-slate-700 border border-slate-600 text-sm flex-1 min-w-[180px]"
+                                  rows={2}
+                                  className="px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm flex-1 min-w-[180px] resize-y focus:ring-1 focus:ring-sky-500/50 placeholder-slate-500"
                                 />
                               </div>
                             </div>

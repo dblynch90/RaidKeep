@@ -12,6 +12,7 @@ import { PlanRaid } from "./pages/PlanRaid";
 import { RaidView } from "./pages/RaidView";
 import { ManageRaids } from "./pages/ManageRaids";
 import { RaidRoster } from "./pages/RaidRoster";
+import { RaiderRoster } from "./pages/RaiderRoster";
 import { GuildDashboard } from "./pages/GuildDashboard";
 import { RaidSchedule } from "./pages/RaidSchedule";
 import { GuildPermissions } from "./pages/GuildPermissions";
@@ -117,7 +118,7 @@ function AppRoutes() {
         path="/raider-roster"
         element={
           <ProtectedRoute>
-            <RaidRoster />
+            <RaiderRoster />
           </ProtectedRoute>
         }
       />
