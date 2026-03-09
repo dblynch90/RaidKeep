@@ -903,7 +903,7 @@ export function PlanRaid() {
                         className="w-full text-xs px-3 py-2 rounded-lg bg-slate-700/80 hover:bg-slate-600 border border-slate-600 text-slate-200 font-medium inline-flex items-center justify-center gap-1.5"
                         title="Open full roster with roles, specs, availability, and notes in a separate window"
                       >
-                        ⧉ Open Full roster in new window
+                        ⧉ Open Fullscreen Roster
                       </button>
                     )}
                   </div>

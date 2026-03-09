@@ -239,6 +239,35 @@ export function RaiderRoster() {
     return m;
   }, [guildRoster]);
 
+  const characterToTeamId = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const t of teams) {
+      for (const mbr of t.members) {
+        m.set(mbr.character_name.toLowerCase(), t.id);
+      }
+    }
+    return m;
+  }, [teams]);
+
+  const assignRaiderToTeam = async (characterName: string, characterClass: string, newTeamId: number | null) => {
+    if (!canEdit) return;
+    const currentTeamId = characterToTeamId.get(characterName.toLowerCase());
+    if (currentTeamId) {
+      const team = teams.find((t) => t.id === currentTeamId);
+      if (team) {
+        const next = team.members.filter((m) => m.character_name.toLowerCase() !== characterName.toLowerCase());
+        await updateTeamMembers(currentTeamId, next);
+      }
+    }
+    if (newTeamId) {
+      const team = teams.find((t) => t.id === newTeamId);
+      if (team) {
+        const next = [...team.members, { character_name: characterName, character_class: characterClass }];
+        await updateTeamMembers(newTeamId, next);
+      }
+    }
+  };
+
   const effectiveRaiderLevelMin = raiderLevelMin ?? maxLevelInRoster;
   const effectiveRaiderLevelMax = raiderLevelMax ?? maxLevelInRoster;
 
@@ -581,15 +610,30 @@ export function RaiderRoster() {
                     Guild Members
                   </button>
                 </nav>
-                {activeTab === "roster" && canEdit ? (
-                  <button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="px-4 py-2 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-medium text-sm shrink-0 border border-sky-500/50"
-                  >
-                    {saving ? "Saving..." : "Save Roster"}
-                  </button>
+                {activeTab === "roster" ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = `${window.location.origin}/raid-roster-popout?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
+                        window.open(url, "raid-roster-popout", "width=1400,height=900,scrollbars=yes,resizable=yes");
+                      }}
+                      className="px-3 py-2 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium text-sm shrink-0 border border-slate-600"
+                      title="Open roster in a separate window"
+                    >
+                      ⧉ Open Fullscreen Roster
+                    </button>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={handleSave}
+                        disabled={saving}
+                        className="px-4 py-2 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-medium text-sm shrink-0 border border-sky-500/50"
+                      >
+                        {saving ? "Saving..." : "Save Roster"}
+                      </button>
+                    )}
+                  </div>
                 ) : activeTab === "teams" && canEdit ? (
                   <button
                     type="button"
@@ -857,6 +901,33 @@ export function RaiderRoster() {
                                         />
                                         Assist
                                       </label>
+                                    </div>
+                                  )}
+                                  {canEdit && teams.length > 0 && (
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-slate-500 text-xs shrink-0">Team:</span>
+                                      <select
+                                        value={characterToTeamId.get(r.character_name.toLowerCase()) ?? "none"}
+                                        onChange={(e) => {
+                                          const v = e.target.value;
+                                          assignRaiderToTeam(
+                                            r.character_name,
+                                            r.character_class,
+                                            v === "none" ? null : parseInt(v, 10)
+                                          );
+                                        }}
+                                        className="px-2 py-1 rounded bg-slate-700 border border-slate-600 text-slate-200 text-xs min-w-[100px] focus:ring-1 focus:ring-sky-500/50 [color-scheme:dark]"
+                                      >
+                                        <option value="none">No team</option>
+                                        {teams.map((t) => (
+                                          <option key={t.id} value={t.id}>{t.team_name}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  )}
+                                  {!canEdit && teams.length > 0 && characterToTeamId.has(r.character_name.toLowerCase()) && (
+                                    <div className="text-slate-500 text-xs">
+                                      Team: {teams.find((t) => t.id === characterToTeamId.get(r.character_name.toLowerCase()))?.team_name ?? "—"}
                                     </div>
                                   )}
                                   <div className="flex items-center gap-2 flex-wrap">
