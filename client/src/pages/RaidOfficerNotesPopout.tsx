@@ -6,7 +6,7 @@ import { useToast } from "../context/ToastContext";
 export function RaidOfficerNotesPopout() {
   const [searchParams] = useSearchParams();
   const raidId = searchParams.get("raidId") ?? "";
-  const { addToast } = useToast();
+  const toast = useToast();
   const [notes, setNotes] = useState("");
   const [originalNotes, setOriginalNotes] = useState("");
   const [loading, setLoading] = useState(true);
@@ -44,10 +44,10 @@ export function RaidOfficerNotesPopout() {
       .patch(`/auth/me/saved-raids/${id}`, { officer_notes: notes })
       .then(() => {
         setOriginalNotes(notes);
-        addToast("Officer notes saved", "success");
+        toast.showSuccess("Officer notes saved");
       })
       .catch((err) => {
-        addToast(err instanceof Error ? err.message : "Failed to save notes", "error");
+        toast.showError(err instanceof Error ? err.message : "Failed to save notes");
       })
       .finally(() => setSaving(false));
   };
