@@ -448,7 +448,10 @@ export function Dashboard() {
       const next: Record<string, GuildPermissions> = {};
       allGuildCards.forEach((g, i) => {
         const r = results[i];
-        next[favKey(g)] = r?.status === "fulfilled" ? r.value.permissions : { view_guild_dashboard: true, view_guild_roster: true, view_raid_roster: true, view_raid_schedule: true, manage_raids: false, manage_raid_roster: false, manage_permissions: false };
+        // Only set permissions when API succeeds - on failure, leave undefined so we keep showing "Syncing Data"
+        if (r?.status === "fulfilled") {
+          next[favKey(g)] = r.value.permissions;
+        }
       });
       setGuildPermissions((prev) => ({ ...prev, ...next }));
     };
@@ -550,7 +553,7 @@ export function Dashboard() {
                   characters={g.characters}
                   isFavorite={isFavorite(g)}
                   onToggleFavorite={() => toggleFavorite(g)}
-                  canViewDashboard={guildPermissions[favKey(g)]?.view_guild_dashboard ?? true}
+                  canViewDashboard={guildPermissions[favKey(g)]?.view_guild_dashboard === true}
                   guildsSynced={guildsSynced}
                   permissionsLoaded={guildPermissions[favKey(g)] !== undefined}
                 />

@@ -796,7 +796,7 @@ export function PlanRaid() {
             </Card>
 
             <div className="flex gap-0 relative">
-              <div className="flex-1 min-w-0">
+              <div className={`flex-1 min-w-0 ${showGuildRosterDrawer ? "mr-[340px]" : ""}`}>
                 <Card className="rounded-xl shadow-lg bg-slate-800/95 border-slate-700/80">
                   <div className="p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
@@ -1046,8 +1046,8 @@ export function PlanRaid() {
               </div>
 
               {showGuildRosterDrawer && (
-                <div className="w-[340px] shrink-0 border-l border-slate-700 bg-slate-800/95 flex flex-col overflow-hidden">
-                  <div className="p-4 border-b border-slate-700 flex items-center justify-between">
+                <div className="absolute right-0 top-0 bottom-0 w-[340px] border-l border-slate-700 bg-slate-800/95 flex flex-col overflow-hidden rounded-r-xl">
+                  <div className="p-4 border-b border-slate-700 flex items-center justify-between shrink-0">
                     <h3 className="text-slate-300 font-medium text-sm">Guild Roster</h3>
                     <button
                       type="button"
@@ -1058,7 +1058,7 @@ export function PlanRaid() {
                       ×
                     </button>
                   </div>
-                  <div className="p-4 flex-1 overflow-auto">
+                  <div className="p-4 flex-1 min-h-0 overflow-y-auto">
                     <div className="flex flex-wrap items-center gap-2 mb-3">
                       <button
                         type="button"
