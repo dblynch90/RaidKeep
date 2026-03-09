@@ -267,13 +267,16 @@ export function RaidView() {
                           >
                             {s.character_class}
                           </span>
-                          <span className="text-slate-500 text-xs">{s.role}</span>
-                          {(s.is_raid_lead || s.is_raid_assist) && (
-                            <span className="text-sky-400 text-xs">
-                              {s.is_raid_lead && "RL"}
-                              {s.is_raid_lead && s.is_raid_assist && " · "}
-                              {s.is_raid_assist && "A"}
+                          {!(s.role || "").toLowerCase().includes("raid lead") && !(s.role || "").toLowerCase().includes("raid assist") && (
+                            <span className="text-slate-500 text-xs">
+                              {(s.role || "").toLowerCase() === "dps" ? "DPS" : s.role || "—"}
                             </span>
+                          )}
+                          {s.is_raid_lead && (
+                            <span className="text-sky-400 text-xs" title="Raid Lead">★ RL</span>
+                          )}
+                          {s.is_raid_assist && (
+                            <span className="text-sky-400 text-xs ml-0.5" title="Raid Assist">🛡 RA</span>
                           )}
                           {isMySlot && (
                             <span className="ml-auto flex items-center gap-0.5">
@@ -427,7 +430,11 @@ export function RaidView() {
                     >
                       {s.character_class}
                     </span>
-                    <span className="text-slate-500 text-xs">{s.role || "—"}</span>
+                    <span className="text-slate-500 text-xs">
+                      {(s.role || "").toLowerCase() === "dps" ? "DPS" : s.role || "—"}
+                    </span>
+                    {s.is_raid_lead && <span className="text-sky-400 text-xs" title="Raid Lead">★ RL</span>}
+                    {s.is_raid_assist && <span className="text-sky-400 text-xs" title="Raid Assist">🛡 RA</span>}
                     <span className="text-red-400 text-xs">Party {s.party_index + 1}</span>
                   </div>
                 );

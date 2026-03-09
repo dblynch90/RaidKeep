@@ -12,7 +12,9 @@ export function getDb() {
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }
-  return new Database(dbPath);
+  const db = new Database(dbPath);
+  db.pragma("foreign_keys = ON");
+  return db;
 }
 
 export function initDb() {

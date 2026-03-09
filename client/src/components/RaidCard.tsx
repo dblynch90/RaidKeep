@@ -106,7 +106,12 @@ export function RaidCard({
                 <span key={c.character_name}>
                   {i > 0 && ", "}
                   <span style={{ color: getClassColor(c.character_class) }} className="font-medium">{c.character_name}</span>
-                  {c.role && <span className="text-slate-500"> · {c.role}</span>}
+                  {c.role && (
+                    <span className="text-slate-500">
+                      {" · "}
+                      {(c.role || "").toLowerCase() === "dps" ? "DPS" : c.role}
+                    </span>
+                  )}
                 </span>
               ))}
             </p>

@@ -82,6 +82,30 @@ function capitalizeRealm(s: string): string {
     .join(" ");
 }
 
+adminRoutes.get("/users", requireAdmin, (req, res) => {
+  const db = getDb();
+  const users = db.prepare(
+    `SELECT id, username, role, battlenet_id, battlenet_battletag, created_at FROM users ORDER BY id`
+  ).all() as Array<{ id: number; username: string; role: string; battlenet_id: string | null; battlenet_battletag: string | null; created_at: string }>;
+  res.json({ users });
+});
+
+adminRoutes.delete("/users/:id", requireAdmin, (req, res) => {
+  const id = parseInt(req.params.id as string, 10);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Invalid user id" });
+    return;
+  }
+  const db = getDb();
+  const existing = db.prepare("SELECT id FROM users WHERE id = ?").get(id);
+  if (!existing) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  db.prepare("DELETE FROM users WHERE id = ?").run(id);
+  res.json({ ok: true });
+});
+
 adminRoutes.get("/guilds", requireAdmin, (req, res) => {
   const db = getDb();
   const guilds = new Map<string, { guild_name: string; realm_slug: string; realm_display: string; server_type: string }>();

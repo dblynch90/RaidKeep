@@ -10,9 +10,20 @@ interface Guild {
   server_type: string;
 }
 
+interface User {
+  id: number;
+  username: string;
+  role: string;
+  battlenet_id: string | null;
+  battlenet_battletag: string | null;
+  created_at: string;
+}
+
 export function AdminDashboard() {
   const [guilds, setGuilds] = useState<Guild[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [usersLoading, setUsersLoading] = useState(true);
   const [admin, setAdmin] = useState<{ username: string } | null>(null);
   const navigate = useNavigate();
 
@@ -37,6 +48,11 @@ export function AdminDashboard() {
       .then((data) => setGuilds(data.guilds || []))
       .catch(() => setGuilds([]))
       .finally(() => setLoading(false));
+    fetch(`${API}/admin/users`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((data) => setUsers(data.users || []))
+      .catch(() => setUsers([]))
+      .finally(() => setUsersLoading(false));
   }, [admin]);
 
   const handleLogout = async () => {
@@ -53,6 +69,14 @@ export function AdminDashboard() {
       { method: "DELETE", credentials: "include" }
     );
     if (r.ok) setGuilds((prev) => prev.filter((x) => x.realm_slug !== g.realm_slug || x.guild_name !== g.guild_name || x.server_type !== g.server_type));
+  };
+
+  const deleteUser = async (e: React.MouseEvent, u: User) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm(`Delete user "${u.username}"? This will remove all their guild memberships, characters, raids, and roster data.`)) return;
+    const r = await fetch(`${API}/admin/users/${u.id}`, { method: "DELETE", credentials: "include" });
+    if (r.ok) setUsers((prev) => prev.filter((x) => x.id !== u.id));
   };
 
   if (!admin) return null;
@@ -102,6 +126,43 @@ export function AdminDashboard() {
                   onClick={(e) => deleteGuild(e, g)}
                   className="shrink-0 px-2 py-1 rounded text-red-400 hover:bg-red-900/30 text-xs"
                   title="Delete guild"
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <h2 className="text-xl font-semibold text-slate-200 mt-12 mb-6">User Accounts</h2>
+        {usersLoading ? (
+          <p className="text-slate-500">Loading...</p>
+        ) : users.length === 0 ? (
+          <p className="text-slate-500">No user accounts found.</p>
+        ) : (
+          <div className="grid gap-3">
+            {users.map((u) => (
+              <div
+                key={u.id}
+                className="flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-700 hover:border-sky-600/50 transition"
+                style={{
+                  background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)",
+                }}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-sky-400">{u.username}</div>
+                  <div className="text-slate-500 text-sm mt-0.5 flex items-center gap-3 flex-wrap">
+                    <span>ID: {u.id}</span>
+                    <span>Role: {u.role}</span>
+                    {u.battlenet_battletag && (
+                      <span>BattleTag: {u.battlenet_battletag}</span>
+                    )}
+                    <span>Created: {u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}</span>
+                  </div>
+                </div>
+                <button
+                  onClick={(e) => deleteUser(e, u)}
+                  className="shrink-0 px-2 py-1 rounded text-red-400 hover:bg-red-900/30 text-xs"
+                  title="Delete user"
                 >
                   Delete
                 </button>

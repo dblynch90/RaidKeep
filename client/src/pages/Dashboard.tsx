@@ -108,6 +108,7 @@ function GuildCard({
   onToggleFavorite,
   canViewDashboard,
   guildsSynced,
+  permissionsLoaded,
 }: {
   guildName: string;
   realm: string;
@@ -118,6 +119,7 @@ function GuildCard({
   onToggleFavorite: () => void;
   canViewDashboard: boolean;
   guildsSynced: boolean;
+  permissionsLoaded: boolean;
 }) {
   const guildDashboardUrl = `/guild-dashboard?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
   const dashboardReady = canViewDashboard && guildsSynced;
@@ -143,7 +145,11 @@ function GuildCard({
             <span className="font-medium text-sky-400">{guildName}</span>
             <span className="text-slate-500 text-sm">({capitalizeRealm(realm)})</span>
           </div>
-          {canViewDashboard ? (
+          {!permissionsLoaded ? (
+            <span className="inline-flex items-center gap-1 text-sm text-slate-500 mb-3" title="Loading guild permissions...">
+              Syncing Data
+            </span>
+          ) : canViewDashboard ? (
             dashboardReady ? (
               <Link
                 to={guildDashboardUrl}
@@ -428,7 +434,7 @@ export function Dashboard() {
       const next: Record<string, GuildPermissions> = {};
       allGuildCards.forEach((g, i) => {
         const r = results[i];
-        if (r?.status === "fulfilled") next[favKey(g)] = r.value.permissions;
+        next[favKey(g)] = r?.status === "fulfilled" ? r.value.permissions : { view_guild_dashboard: true, view_guild_roster: true, view_raid_roster: true, view_raid_schedule: true, manage_raids: false, manage_raid_roster: false, manage_permissions: false };
       });
       setGuildPermissions((prev) => ({ ...prev, ...next }));
     };
@@ -518,6 +524,7 @@ export function Dashboard() {
                   onToggleFavorite={() => toggleFavorite(g)}
                   canViewDashboard={guildPermissions[favKey(g)]?.view_guild_dashboard ?? true}
                   guildsSynced={guildsSynced}
+                  permissionsLoaded={guildPermissions[favKey(g)] !== undefined}
                 />
               ))}
             </div>
@@ -608,27 +615,27 @@ export function Dashboard() {
                       <thead>
                         <tr className="border-b border-slate-600/80">
                           <th className="text-left text-slate-400 font-medium text-sm px-4 py-3">Name</th>
-                          <th className="text-left text-slate-400 font-medium text-sm px-4 py-3">Race</th>
-                          <th className="text-left text-slate-400 font-medium text-sm px-4 py-3">Class</th>
-                          <th className="text-left text-slate-400 font-medium text-sm px-4 py-3">Level</th>
+                          <th className="text-left text-slate-400 font-medium text-sm px-4 py-3">Level / Race / Class</th>
                           <th className="text-left text-slate-400 font-medium text-sm px-4 py-3">Server</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredCharactersForList.map((c) => (
-                          <tr key={c.id} className="border-b border-slate-700/50 last:border-b-0 hover:bg-slate-700/30">
-                            <td className="px-4 py-2.5">
-                              <span className="font-medium text-slate-100">{c.name}</span>
-                              {isGuildMaster(c) && <span className="ml-2 inline-flex px-1.5 py-0.5 rounded text-xs font-medium bg-sky-500/20 text-sky-400 border border-sky-500/40" title="Guild Master">GM</span>}
-                            </td>
-                            <td className="px-4 py-2.5 text-slate-300">{c.race || "—"}</td>
-                            <td className="px-4 py-2.5">
-                              <span style={{ color: getClassColor(c.class) }}>{c.class || "—"}</span>
-                            </td>
-                            <td className="px-4 py-2.5 text-slate-300">{c.level ?? 1}</td>
-                            <td className="px-4 py-2.5 text-slate-300">{capitalizeRealm(c.realm || "—")}</td>
-                          </tr>
-                        ))}
+                        {filteredCharactersForList.map((c) => {
+                          const classColor = getClassColor(c.class || "");
+                          const levelRaceClass = [`Level ${c.level ?? 1}`, c.race, c.class].filter(Boolean).join(" ") || `Level ${c.level ?? 1}`;
+                          return (
+                            <tr key={c.id} className="border-b border-slate-700/50 last:border-b-0 hover:bg-slate-700/30">
+                              <td className="px-4 py-2.5">
+                                <span className="font-medium" style={{ color: classColor }}>{c.name}</span>
+                                {isGuildMaster(c) && <span className="ml-2 inline-flex px-1.5 py-0.5 rounded text-xs font-medium bg-sky-500/20 text-sky-400 border border-sky-500/40" title="Guild Master">GM</span>}
+                              </td>
+                              <td className="px-4 py-2.5">
+                                <span style={{ color: classColor }}>{levelRaceClass}</span>
+                              </td>
+                              <td className="px-4 py-2.5 text-white">{capitalizeRealm(c.realm || "—")}</td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

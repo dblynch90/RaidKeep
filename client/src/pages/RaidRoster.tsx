@@ -660,7 +660,9 @@ export function RaidRoster() {
                             ))}
                           </select>
                         ) : (
-                          <span className="text-slate-400 text-sm truncate block">{(r.raid_role || "—").charAt(0).toUpperCase() + (r.raid_role || "").slice(1)}</span>
+                          <span className="text-slate-400 text-sm truncate block">
+                            {(r.raid_role || "").toLowerCase() === "dps" ? "DPS" : (r.raid_role || "—").charAt(0).toUpperCase() + (r.raid_role || "").slice(1)}
+                          </span>
                         )}
                       </span>
                       {/* Off Role */}
@@ -677,9 +679,13 @@ export function RaidRoster() {
                           </select>
                         ) : (
                           <span className="text-slate-400 text-sm truncate block">
-                            {["tank", "healer", "dps"].includes((r.primary_spec ?? "").toLowerCase())
-                              ? (r.primary_spec || "").charAt(0).toUpperCase() + (r.primary_spec || "").slice(1).toLowerCase()
-                              : "—"}
+                            {(() => {
+                              const p = (r.primary_spec ?? "").toLowerCase();
+                              if (p === "dps") return "DPS";
+                              if (p === "tank") return "Tank";
+                              if (p === "healer") return "Healer";
+                              return p ? (r.primary_spec || "").charAt(0).toUpperCase() + (r.primary_spec || "").slice(1) : "—";
+                            })()}
                           </span>
                         )}
                       </span>

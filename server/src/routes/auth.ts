@@ -404,7 +404,7 @@ authRoutes.get("/me/saved-raids/my-assignments", requireAuth, (req, res) => {
         const parts: string[] = [];
         if (row.is_raid_lead) parts.push("Raid Lead");
         if (row.is_raid_assist) parts.push("Raid Assist");
-        if (parts.length === 0 && row.role) parts.push(row.role);
+        if (parts.length === 0 && row.role) parts.push((row.role || "").toLowerCase() === "dps" ? "DPS" : row.role);
         if (parts.length === 0) parts.push("DPS");
         myChars.set(row.character_name.toLowerCase(), { character_name: row.character_name, character_class: row.character_class, role: parts.join(", ") });
       }
