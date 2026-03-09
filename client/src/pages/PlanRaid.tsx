@@ -160,9 +160,11 @@ export function PlanRaid() {
   const [minLevel, setMinLevel] = useState<string>("");
   const [maxLevel, setMaxLevel] = useState<string>("");
   const [playerSearch, setPlayerSearch] = useState("");
+  const [rosterClassFilter, setRosterClassFilter] = useState<string>("");
+  const [rosterRoleFilter, setRosterRoleFilter] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ ok: boolean; text: string } | null>(null);
-  const [rosterSource, setRosterSource] = useState<"guild" | "raiders">("guild");
+  const [rosterSource, setRosterSource] = useState<"guild" | "raiders">("raiders");
   const [raiders, setRaiders] = useState<
     Array<{ character_name: string; character_class: string; raid_role?: string; raid_lead?: boolean; raid_assist?: boolean }>
   >([]);
@@ -357,6 +359,20 @@ export function PlanRaid() {
       .catch(() => setSavedRaids([]));
   }, [realm, guildName, serverType]);
 
+  const raiderRoleMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of raiders) {
+      const role = (r.raid_role ?? "").toLowerCase();
+      if (role) m.set(r.character_name.toLowerCase(), role);
+    }
+    return m;
+  }, [raiders]);
+
+  const rosterClassList = useMemo(() => {
+    const set = new Set(availableMembers.map((m) => m.class));
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [availableMembers]);
+
   const displayedRosterMembers = useMemo(() => {
     let members = availableMembers;
     const min = minLevel.trim() ? parseInt(minLevel, 10) : null;
@@ -373,10 +389,17 @@ export function PlanRaid() {
         m.name.toLowerCase().includes(search)
       );
     }
+    if (rosterClassFilter) {
+      members = members.filter((m) => m.class === rosterClassFilter);
+    }
+    if (rosterRoleFilter) {
+      const roleLower = rosterRoleFilter.toLowerCase();
+      members = members.filter((m) => raiderRoleMap.get(m.name.toLowerCase()) === roleLower);
+    }
     return [...members].sort((a, b) =>
       a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
     );
-  }, [availableMembers, minLevel, maxLevel, playerSearch]);
+  }, [availableMembers, minLevel, maxLevel, playerSearch, rosterClassFilter, rosterRoleFilter, raiderRoleMap]);
 
   const capitalizeRealm = (r: string) =>
     r
@@ -738,6 +761,31 @@ export function PlanRaid() {
             <Card className="rounded-xl shadow-lg bg-slate-800/95 border-slate-700/80">
               <div className="p-5">
                 <h2 className="text-slate-400 font-normal text-sm uppercase tracking-wider mb-4">Raid Details</h2>
+                {!isEdit && pastRaidsForLoad.length > 0 && (
+                  <div className="mb-4 p-4 rounded-lg bg-slate-700/40 border border-slate-600/60">
+                    <label className="block text-slate-400 text-sm mb-2 font-medium">Start from a copy of a previous raid</label>
+                    <select
+                      className="w-full max-w-xs px-3 py-2 rounded-lg bg-slate-700/80 border border-slate-600 text-slate-100 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
+                      defaultValue=""
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        e.target.value = "";
+                        if (!val) return;
+                        const id = parseInt(val, 10);
+                        if (id) loadFromPreviousRaid(id);
+                      }}
+                    >
+                      <option value="">Select a raid to copy...</option>
+                      {pastRaidsForLoad.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.raid_name} — {formatRaidDateShort(r.raid_date)}
+                          {r.raid_instance ? ` · ${r.raid_instance}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-slate-500 text-xs mt-1.5">Copies raid name, instance, times, composition, and backups. Raid date is left empty for you to set.</p>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-slate-400 text-sm mb-1.5 font-medium">Raid Name</label>
@@ -802,6 +850,14 @@ export function PlanRaid() {
                     <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
                       <h3 className="text-slate-400 font-normal text-sm uppercase tracking-wider">Raid Composition</h3>
                       <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={saving || !raidName.trim() || !realm || !guildName}
+                          onClick={handleSave}
+                          className="text-sm px-4 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium border border-sky-500/50"
+                        >
+                          {saving ? "Saving..." : isEdit ? "Update Raid" : "Save Raid"}
+                        </button>
                         <button
                           type="button"
                           onClick={() => setShowGuildRosterDrawer((s) => !s)}
@@ -1047,32 +1103,47 @@ export function PlanRaid() {
 
               {showGuildRosterDrawer && (
                 <div className="absolute right-0 top-0 bottom-0 w-[340px] border-l border-slate-700 bg-slate-800/95 flex flex-col overflow-hidden rounded-r-xl">
-                  <div className="p-4 border-b border-slate-700 flex items-center justify-between shrink-0">
-                    <h3 className="text-slate-300 font-medium text-sm">Guild Roster</h3>
-                    <button
-                      type="button"
-                      onClick={() => setShowGuildRosterDrawer(false)}
-                      className="w-8 h-8 flex items-center justify-center rounded text-slate-500 hover:text-slate-200 hover:bg-slate-700"
-                      aria-label="Close"
-                    >
-                      ×
-                    </button>
+                  <div className="p-4 border-b border-slate-700 shrink-0">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-slate-300 font-medium text-sm">Guild Roster</h3>
+                      <button
+                        type="button"
+                        onClick={() => setShowGuildRosterDrawer(false)}
+                        className="w-8 h-8 flex items-center justify-center rounded text-slate-500 hover:text-slate-200 hover:bg-slate-700"
+                        aria-label="Close"
+                      >
+                        ×
+                      </button>
+                    </div>
+                    {realm && guildName && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = `${window.location.origin}/raid-roster-popout?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
+                          window.open(url, "raid-roster-popout", "width=1400,height=900,scrollbars=yes,resizable=yes");
+                        }}
+                        className="w-full text-xs px-3 py-2 rounded-lg bg-slate-700/80 hover:bg-slate-600 border border-slate-600 text-slate-200 font-medium inline-flex items-center justify-center gap-1.5"
+                        title="Open full roster with roles, specs, availability, and notes in a separate window"
+                      >
+                        ⧉ Open Full roster in new window
+                      </button>
+                    )}
                   </div>
                   <div className="p-4 flex-1 min-h-0 overflow-y-auto">
                     <div className="flex flex-wrap items-center gap-2 mb-3">
-                      <button
-                        type="button"
-                        onClick={() => setRosterSource("guild")}
-                        className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition ${rosterSource === "guild" ? "bg-sky-600 text-white border border-sky-500/50" : "bg-slate-700/80 text-slate-400 border border-slate-600 hover:border-slate-500 hover:text-slate-300"}`}
-                      >
-                        All
-                      </button>
                       <button
                         type="button"
                         onClick={() => setRosterSource("raiders")}
                         className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition ${rosterSource === "raiders" ? "bg-sky-600 text-white border border-sky-500/50" : "bg-slate-700/80 text-slate-400 border border-slate-600 hover:border-slate-500 hover:text-slate-300"}`}
                       >
                         Raiders only
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRosterSource("guild")}
+                        className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition ${rosterSource === "guild" ? "bg-sky-600 text-white border border-sky-500/50" : "bg-slate-700/80 text-slate-400 border border-slate-600 hover:border-slate-500 hover:text-slate-300"}`}
+                      >
+                        All
                       </button>
                     </div>
                     <input
@@ -1082,6 +1153,28 @@ export function PlanRaid() {
                       onChange={(e) => setPlayerSearch(e.target.value)}
                       className="w-full px-3 py-2 rounded-lg bg-slate-700/60 border border-slate-600 text-slate-100 placeholder-slate-600 text-sm mb-3 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50"
                     />
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                      <select
+                        value={rosterClassFilter}
+                        onChange={(e) => setRosterClassFilter(e.target.value)}
+                        className="px-2.5 py-1.5 rounded-md bg-slate-700/60 border border-slate-600 text-slate-100 text-xs focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
+                      >
+                        <option value="">All classes</option>
+                        {rosterClassList.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={rosterRoleFilter}
+                        onChange={(e) => setRosterRoleFilter(e.target.value)}
+                        className="px-2.5 py-1.5 rounded-md bg-slate-700/60 border border-slate-600 text-slate-100 text-xs focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
+                      >
+                        <option value="">All roles</option>
+                        <option value="tank">Tank</option>
+                        <option value="healer">Healer</option>
+                        <option value="dps">DPS</option>
+                      </select>
+                    </div>
                     <div className="flex items-center gap-2 mb-3">
                       <span className="text-slate-500 text-xs">Level:</span>
                       <input
@@ -1118,10 +1211,10 @@ export function PlanRaid() {
                     </div>
                     <p className="text-slate-500 text-xs mb-2">Drag to raid slots or backups, or click to assign</p>
                     <div className="space-y-1">
-                      {displayedRosterMembers.length === 0 ? (
+                      {                        displayedRosterMembers.length === 0 ? (
                         <p className="text-slate-500 text-sm py-4 px-2">
                           {data?.members?.length
-                            ? "No players match your search or level filter"
+                            ? "No players match your filters"
                             : "No roster loaded"}
                         </p>
                       ) : (
@@ -1145,12 +1238,12 @@ export function PlanRaid() {
               )}
             </div>
 
-            <div className="pt-4 flex items-center gap-3">
+            <div className="pt-4 flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 disabled={saving || !raidName.trim() || !realm || !guildName}
                 onClick={handleSave}
-                className="px-5 py-2.5 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium border border-sky-500/50"
+                className="px-5 py-2.5 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium border border-sky-500/50 shadow-lg shadow-sky-900/30"
               >
                 {saving ? "Saving..." : isEdit ? "Update Raid" : "Save Raid"}
               </button>
@@ -1350,27 +1443,23 @@ function RosterAddButton({
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") setShowMenu((s) => !s);
         }}
-        className="w-full text-left rounded-lg px-3 py-2.5 min-h-[44px] border border-slate-600/80 bg-slate-800/60 hover:border-slate-500 hover:bg-slate-700/40 hover:shadow-sm transition-all duration-150 flex items-center gap-3 cursor-grab active:cursor-grabbing"
+        className="w-full text-left rounded-lg px-3 py-1.5 h-9 border border-slate-600/80 bg-slate-800/60 hover:border-slate-500 hover:bg-slate-700/40 hover:shadow-sm transition-all duration-150 flex items-center gap-2 cursor-grab active:cursor-grabbing"
         style={{
           borderLeftWidth: 4,
           borderLeftColor: classColor,
         }}
       >
-        <div className="flex-1 min-w-0">
-          <span className="font-medium text-slate-100 block truncate">{member.name}</span>
-          <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-slate-500 text-xs">Lv{member.level}</span>
-            <span
-              className="text-xs font-medium px-1.5 py-0.5 rounded border"
-              style={{
-                borderColor: `${classColor}60`,
-                color: classColor,
-              }}
-            >
-              {member.class}
-            </span>
-          </div>
-        </div>
+        <span className="font-medium text-slate-100 truncate flex-1 min-w-0">{member.name}</span>
+        <span className="text-slate-500 text-xs shrink-0">Lv{member.level}</span>
+        <span
+          className="text-xs font-medium px-1.5 py-0.5 rounded border shrink-0"
+          style={{
+            borderColor: `${classColor}60`,
+            color: classColor,
+          }}
+        >
+          {member.class}
+        </span>
       </div>
       {showMenu && (
         <>

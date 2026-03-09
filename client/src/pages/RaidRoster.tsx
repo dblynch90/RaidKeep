@@ -396,17 +396,6 @@ export function RaidRoster() {
                 ))}
               </select>
               <div className="flex-1" />
-              <button
-                type="button"
-                onClick={() => {
-                  const url = `${window.location.origin}/raid-roster-popout?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
-                  window.open(url, "raid-roster-popout", "width=1400,height=900,scrollbars=yes,resizable=yes");
-                }}
-                className="h-8 px-3 rounded bg-slate-700 hover:bg-slate-600 border border-slate-600 text-slate-200 text-sm font-medium inline-flex items-center justify-center leading-none"
-                title="Open roster table in a separate window"
-              >
-                ⧉ Open in new window
-              </button>
               {(canEdit || canEditOwnAvailabilityAndNotes) && (
                 <button
                   type="button"
@@ -506,7 +495,7 @@ export function RaidRoster() {
                               value={r.primary_spec ?? ""}
                               onChange={(e) => updateRaider(r.character_name, { primary_spec: e.target.value })}
                               placeholder="Spec"
-                              className="h-7 w-[77px] min-w-[77px] shrink-0 px-1.5 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500/50 placeholder-slate-500"
+                              className="h-7 w-[96px] min-w-[96px] shrink-0 px-1.5 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500/50 placeholder-slate-500"
                               title="Spec 1"
                             />
                             <select
@@ -524,7 +513,7 @@ export function RaidRoster() {
                               value={r.secondary_spec ?? ""}
                               onChange={(e) => updateRaider(r.character_name, { secondary_spec: e.target.value })}
                               placeholder="Spec"
-                              className="h-7 w-[77px] min-w-[77px] shrink-0 px-1.5 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500/50 placeholder-slate-500"
+                              className="h-7 w-[96px] min-w-[96px] shrink-0 px-1.5 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500/50 placeholder-slate-500"
                               title="Spec 2"
                             />
                           </>
