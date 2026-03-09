@@ -849,13 +849,17 @@ export function PlanRaid() {
                 )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-slate-400 text-sm mb-1.5 font-medium">Raid Name</label>
+                    <label className="block text-slate-400 text-sm mb-1.5 font-medium">
+                      Raid Name <span className="text-amber-500">*</span>
+                    </label>
                     <input
                       type="text"
                       value={raidName}
                       onChange={(e) => setRaidName(e.target.value)}
-                      placeholder="e.g. Friday Farm Run"
-                      className="w-full px-3 py-2 rounded-lg bg-slate-700/80 border border-slate-600 text-slate-100 placeholder-slate-600 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50"
+                      placeholder="Required — e.g. Friday Farm Run"
+                      className={`w-full px-3 py-2 rounded-lg bg-slate-700/80 border text-slate-100 placeholder-slate-600 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 ${
+                        !raidName.trim() ? "border-amber-500/50" : "border-slate-600"
+                      }`}
                     />
                   </div>
                   <div>
@@ -1060,7 +1064,7 @@ export function PlanRaid() {
                           <button
                             type="button"
                             onClick={() => setShowLoadFromModal(true)}
-                            className="px-2.5 py-1.5 rounded-md bg-slate-800/50 border border-slate-600 text-slate-300 text-sm hover:border-slate-500 hover:bg-slate-700/50 transition"
+                            className="text-sm px-3 py-1.5 rounded-lg font-medium border transition bg-slate-700/80 text-slate-300 border-slate-600 hover:border-slate-500 hover:bg-slate-600/80"
                           >
                             Load From...
                           </button>
@@ -1114,7 +1118,8 @@ export function PlanRaid() {
                               )}
                             </div>
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                          <div className="overflow-x-auto">
+                            <div className="grid gap-3 min-w-0" style={{ gridTemplateColumns: "repeat(5, minmax(200px, 1fr))" }}>
                             {party.map((slot, slotIdx) => (
                               <RaidSlotCard
                                 key={slotIdx}
@@ -1136,6 +1141,7 @@ export function PlanRaid() {
                                 onClear={() => clearSlot(partyIdx, slotIdx)}
                               />
                             ))}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -1706,7 +1712,7 @@ function RaidSlotCard({
 
   return (
     <div
-      className={`rounded-lg border min-h-[76px] min-w-[140px] flex flex-col transition-all duration-150 ${
+      className={`rounded-lg border min-h-[76px] min-w-[200px] flex flex-col transition-all duration-150 shrink-0 ${
         slot
           ? `border-slate-600/80 ${dragOver ? "ring-2 ring-sky-500 ring-inset bg-sky-500/10" : "hover:shadow-md hover:border-slate-500 hover:ring-1 hover:ring-slate-500/50"}`
           : dragOver
