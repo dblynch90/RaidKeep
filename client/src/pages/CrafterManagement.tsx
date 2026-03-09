@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { GuildBreadcrumbs } from "../components/GuildBreadcrumbs";
@@ -18,11 +18,12 @@ const PROFESSION_TYPES = [
   "Tailoring",
 ];
 
-interface RaiderEntry {
-  character_name: string;
-  character_class: string;
-  professions?: string[];
-  guild_profession_stars?: string[];
+interface GuildMember {
+  name: string;
+  class: string;
+  level: number;
+  professions: string[];
+  guild_profession_stars: string[];
 }
 
 const DEFAULT_PERMISSIONS: GuildPermissions = {
@@ -50,10 +51,12 @@ export function CrafterManagement() {
   const guildName = searchParams.get("guild_name") ?? "";
   const serverType = searchParams.get("server_type") ?? "Retail";
 
-  const [raiders, setRaiders] = useState<RaiderEntry[]>([]);
+  const [members, setMembers] = useState<GuildMember[]>([]);
   const [permissions, setPermissions] = useState<GuildPermissions | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [professionFilter, setProfessionFilter] = useState("");
 
   const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
 
@@ -69,13 +72,13 @@ export function CrafterManagement() {
       api.get<{ permissions: GuildPermissions }>(
         `/auth/me/guild-permissions?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
       ).then((r) => r.permissions),
-      api.get<{ raiders: RaiderEntry[] }>(
-        `/auth/me/raider-roster?guild_realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
-      ).then((r) => r.raiders ?? []),
+      api.get<{ members: GuildMember[] }>(
+        `/auth/me/guild-crafters-management?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
+      ).then((r) => r.members ?? []),
     ])
       .then(([perms, list]) => {
         setPermissions(perms);
-        setRaiders(list);
+        setMembers(list);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
       .finally(() => setLoading(false));
@@ -95,26 +98,29 @@ export function CrafterManagement() {
         starred,
       })
       .then(() => {
-        setRaiders((prev) =>
-          prev.map((r) => {
-            if (r.character_name.toLowerCase() !== charName.toLowerCase()) return r;
-            const stars = r.guild_profession_stars ?? [];
+        setMembers((prev) =>
+          prev.map((m) => {
+            if (m.name.toLowerCase() !== charName.toLowerCase()) return m;
+            const stars = m.guild_profession_stars;
             const next = starred ? [...stars, professionType] : stars.filter((p) => p !== professionType);
-            return { ...r, guild_profession_stars: next };
+            return { ...m, guild_profession_stars: next };
           })
         );
       })
       .catch(() => {});
   };
 
-  const professionTypesForRoster = useMemo(() => {
-    const set = new Set<string>();
-    for (const r of raiders) {
-      for (const p of r.professions ?? []) set.add(p);
-      for (const p of r.guild_profession_stars ?? []) set.add(p);
-    }
-    return [...PROFESSION_TYPES].filter((p) => set.has(p));
-  }, [raiders]);
+  const filteredMembers = members
+    .filter((m) => {
+      const q = searchQuery.trim().toLowerCase();
+      if (q && !m.name.toLowerCase().includes(q)) return false;
+      if (professionFilter) {
+        const hasProf = m.professions.includes(professionFilter) || m.guild_profession_stars.includes(professionFilter);
+        if (!hasProf) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
 
   if (!realm || !guildName) {
     return (
@@ -147,7 +153,7 @@ export function CrafterManagement() {
             {guildName} · {capitalizeRealm(realm)} · {serverType}
           </p>
           <p className="text-slate-500 text-sm mt-2">
-            Star guild members as &quot;Guild Enchanter&quot;, &quot;Guild Alchemist&quot;, etc. Starred crafters appear in the Guild Crafters recipe search for members.
+            View all guild members and their professions. Star members as &quot;Guild Enchanter&quot;, &quot;Guild Alchemist&quot;, etc. Starred crafters appear in the Guild Crafters recipe search.
           </p>
           <div className="mt-4 h-px bg-slate-700/60" />
         </header>
@@ -165,57 +171,87 @@ export function CrafterManagement() {
             }}
           >
             <div className="p-6">
-              {raiders.length === 0 ? (
-                <p className="text-slate-500">No raid roster entries yet. Add characters to the Raid Roster first.</p>
-              ) : professionTypesForRoster.length === 0 ? (
-                <p className="text-slate-500">
-                  No professions on the roster. Use &quot;Sync from Blizzard&quot; in Raid Management or add professions manually.
-                </p>
+              <div className="flex flex-wrap gap-3 mb-6">
+                <input
+                  type="text"
+                  placeholder="Search by name..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-500 text-sm min-w-[200px] focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                />
+                <select
+                  value={professionFilter}
+                  onChange={(e) => setProfessionFilter(e.target.value)}
+                  className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 [color-scheme:dark]"
+                >
+                  <option value="">All professions</option>
+                  {PROFESSION_TYPES.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {members.length === 0 ? (
+                <p className="text-slate-500">Guild roster could not be loaded from Blizzard.</p>
+              ) : filteredMembers.length === 0 ? (
+                <p className="text-slate-500">No members match the current filters.</p>
               ) : (
-                <div className="space-y-4">
-                  {professionTypesForRoster.map((prof: string) => {
-                    const starred = raiders.filter((r) => r.guild_profession_stars?.includes(prof));
-                    const hasProf = raiders.filter(
-                      (r) => r.professions?.includes(prof) || r.guild_profession_stars?.includes(prof)
-                    );
-                    return (
-                      <div key={prof} className="rounded-lg border border-slate-600/60 p-4 bg-slate-800/40">
-                        <h3 className="font-medium text-slate-200 mb-2">
-                          {prof}
-                          {starred.length > 0 && (
-                            <span className="ml-2 text-amber-400 text-sm font-normal">
-                              — {starred.map((s) => s.character_name).join(", ")} (Guild {prof}{starred.length > 1 ? "s" : ""})
-                            </span>
-                          )}
-                        </h3>
-                        <div className="flex flex-wrap gap-2 text-sm">
-                          {hasProf.map((r) => (
-                            <button
-                              key={r.character_name}
-                              type="button"
-                              onClick={() =>
-                                toggleProfessionStar(r.character_name, prof, !r.guild_profession_stars?.includes(prof))
-                              }
-                              className={`px-2 py-0.5 rounded transition ${
-                                r.guild_profession_stars?.includes(prof)
-                                  ? "bg-amber-600/50 text-amber-200 hover:bg-amber-600/70"
-                                  : "bg-slate-700/60 text-slate-300 hover:bg-slate-600/60"
-                              }`}
-                              title={
-                                r.guild_profession_stars?.includes(prof)
-                                  ? `Unstar as Guild ${prof}`
-                                  : `Star as Guild ${prof}`
-                              }
-                            >
-                              {r.character_name} {r.guild_profession_stars?.includes(prof) && "★"}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-600/80">
+                        <th className="text-left text-slate-400 font-medium py-3 pr-4">Member</th>
+                        <th className="text-left text-slate-400 font-medium py-3 pr-4">Class</th>
+                        <th className="text-left text-slate-400 font-medium py-3 pr-4">Level</th>
+                        <th className="text-left text-slate-400 font-medium py-3 pr-4">Professions</th>
+                        <th className="text-left text-slate-400 font-medium py-3">Star as Guild Crafter</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredMembers.map((m) => (
+                        <tr key={m.name} className="border-b border-slate-700/50 last:border-b-0">
+                          <td className="py-3 pr-4 font-medium text-slate-200">{m.name}</td>
+                          <td className="py-3 pr-4 text-slate-400">{m.class}</td>
+                          <td className="py-3 pr-4 text-slate-400">{m.level}</td>
+                          <td className="py-3 pr-4 text-slate-400">
+                            {m.professions.length > 0 ? m.professions.join(", ") : "—"}
+                          </td>
+                          <td className="py-3">
+                            <div className="flex flex-wrap gap-2">
+                              {PROFESSION_TYPES.map((prof) => (
+                                <button
+                                  key={prof}
+                                  type="button"
+                                  onClick={() =>
+                                    toggleProfessionStar(m.name, prof, !m.guild_profession_stars.includes(prof))
+                                  }
+                                  className={`text-xs px-2 py-0.5 rounded transition ${
+                                    m.guild_profession_stars.includes(prof)
+                                      ? "bg-amber-600/50 text-amber-200 hover:bg-amber-600/70"
+                                      : "bg-slate-700/60 text-slate-400 hover:bg-slate-600/60 hover:text-slate-300"
+                                  }`}
+                                  title={
+                                    m.guild_profession_stars.includes(prof)
+                                      ? `Unstar as Guild ${prof}`
+                                      : `Star as Guild ${prof}`
+                                  }
+                                >
+                                  {prof} {m.guild_profession_stars.includes(prof) ? "★" : "☆"}
+                                </button>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
+              <p className="text-slate-500 text-xs mt-4">
+                Profession data comes from Raid Roster sync and recipe imports. You can star any guild member as a guild crafter for any profession.
+              </p>
             </div>
           </div>
         )}

@@ -1208,7 +1208,92 @@ const PROFESSION_TYPES = [
   "Inscription", "Jewelcrafting", "Leatherworking", "Mining", "Skinning", "Tailoring",
 ] as const;
 
-authRoutes.put("/me/guild-profession-star", requireAuth, (req, res) => {
+authRoutes.get("/me/guild-crafters-management", requireAuth, async (req, res) => {
+  const realm = (req.query.realm as string)?.trim();
+  const guildName = (req.query.guild_name as string)?.trim();
+  const serverType = (req.query.server_type as string) || "Retail";
+  if (!realm || !guildName) {
+    res.status(400).json({ error: "realm and guild_name required" });
+    return;
+  }
+  const db = getDb();
+  const userId = req.session!.user!.id;
+  const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
+  const perms = getEffectiveGuildPermissions(db, userId, realmSlug, guildName, serverType);
+  if (!perms?.manage_guild_crafters) {
+    res.status(403).json({ error: "You do not have permission to manage guild crafters" });
+    return;
+  }
+  const userRow = db.prepare("SELECT battlenet_region FROM users WHERE id = ?").get(userId) as { battlenet_region: string | null } | undefined;
+  const region = userRow?.battlenet_region ?? "us";
+  let roster: { name: string; realm: string; members: Array<{ name: string; class: string; level: number }> };
+  try {
+    roster = await fetchGuildRoster(region, realmSlug, guildName, serverType);
+  } catch (err) {
+    const status = (err as { response?: { status?: number } })?.response?.status;
+    const msg = status === 404 ? "Guild roster is not available from Blizzard" : err instanceof Error ? err.message : "Failed to fetch guild roster";
+    res.status(status === 404 ? 404 : 502).json({ error: msg });
+    return;
+  }
+  const professionsByChar = new Map<string, string[]>();
+  const rrRows = db
+    .prepare(
+      `SELECT character_name, professions FROM raider_roster
+       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?`
+    )
+    .all(realmSlug, guildName, serverType) as Array<{ character_name: string; professions: string | null }>;
+  for (const r of rrRows) {
+    let list: string[] = [];
+    try {
+      if (r.professions) list = JSON.parse(r.professions) as string[];
+    } catch {
+      /* ignore */
+    }
+    if (list.length > 0) {
+      professionsByChar.set(r.character_name.toLowerCase(), list);
+    }
+  }
+  const recipeProfs = db
+    .prepare(
+      `SELECT DISTINCT character_name, profession FROM character_recipes
+       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND profession IS NOT NULL`
+    )
+    .all(realmSlug, guildName, serverType) as Array<{ character_name: string; profession: string | null }>;
+  for (const r of recipeProfs) {
+    if (!r.profession) continue;
+    const key = r.character_name.toLowerCase();
+    const existing = professionsByChar.get(key) ?? [];
+    if (!existing.includes(r.profession)) {
+      professionsByChar.set(key, [...existing, r.profession]);
+    }
+  }
+  const stars = db
+    .prepare(
+      `SELECT character_name, profession_type FROM guild_profession_stars
+       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?`
+    )
+    .all(realmSlug, guildName, serverType) as Array<{ character_name: string; profession_type: string }>;
+  const starsByChar = new Map<string, string[]>();
+  for (const s of stars) {
+    const key = s.character_name.toLowerCase();
+    if (!starsByChar.has(key)) starsByChar.set(key, []);
+    starsByChar.get(key)!.push(s.profession_type);
+  }
+  const members = roster.members.map((m) => {
+    const profs = professionsByChar.get(m.name.toLowerCase()) ?? [];
+    const starList = starsByChar.get(m.name.toLowerCase()) ?? [];
+    return {
+      name: m.name,
+      class: m.class,
+      level: m.level,
+      professions: profs,
+      guild_profession_stars: starList,
+    };
+  });
+  res.json({ members });
+});
+
+authRoutes.put("/me/guild-profession-star", requireAuth, async (req, res) => {
   const { realm, guild_name, server_type, character_name, profession_type, starred } = req.body;
   if (!realm || !guild_name || !character_name || typeof character_name !== "string" || !profession_type || typeof profession_type !== "string") {
     res.status(400).json({ error: "realm, guild_name, character_name, and profession_type required" });
@@ -1228,12 +1313,17 @@ authRoutes.put("/me/guild-profession-star", requireAuth, (req, res) => {
     res.status(403).json({ error: "You do not have permission to manage guild crafters" });
     return;
   }
-  const inRoster = db.prepare(
-    `SELECT 1 FROM raider_roster
-     WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?) LIMIT 1`
-  ).get(realmSlug, guild_name, serverType, charName);
-  if (!inRoster) {
-    res.status(400).json({ error: "Character must be on the raid roster to be starred as a guild crafter" });
+  const userRow = db.prepare("SELECT battlenet_region FROM users WHERE id = ?").get(userId) as { battlenet_region: string | null } | undefined;
+  const region = userRow?.battlenet_region ?? "us";
+  try {
+    const roster = await fetchGuildRoster(region, realmSlug, guild_name, serverType);
+    const isInGuild = roster.members.some((m) => m.name.toLowerCase() === charName.toLowerCase());
+    if (!isInGuild) {
+      res.status(400).json({ error: "Character is not in this guild" });
+      return;
+    }
+  } catch {
+    res.status(400).json({ error: "Could not verify guild roster. Ensure the guild exists and try again." });
     return;
   }
   if (starred) {
