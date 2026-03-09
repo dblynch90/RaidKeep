@@ -807,14 +807,14 @@ export function RaiderRoster() {
                           return (
                             <div
                               key={r.character_name}
-                              className="rounded-lg border border-slate-600 p-4"
+                              className="rounded-lg border border-slate-600 p-3"
                               style={{ borderLeftWidth: 4, borderLeftColor: classColor }}
                             >
-                              <div className="grid grid-cols-1 md:grid-cols-[auto_1fr_1fr] gap-x-4 gap-y-3 items-start mb-3">
-                                {/* Left: name + lead/assist */}
-                                <div className="flex flex-col gap-2 min-w-0">
+                              <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)] gap-x-4 gap-y-2 items-start">
+                                {/* Left: character info + checkboxes + availability */}
+                                <div className="flex flex-col gap-1.5 min-w-0">
                                   <div className="flex items-center justify-between gap-2">
-                                    <span className="font-medium text-slate-100" style={{ color: classColor }}>
+                                    <span className="font-medium text-slate-100 truncate" style={{ color: classColor }}>
                                       {r.character_name} {guildMember ? `- Lv${guildMember.level}` : ""} {r.character_class}
                                     </span>
                                     {canEdit && (
@@ -828,8 +828,8 @@ export function RaiderRoster() {
                                     )}
                                   </div>
                                   {canEdit && (
-                                    <div className="flex flex-wrap gap-3">
-                                      <label className="flex items-center gap-1.5 text-slate-400 text-sm cursor-pointer">
+                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                      <label className="flex items-center gap-1 text-slate-400 text-sm cursor-pointer shrink-0">
                                         <input
                                           type="checkbox"
                                           checked={r.raid_lead ?? false}
@@ -838,7 +838,7 @@ export function RaiderRoster() {
                                         />
                                         Raid Lead
                                       </label>
-                                      <label className="flex items-center gap-1.5 text-slate-400 text-sm cursor-pointer">
+                                      <label className="flex items-center gap-1 text-slate-400 text-sm cursor-pointer shrink-0">
                                         <input
                                           type="checkbox"
                                           checked={r.raid_assist ?? false}
@@ -849,15 +849,48 @@ export function RaiderRoster() {
                                       </label>
                                     </div>
                                   )}
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-slate-500 text-xs shrink-0">Availability:</span>
+                                    <div className="flex items-center gap-0.5 flex-wrap">
+                                      {DAYS.map((d, i) => {
+                                        const avail = (r.availability || DEFAULT_AVAILABILITY).padEnd(7, "0");
+                                        const checked = avail[i] === "1";
+                                        const canEditAvail = canEditRaider(r.character_name);
+                                        return (
+                                          <label
+                                            key={i}
+                                            className={`flex items-center justify-center shrink-0 w-9 h-6 rounded text-[9px] font-medium transition-colors ${
+                                              canEditAvail ? "cursor-pointer" : "cursor-default"
+                                            } ${
+                                              checked
+                                                ? "bg-sky-500/30 text-sky-400 border border-sky-500/50"
+                                                : "bg-slate-700/50 text-slate-500 border border-slate-600" + (canEditAvail ? " hover:border-slate-500" : "")
+                                            }`}
+                                            title={d}
+                                          >
+                                            {canEditAvail ? (
+                                              <input
+                                                type="checkbox"
+                                                checked={checked}
+                                                onChange={() => toggleAvailabilityDay(r.character_name, i)}
+                                                className="sr-only"
+                                              />
+                                            ) : null}
+                                            {d}
+                                          </label>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
                                 </div>
-                                {/* Middle: role dropdowns */}
-                                <div className="flex flex-col gap-2">
+                                {/* Middle: role/spec dropdowns in a horizontal row */}
+                                <div className="flex flex-col justify-center min-w-0">
                                   {canEdit ? (
-                                    <>
+                                    <div className="flex flex-row flex-wrap items-center gap-2">
                                       <select
                                         value={r.raid_role ?? ""}
                                         onChange={(e) => updateRaider(r.character_name, { raid_role: e.target.value })}
-                                        className="px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm w-full max-w-[140px]"
+                                        className="px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm min-w-0 flex-1 max-w-[100px]"
                                         title="Main role"
                                       >
                                         {RAID_ROLES.map((opt) => (
@@ -867,7 +900,7 @@ export function RaiderRoster() {
                                       <select
                                         value={["tank", "healer", "dps"].includes((r.off_spec ?? "").toLowerCase()) ? (r.off_spec ?? "").toLowerCase() : ""}
                                         onChange={(e) => updateRaider(r.character_name, { off_spec: e.target.value })}
-                                        className="px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm w-full max-w-[140px]"
+                                        className="px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm min-w-0 flex-1 max-w-[90px]"
                                         title="Off role"
                                       >
                                         <option value="">Off Role</option>
@@ -880,31 +913,31 @@ export function RaiderRoster() {
                                         placeholder="Spec"
                                         value={r.primary_spec ?? ""}
                                         onChange={(e) => updateRaider(r.character_name, { primary_spec: e.target.value })}
-                                        className="px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm w-full max-w-[140px]"
+                                        className="px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm min-w-0 flex-1 max-w-[90px]"
                                         title="e.g. Restoration, Feral"
                                       />
-                                    </>
+                                    </div>
                                   ) : (
-                                    <span className="text-slate-400 text-sm py-1">
+                                    <span className="text-slate-400 text-sm py-0.5">
                                       {[r.raid_role, r.off_spec, r.primary_spec].filter(Boolean).join(" · ") || "—"}
                                     </span>
                                   )}
                                 </div>
-                                {/* Right: notes */}
-                                <div className="flex flex-col gap-2">
+                                {/* Right: notes (compact textareas) */}
+                                <div className="flex flex-col gap-1.5 min-w-0">
                                   {canEditRaider(r.character_name) ? (
                                     <textarea
                                       placeholder="Player notes..."
                                       value={r.notes ?? ""}
                                       onChange={(e) => updateRaider(r.character_name, { notes: e.target.value })}
                                       rows={2}
-                                      className="px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm w-full resize-y focus:ring-1 focus:ring-sky-500/50 placeholder-slate-500"
+                                      className="min-h-[3rem] px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm w-full resize-y focus:ring-1 focus:ring-sky-500/50 placeholder-slate-500"
                                     />
                                   ) : (
-                                    <div className="text-slate-400 text-sm py-1.5">{r.notes || "—"}</div>
+                                    <div className="text-slate-400 text-sm py-0.5 min-h-[1.5rem]">{r.notes || "—"}</div>
                                   )}
                                   {canEdit && (
-                                    <label className="flex items-center gap-1.5 cursor-pointer text-slate-500 text-xs">
+                                    <label className="flex items-center gap-1 cursor-pointer text-slate-500 text-xs shrink-0">
                                       <input
                                         type="checkbox"
                                         checked={Boolean(r.notes_public)}
@@ -920,43 +953,9 @@ export function RaiderRoster() {
                                       value={r.officer_notes ?? ""}
                                       onChange={(e) => updateRaider(r.character_name, { officer_notes: e.target.value })}
                                       rows={2}
-                                      className="px-2 py-1.5 rounded bg-slate-700 border border-amber-700/50 text-slate-200 text-sm w-full resize-y focus:ring-1 focus:ring-amber-500/50 placeholder-slate-500"
+                                      className="min-h-[3rem] px-2 py-1.5 rounded bg-slate-700 border border-amber-700/50 text-slate-200 text-sm w-full resize-y focus:ring-1 focus:ring-amber-500/50 placeholder-slate-500"
                                     />
                                   )}
-                                </div>
-                              </div>
-                              {/* Availability */}
-                              <div className="flex items-center gap-2 pt-2 border-t border-slate-700">
-                                <span className="text-slate-500 text-xs shrink-0">Availability:</span>
-                                <div className="flex items-center gap-0.5 flex-wrap">
-                                  {DAYS.map((d, i) => {
-                                    const avail = (r.availability || DEFAULT_AVAILABILITY).padEnd(7, "0");
-                                    const checked = avail[i] === "1";
-                                    const canEditAvail = canEditRaider(r.character_name);
-                                    return (
-                                      <label
-                                        key={i}
-                                        className={`flex items-center justify-center shrink-0 w-9 h-6 rounded text-[9px] font-medium transition-colors ${
-                                          canEditAvail ? "cursor-pointer" : "cursor-default"
-                                        } ${
-                                          checked
-                                            ? "bg-sky-500/30 text-sky-400 border border-sky-500/50"
-                                            : "bg-slate-700/50 text-slate-500 border border-slate-600" + (canEditAvail ? " hover:border-slate-500" : "")
-                                        }`}
-                                        title={d}
-                                      >
-                                        {canEditAvail ? (
-                                          <input
-                                            type="checkbox"
-                                            checked={checked}
-                                            onChange={() => toggleAvailabilityDay(r.character_name, i)}
-                                            className="sr-only"
-                                          />
-                                        ) : null}
-                                        {d}
-                                      </label>
-                                    );
-                                  })}
                                 </div>
                               </div>
                             </div>
