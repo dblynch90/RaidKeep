@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import type { MyCharacter } from "../api";
 import type { GuildPermissions } from "./GuildPermissions";
@@ -106,7 +106,7 @@ function GuildCard({
   characters,
   isFavorite,
   onToggleFavorite,
-  canViewDashboard,
+  onCardClick,
   permissionsLoaded,
 }: {
   guildName: string;
@@ -116,18 +116,26 @@ function GuildCard({
   characters: MyCharacter[];
   isFavorite: boolean;
   onToggleFavorite: () => void;
-  canViewDashboard: boolean;
-  guildsSynced: boolean;
+  onCardClick: () => void;
   permissionsLoaded: boolean;
 }) {
-  const guildDashboardUrl = `/guild-dashboard?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
   return (
     <div
-      className="block rounded-xl border border-white/[0.05] hover:border-sky-600/50 transition overflow-hidden relative"
+      role="button"
+      tabIndex={0}
+      onClick={onCardClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onCardClick();
+        }
+      }}
+      className="w-full block rounded-xl border border-white/[0.05] hover:border-sky-600/50 transition overflow-hidden relative cursor-pointer"
       style={{
         background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)",
         boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
       }}
+      aria-label={`Open ${guildName} dashboard`}
     >
       {!permissionsLoaded && (
         <div
@@ -145,7 +153,11 @@ function GuildCard({
       <div className="p-4 relative">
         <button
           type="button"
-          onClick={onToggleFavorite}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggleFavorite();
+          }}
           className="absolute top-3 right-3 p-1.5 rounded hover:bg-slate-700 transition z-10"
           title={isFavorite ? "Unfavorite" : "Favorite"}
         >
@@ -156,21 +168,6 @@ function GuildCard({
             <span className="font-medium text-sky-400">{guildName}</span>
             <span className="text-slate-500 text-sm">({capitalizeRealm(realm)})</span>
           </div>
-          {!permissionsLoaded ? (
-            <span className="inline-flex items-center gap-1 text-sm text-slate-500 mb-3" title="Loading guild permissions...">
-              Syncing Data
-            </span>
-          ) : canViewDashboard ? (
-            <Link
-              to={guildDashboardUrl}
-              className="inline-flex items-center gap-1 text-sm text-sky-400/90 hover:text-sky-400 mb-3"
-              aria-label={`Open ${guildName} dashboard`}
-            >
-              Guild Dashboard →
-            </Link>
-          ) : (
-            <div className="mb-3" />
-          )}
           <ul className="space-y-1">
             {characters.map((c) => (
               <li key={c.id} className="flex items-center justify-between gap-4 text-sm">
@@ -210,7 +207,9 @@ export function Dashboard() {
   const [guildsSynced, setGuildsSynced] = useState(false);
   const [characterFactionFilter, setCharacterFactionFilter] = useState<string>("");
   const [characterRealmFilter, setCharacterRealmFilter] = useState<string>("");
+  const [pendingGuildClick, setPendingGuildClick] = useState<FavoriteGuild | null>(null);
   const syncedVersionsRef = useRef<Set<string>>(new Set());
+  const navigate = useNavigate();
 
   const fetchPreferences = () =>
     api.get<{ preferences: Record<string, string> }>("/auth/me/preferences").then((res) => {
@@ -471,6 +470,39 @@ export function Dashboard() {
     fetchPerms();
   }, [allGuildCards]);
 
+  useEffect(() => {
+    if (!pendingGuildClick) return;
+    const key = favKey(pendingGuildClick);
+    const perms = guildPermissions[key];
+    if (perms !== undefined) {
+      if (perms.view_guild_dashboard) {
+        navigate(
+          `/guild-dashboard?realm=${encodeURIComponent(pendingGuildClick.realmSlug)}&guild_name=${encodeURIComponent(pendingGuildClick.guildName)}&server_type=${encodeURIComponent(pendingGuildClick.serverType)}`
+        );
+      }
+      setPendingGuildClick(null);
+    }
+  }, [pendingGuildClick, guildPermissions, navigate]);
+
+  useEffect(() => {
+    if (!pendingGuildClick) return;
+    const t = setTimeout(() => setPendingGuildClick(null), 30000);
+    return () => clearTimeout(t);
+  }, [pendingGuildClick]);
+
+  const handleGuildCardClick = (g: FavoriteGuild) => {
+    const key = favKey(g);
+    const perms = guildPermissions[key];
+    const loaded = perms !== undefined;
+    if (loaded && perms?.view_guild_dashboard) {
+      navigate(
+        `/guild-dashboard?realm=${encodeURIComponent(g.realmSlug)}&guild_name=${encodeURIComponent(g.guildName)}&server_type=${encodeURIComponent(g.serverType)}`
+      );
+    } else {
+      setPendingGuildClick(g);
+    }
+  };
+
   const today = new Date().toISOString().slice(0, 10);
   const upcomingRaids = myAssignmentRaids
     .filter((r) => r.raid_date >= today)
@@ -503,6 +535,10 @@ export function Dashboard() {
   };
 
   if (!initialLoadDone) {
+    return <LoadingOverlay message="Loading Data from Battle.net" />;
+  }
+
+  if (pendingGuildClick) {
     return <LoadingOverlay message="Loading Data from Battle.net" />;
   }
 
@@ -566,8 +602,7 @@ export function Dashboard() {
                   characters={g.characters}
                   isFavorite={isFavorite(g)}
                   onToggleFavorite={() => toggleFavorite(g)}
-                  canViewDashboard={guildPermissions[favKey(g)]?.view_guild_dashboard === true}
-                  guildsSynced={guildsSynced}
+                  onCardClick={() => handleGuildCardClick(g)}
                   permissionsLoaded={guildPermissions[favKey(g)] !== undefined}
                 />
               ))}
