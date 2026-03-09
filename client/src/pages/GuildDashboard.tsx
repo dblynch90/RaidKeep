@@ -44,6 +44,17 @@ const DEFAULT_PERMISSIONS: GuildPermissions = {
   manage_permissions: true,
 };
 
+/** Restrictive fallback while permissions are loading - prevents flash of admin cards */
+const LOADING_PERMISSIONS: GuildPermissions = {
+  view_guild_dashboard: true,
+  view_guild_roster: false,
+  view_raid_roster: false,
+  view_raid_schedule: false,
+  manage_raids: false,
+  manage_raid_roster: false,
+  manage_permissions: false,
+};
+
 export function GuildDashboard() {
   const [searchParams] = useSearchParams();
   const realm = searchParams.get("realm") ?? "";
@@ -69,7 +80,7 @@ export function GuildDashboard() {
       .catch(() => setPermissions(DEFAULT_PERMISSIONS));
   }, [realm, realmSlug, guildName, serverType]);
 
-  const perms = permissions ?? DEFAULT_PERMISSIONS;
+  const perms = permissions ?? LOADING_PERMISSIONS;
 
   if (!perms.view_guild_dashboard) {
     return (

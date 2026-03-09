@@ -586,6 +586,17 @@ export function RaidRoster() {
                 ))}
               </select>
               <div className="flex-1" />
+              <button
+                type="button"
+                onClick={() => {
+                  const url = `${window.location.origin}/raid-roster-popout?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
+                  window.open(url, "raid-roster-popout", "width=1400,height=900,scrollbars=yes,resizable=yes");
+                }}
+                className="h-8 px-3 rounded bg-slate-700 hover:bg-slate-600 border border-slate-600 text-slate-200 text-sm font-medium inline-flex items-center justify-center leading-none"
+                title="Open roster table in a separate window"
+              >
+                ⧉ Open in new window
+              </button>
               {canEdit && (
                 <>
                   <button

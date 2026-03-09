@@ -13,6 +13,7 @@ import { RaidView } from "./pages/RaidView";
 import { ManageRaids } from "./pages/ManageRaids";
 import { RaidRoster } from "./pages/RaidRoster";
 import { RaiderRoster } from "./pages/RaiderRoster";
+import { RaidRosterPopout } from "./pages/RaidRosterPopout";
 import { GuildDashboard } from "./pages/GuildDashboard";
 import { RaidSchedule } from "./pages/RaidSchedule";
 import { GuildPermissions } from "./pages/GuildPermissions";
@@ -20,7 +21,7 @@ import { AdminLogin } from "./pages/AdminLogin";
 import { AdminDashboard } from "./pages/AdminDashboard";
 import { AdminGuildDetail } from "./pages/AdminGuildDetail";
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function ProtectedRoute({ children, bare }: { children: React.ReactNode; bare?: boolean }) {
   const { user, loading } = useAuth();
   if (loading) {
     return (
@@ -33,6 +34,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (!user) {
     return <Navigate to="/login" replace />;
   }
+  if (bare) return <>{children}</>;
   return (
     <>
       <AppBanner />
@@ -119,6 +121,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <RaiderRoster />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/raid-roster-popout"
+        element={
+          <ProtectedRoute bare>
+            <RaidRosterPopout />
           </ProtectedRoute>
         }
       />

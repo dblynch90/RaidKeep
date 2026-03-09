@@ -512,10 +512,10 @@ export function RaiderRoster() {
   return (
     <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
       <main className="max-w-6xl mx-auto px-4 py-8">
-        <GuildBreadcrumbs guildName={guildName} realm={realm} serverType={serverType} currentPage="Raid Team" />
+        <GuildBreadcrumbs guildName={guildName} realm={realm} serverType={serverType} currentPage="Raid Roster" />
 
         <header className="mb-8">
-          <h1 className="text-lg font-semibold text-slate-200">Raid Team</h1>
+          <h1 className="text-lg font-semibold text-slate-200">Raid Roster</h1>
           <p className="text-slate-400 text-sm mt-1">
             {capitalizeRealm(realm)} / {guildName} / {serverType}
           </p>
@@ -536,7 +536,7 @@ export function RaiderRoster() {
               className="px-4 py-2 rounded-md text-slate-200 bg-[#223657] border-b-2 border-sky-500 text-sm font-medium"
               aria-current="page"
             >
-              Raid Team
+              Raid Roster
             </span>
           </nav>
         </div>
