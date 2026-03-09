@@ -61,8 +61,6 @@ export function RaidRosterPopout() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
-
   useEffect(() => {
     if (!realm || !guildName) {
       setLoading(false);
@@ -75,16 +73,16 @@ export function RaidRosterPopout() {
       api.get<{ raiders: RaiderEntry[] }>(
         `/auth/me/raider-roster?guild_realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
       ).then((r) =>
-        (r.raiders ?? []).map((x: { character_name: string; character_class: string; primary_spec?: string; off_spec?: string; notes?: string; officer_notes?: string; raid_role?: string; raid_lead?: unknown; raid_assist?: unknown; availability?: string }) => ({
+        (r.raiders ?? []).map((x) => ({
           ...x,
           raid_lead: Boolean(x.raid_lead),
           raid_assist: Boolean(x.raid_assist),
           availability: typeof x.availability === "string" ? x.availability.padEnd(7, "0").slice(0, 7) : DEFAULT_AVAILABILITY,
-        })
+        }))
       ),
       api.get<{ teams: RaidTeam[] }>(
         `/auth/me/raid-teams?guild_realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
-      ).then((r) => r.teams ?? []),
+      ).then((r) => (r.teams ?? []) as RaidTeam[]),
     ])
       .then(([raidersList, teamsList]) => {
         setRaiders(raidersList);
