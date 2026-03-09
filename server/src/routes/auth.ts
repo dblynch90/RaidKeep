@@ -12,6 +12,32 @@ import { getRaidStatus, type RaidStatus } from "../utils/raidStatus.js";
 
 export const authRoutes = Router();
 
+/** Create a signed OAuth state (survives server restart / no session needed) */
+function createSignedState(region: string): string {
+  const state = crypto.randomBytes(16).toString("hex");
+  const payload = JSON.stringify({ state, region, exp: Date.now() + 10 * 60 * 1000 });
+  const encoded = Buffer.from(payload, "utf8").toString("base64url");
+  const sig = crypto.createHmac("sha256", process.env.SESSION_SECRET || "fallback").update(encoded).digest("base64url");
+  return `${encoded}.${sig}`;
+}
+
+/** Verify and parse signed state; returns { state, region } or null */
+function verifySignedState(signed: string): { state: string; region: string } | null {
+  const parts = signed.split(".");
+  if (parts.length !== 2) return null;
+  const [encoded, sig] = parts;
+  const expected = crypto.createHmac("sha256", process.env.SESSION_SECRET || "fallback").update(encoded).digest("base64url");
+  if (sig !== expected) return null;
+  let payload: { state: string; region: string; exp: number };
+  try {
+    payload = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
+  } catch {
+    return null;
+  }
+  if (Date.now() > payload.exp) return null;
+  return { state: payload.state, region: payload.region };
+}
+
 function enrichRaidWithSlotCounts(
   db: Database.Database,
   raid: Record<string, unknown>
@@ -1336,7 +1362,7 @@ authRoutes.get("/me", (req, res) => {
   });
 });
 
-// Battle.net OAuth: initiate login
+// Battle.net OAuth: initiate login (signed state survives server restarts / no session)
 authRoutes.get("/battlenet", (req, res) => {
   const clientId = process.env.BLIZZARD_CLIENT_ID;
   const redirectUri = process.env.BATTLE_NET_REDIRECT_URI || "http://localhost:5173/auth/battlenet/callback";
@@ -1351,22 +1377,20 @@ authRoutes.get("/battlenet", (req, res) => {
     return;
   }
 
-  const state = crypto.randomBytes(16).toString("hex");
-  (req.session as unknown as Record<string, unknown>).battlenetState = state;
-  (req.session as unknown as Record<string, unknown>).battlenetRegion = region;
+  const signedState = createSignedState(region);
 
   const url = getAuthorizeUrl(
     region as (typeof BATTLE_NET_REGIONS)[number],
     clientId,
     redirectUri,
-    state
+    signedState
   );
   res.redirect(url);
 });
 
-// Battle.net OAuth: handle callback (called by client with code)
+// Battle.net OAuth: handle callback (uses signed state - no session needed, works across restarts)
 authRoutes.post("/battlenet/callback", async (req, res) => {
-  const { code, state } = req.body;
+  const { code, state: signedState } = req.body;
   const clientId = process.env.BLIZZARD_CLIENT_ID;
   const clientSecret = process.env.BLIZZARD_CLIENT_SECRET;
   const redirectUri = process.env.BATTLE_NET_REDIRECT_URI || "http://localhost:5173/auth/battlenet/callback";
@@ -1375,12 +1399,12 @@ authRoutes.post("/battlenet/callback", async (req, res) => {
     res.status(400).json({ error: "Missing code or Battle.net not configured" });
     return;
   }
-  const savedState = (req.session as unknown as Record<string, unknown>).battlenetState as string | undefined;
-  const region = ((req.session as unknown as Record<string, unknown>).battlenetRegion as string) || "us";
-  if (state !== savedState) {
-    res.status(400).json({ error: "Invalid state" });
+  const parsed = verifySignedState(signedState);
+  if (!parsed) {
+    res.status(400).json({ error: "Invalid or expired state. Please try logging in again." });
     return;
   }
+  const region = parsed.region;
 
   try {
     const tokenRes = await exchangeCodeForToken(
