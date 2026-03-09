@@ -46,7 +46,18 @@ function capitalizeRealm(s: string): string {
 type SavedRaid = { id: number; raid_name: string; raid_date: string; raid_instance?: string; start_time?: string; finish_time?: string };
 type TeamMember = { character_name: string; character_class?: string };
 type RaidTeam = { id: number; team_name: string; members: TeamMember[] };
-type RosterEntry = { character_name: string; character_class: string; primary_spec?: string; off_spec?: string; notes?: string; raid_role?: string; raid_lead?: number; raid_assist?: number };
+type RosterEntry = {
+  character_name: string;
+  character_class: string;
+  primary_spec?: string;
+  off_spec?: string;
+  notes?: string;
+  raid_role?: string;
+  raid_lead?: number;
+  raid_assist?: number;
+  professions?: string[];
+  guild_profession_stars?: string[];
+};
 
 export function AdminGuildDetail() {
   const { realmSlug, guildName } = useParams<{ realmSlug: string; guildName: string }>();
@@ -54,7 +65,7 @@ export function AdminGuildDetail() {
   const navigate = useNavigate();
   const serverType = searchParams.get("server_type") || "Retail";
 
-  const [tab, setTab] = useState<"permissions" | "raids" | "teams" | "roster">("permissions");
+  const [tab, setTab] = useState<"permissions" | "raids" | "teams" | "roster" | "professions">("permissions");
   const [config, setConfig] = useState<Record<string, Record<string, boolean>> | null>(null);
   const [characterOverrides, setCharacterOverrides] = useState<Array<{ character_name: string; permissions: Record<string, boolean> }>>([]);
   const [raids, setRaids] = useState<SavedRaid[]>([]);
@@ -72,6 +83,8 @@ export function AdminGuildDetail() {
   const [addingRoster, setAddingRoster] = useState(false);
   const [newRosterEntry, setNewRosterEntry] = useState<Partial<RosterEntry>>({ character_name: "", character_class: "Unknown" });
   const [deleteGuildConfirm, setDeleteGuildConfirm] = useState(false);
+  const [syncingRoster, setSyncingRoster] = useState(false);
+  const [professionTypes, setProfessionTypes] = useState<string[]>([]);
 
   const guildDisplay = guildName ? decodeURIComponent(guildName) : "";
   const realmDisplay = realmSlug ? capitalizeRealm(realmSlug.replace(/-/g, " ")) : "";
@@ -91,6 +104,7 @@ export function AdminGuildDetail() {
         setRaids(raidsRes.raids || []);
         setTeams(teamsRes.teams || []);
         setRoster(rosterRes.roster || []);
+        setProfessionTypes(rosterRes.profession_types || []);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -196,11 +210,13 @@ export function AdminGuildDetail() {
   };
 
   const updateRosterEntry = (entry: RosterEntry, fields: Partial<RosterEntry>) => {
+    const payload: Record<string, unknown> = { server_type: serverType, ...fields };
+    if (fields.professions !== undefined) payload.professions = fields.professions;
     fetch(`${API}/admin/guild/${realmSlug}/${guildName}/roster/${encodeURIComponent(entry.character_name)}`, {
       method: "PUT",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ server_type: serverType, ...fields }),
+      body: JSON.stringify(payload),
     }).then((r) => r.ok && (fetchData(), setEditingRoster(null)));
   };
 
@@ -209,6 +225,30 @@ export function AdminGuildDetail() {
     fetch(`${API}/admin/guild/${realmSlug}/${guildName}/roster/${encodeURIComponent(entry.character_name)}?server_type=${encodeURIComponent(serverType)}`, {
       method: "DELETE",
       credentials: "include",
+    }).then((r) => r.ok && fetchData());
+  };
+
+  const syncRosterFromBlizzard = () => {
+    setSyncingRoster(true);
+    fetch(
+      `${API}/admin/guild/${realmSlug}/${guildName}/roster/sync?server_type=${encodeURIComponent(serverType)}&region=us`,
+      { method: "POST", credentials: "include" }
+    )
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.error) alert(data.error);
+        else fetchData();
+      })
+      .catch(() => alert("Sync failed"))
+      .finally(() => setSyncingRoster(false));
+  };
+
+  const toggleProfessionStar = (charName: string, professionType: string, starred: boolean) => {
+    fetch(`${API}/admin/guild/${realmSlug}/${guildName}/profession-stars/${encodeURIComponent(charName)}`, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ server_type: serverType, profession_type: professionType, starred }),
     }).then((r) => r.ok && fetchData());
   };
 
@@ -266,7 +306,7 @@ export function AdminGuildDetail() {
       </header>
       <main className="max-w-5xl mx-auto px-4 py-6">
         <nav className="flex gap-2 mb-6 flex-wrap">
-          {(["permissions", "raids", "teams", "roster"] as const).map((t) => (
+          {(["permissions", "raids", "teams", "roster", "professions"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -468,9 +508,18 @@ export function AdminGuildDetail() {
           </div>
         ) : tab === "roster" ? (
           <div className="rounded-xl border border-slate-700 p-6" style={{ background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)" }}>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
               <h3 className="font-semibold text-sky-400">Raider Roster</h3>
-              {!addingRoster && <button onClick={() => setAddingRoster(true)} className="text-sky-400 hover:text-sky-300 text-sm">+ Add</button>}
+              <div className="flex gap-2">
+                <button
+                  onClick={syncRosterFromBlizzard}
+                  disabled={syncingRoster}
+                  className="text-sm px-3 py-1.5 rounded-lg bg-amber-600/80 hover:bg-amber-500/80 text-white font-medium disabled:opacity-50"
+                >
+                  {syncingRoster ? "Syncing..." : "Sync from Blizzard"}
+                </button>
+                {!addingRoster && <button onClick={() => setAddingRoster(true)} className="text-sky-400 hover:text-sky-300 text-sm">+ Add</button>}
+              </div>
             </div>
             {addingRoster && (
               <div className="flex flex-wrap gap-2 items-center p-3 rounded-lg bg-slate-800/50 mb-4">
@@ -491,6 +540,7 @@ export function AdminGuildDetail() {
                       <div className="flex flex-wrap gap-2 items-center">
                         <input value={editingRoster.character_class} onChange={(ev) => setEditingRoster((x) => x ? { ...x, character_class: ev.target.value } : null)} className="px-2 py-1 rounded bg-slate-700 text-sm w-24" placeholder="Class" />
                         <input value={editingRoster.primary_spec || ""} onChange={(ev) => setEditingRoster((x) => x ? { ...x, primary_spec: ev.target.value } : null)} className="px-2 py-1 rounded bg-slate-700 text-sm w-24" placeholder="Main spec" />
+                        <input value={(editingRoster.professions || []).join(", ")} onChange={(ev) => setEditingRoster((x) => x ? { ...x, professions: ev.target.value.split(",").map((s) => s.trim()).filter(Boolean) } : null)} className="px-2 py-1 rounded bg-slate-700 text-sm w-40" placeholder="Professions (comma)" />
                         <input value={editingRoster.off_spec || ""} onChange={(ev) => setEditingRoster((x) => x ? { ...x, off_spec: ev.target.value } : null)} className="px-2 py-1 rounded bg-slate-700 text-sm w-24" placeholder="Off spec" />
                         <input value={editingRoster.notes || ""} onChange={(ev) => setEditingRoster((x) => x ? { ...x, notes: ev.target.value } : null)} className="px-2 py-1 rounded bg-slate-700 text-sm w-32" placeholder="Notes" />
                         <input value={editingRoster.raid_role || ""} onChange={(ev) => setEditingRoster((x) => x ? { ...x, raid_role: ev.target.value } : null)} className="px-2 py-1 rounded bg-slate-700 text-sm w-20" placeholder="Role" />
@@ -499,9 +549,29 @@ export function AdminGuildDetail() {
                       </div>
                     ) : (
                       <>
-                        <span className="font-medium text-slate-200">{e.character_name}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-slate-500 text-sm">{e.character_class} {e.primary_spec && `· ${e.primary_spec}`}</span>
+                        <div>
+                          <span className="font-medium text-slate-200">{e.character_name}</span>
+                          {(e.guild_profession_stars?.length ?? 0) > 0 && (
+                            <span className="ml-2 text-amber-400 text-xs" title="Guild profession">
+                              ★ {e.guild_profession_stars!.join(", ")}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-slate-500 text-sm">
+                            {e.character_class} {e.primary_spec && `· ${e.primary_spec}`}
+                            {(e.professions?.length ?? 0) > 0 && ` · ${e.professions!.join(", ")}`}
+                          </span>
+                          {professionTypes.slice(0, 5).map((pt) => (
+                            <button
+                              key={pt}
+                              onClick={() => toggleProfessionStar(e.character_name, pt, !e.guild_profession_stars?.includes(pt))}
+                              className={`text-xs px-1.5 py-0.5 rounded ${e.guild_profession_stars?.includes(pt) ? "bg-amber-600/50 text-amber-200" : "bg-slate-600/50 text-slate-400 hover:text-slate-200"}`}
+                              title={e.guild_profession_stars?.includes(pt) ? `Unstar as Guild ${pt}` : `Star as Guild ${pt}`}
+                            >
+                              {pt} {e.guild_profession_stars?.includes(pt) ? "★" : "☆"}
+                            </button>
+                          ))}
                           <button onClick={() => setEditingRoster(e)} className="text-sky-400 hover:text-sky-300 text-xs">Edit</button>
                           <button onClick={() => deleteRosterEntry(e)} className="text-red-400 hover:text-red-300 text-xs">Delete</button>
                         </div>
@@ -511,6 +581,49 @@ export function AdminGuildDetail() {
                 ))}
               </div>
             )}
+          </div>
+        ) : tab === "professions" ? (
+          <div className="rounded-xl border border-slate-700 p-6" style={{ background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)" }}>
+            <h3 className="font-semibold text-sky-400 mb-4">Professions & Raid Support</h3>
+            <p className="text-slate-500 text-sm mb-4">
+              Find guild members by profession. Star someone as &quot;Guild Enchanter&quot;, &quot;Guild Alchemist&quot;, etc. in the Roster tab.
+            </p>
+            <div className="space-y-4">
+              {professionTypes.map((prof) => {
+                const starred = roster.filter((r) => r.guild_profession_stars?.includes(prof));
+                const hasProf = roster.filter((r) => r.professions?.includes(prof) || r.guild_profession_stars?.includes(prof));
+                return (
+                  <div key={prof} className="rounded-lg border border-slate-600/60 p-4 bg-slate-800/40">
+                    <h4 className="font-medium text-slate-200 mb-2">
+                      {prof}
+                      {starred.length > 0 && (
+                        <span className="ml-2 text-amber-400 text-sm font-normal">
+                          — {starred.map((s) => s.character_name).join(", ")} (Guild {prof}{starred.length > 1 ? "s" : ""})
+                        </span>
+                      )}
+                    </h4>
+                    <div className="flex flex-wrap gap-2 text-sm">
+                      {hasProf.length === 0 ? (
+                        <span className="text-slate-500">No members with {prof}. Add professions in Roster tab.</span>
+                      ) : (
+                        hasProf.map((r) => (
+                          <span
+                            key={r.character_name}
+                            className={`px-2 py-0.5 rounded ${r.guild_profession_stars?.includes(prof) ? "bg-amber-600/30 text-amber-200" : "bg-slate-700/60 text-slate-300"}`}
+                          >
+                            {r.character_name}
+                            {r.guild_profession_stars?.includes(prof) && " ★"}
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-slate-500 text-xs mt-4">
+              Use &quot;Sync from Blizzard&quot; in Roster to auto-populate. Add professions manually per character.
+            </p>
           </div>
         ) : null}
       </main>

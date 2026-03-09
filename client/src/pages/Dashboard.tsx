@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 import type { MyCharacter } from "../api";
 import type { GuildPermissions } from "./GuildPermissions";
@@ -101,8 +101,8 @@ function isGuildMaster(c: MyCharacter): boolean {
 function GuildCard({
   guildName,
   realm,
-  realmSlug,
-  serverType,
+  realmSlug: _realmSlug,
+  serverType: _serverType,
   characters,
   isFavorite,
   onToggleFavorite,
@@ -204,7 +204,7 @@ export function Dashboard() {
   const [guildPermissions, setGuildPermissions] = useState<Record<string, GuildPermissions>>({});
   const [loading, setLoading] = useState(true);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
-  const [guildsSynced, setGuildsSynced] = useState(false);
+  const [, setGuildsSynced] = useState(false);
   const [characterFactionFilter, setCharacterFactionFilter] = useState<string>("");
   const [characterRealmFilter, setCharacterRealmFilter] = useState<string>("");
   const [pendingGuildClick, setPendingGuildClick] = useState<FavoriteGuild | null>(null);

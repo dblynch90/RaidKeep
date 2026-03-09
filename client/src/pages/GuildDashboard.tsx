@@ -65,6 +65,7 @@ export function GuildDashboard() {
 
   const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
   const rosterUrl = `/guild-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
+  const craftersUrl = `/guild-crafters?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
   const manageRaidsUrl = `/manage-raids?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
   const raidScheduleUrl = `/raid-schedule?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
   const raidRosterUrl = `/raid-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
@@ -123,6 +124,9 @@ export function GuildDashboard() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {perms.view_guild_roster && (
                   <DashboardCard to={rosterUrl} title="Guild Roster" description="View guild members, filter by class and level." />
+                )}
+                {perms.view_guild_roster && (
+                  <DashboardCard to={craftersUrl} title="Guild Crafters" description="Search recipe books of starred guild crafters." />
                 )}
                 {perms.view_raid_roster && (
                   <DashboardCard to={raidRosterUrl} title="Raid Roster" description="View raid roster, set your availability and notes." />

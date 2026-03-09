@@ -72,6 +72,8 @@ interface RaiderEntry {
   raid_lead?: boolean;
   raid_assist?: boolean;
   availability?: string;
+  professions?: string[];
+  guild_profession_stars?: string[];
 }
 
 interface RaidTeam {
@@ -125,6 +127,7 @@ export function RaiderRoster() {
   const [levelMax, setLevelMax] = useState<number | null>(null);
   const [raiderSearchQuery, setRaiderSearchQuery] = useState("");
   const [raiderClassFilter, setRaiderClassFilter] = useState<string>("");
+  const [professionFilter, setProfessionFilter] = useState<string>("");
   const [raiderLevelMin, setRaiderLevelMin] = useState<number | null>(null);
   const [raiderLevelMax, setRaiderLevelMax] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"guild" | "roster" | "teams">("roster");
@@ -271,18 +274,21 @@ export function RaiderRoster() {
   const effectiveRaiderLevelMin = raiderLevelMin ?? maxLevelInRoster;
   const effectiveRaiderLevelMax = raiderLevelMax ?? maxLevelInRoster;
 
+  const PROFESSION_OPTIONS = ["Alchemy", "Blacksmithing", "Enchanting", "Engineering", "Herbalism", "Inscription", "Jewelcrafting", "Leatherworking", "Mining", "Skinning", "Tailoring"];
+
   const filteredRaiders = useMemo(() => {
     const q = raiderSearchQuery.trim().toLowerCase();
     return [...raiders]
       .filter((r) => !q || r.character_name.toLowerCase().includes(q))
       .filter((r) => !raiderClassFilter || r.character_class === raiderClassFilter)
+      .filter((r) => !professionFilter || r.guild_profession_stars?.includes(professionFilter) || r.professions?.includes(professionFilter))
       .filter((r) => {
         const gm = guildMemberByLowerName.get(r.character_name.toLowerCase());
         if (!gm) return true;
         return gm.level >= effectiveRaiderLevelMin && gm.level <= effectiveRaiderLevelMax;
       })
       .sort((a, b) => a.character_name.localeCompare(b.character_name, undefined, { sensitivity: "base" }));
-  }, [raiders, raiderSearchQuery, raiderClassFilter, effectiveRaiderLevelMin, effectiveRaiderLevelMax, guildMemberByLowerName]);
+  }, [raiders, raiderSearchQuery, raiderClassFilter, professionFilter, effectiveRaiderLevelMin, effectiveRaiderLevelMax, guildMemberByLowerName]);
 
   const perms = permissions ?? DEFAULT_PERMISSIONS;
   if (!loading && !perms.view_raid_roster) {
@@ -818,6 +824,19 @@ export function RaiderRoster() {
                           </option>
                         ))}
                       </select>
+                      <select
+                        value={professionFilter}
+                        onChange={(e) => setProfessionFilter(e.target.value)}
+                        className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                        title="Find crafters by profession"
+                      >
+                        <option value="">All / Find crafters</option>
+                        {PROFESSION_OPTIONS.map((p) => (
+                          <option key={p} value={p}>
+                            {p}
+                          </option>
+                        ))}
+                      </select>
                       <div className="flex items-center gap-2">
                         <label className="text-slate-400 text-sm shrink-0">Level</label>
                         <input
@@ -880,6 +899,11 @@ export function RaiderRoster() {
                                 <div className="flex flex-col gap-1.5 min-w-0">
                                   <span className="font-medium text-slate-100 truncate" style={{ color: classColor }}>
                                     {r.character_name} {guildMember ? `- ${guildMember.level}` : ""} {r.character_class}
+                                    {(r.guild_profession_stars?.length ?? 0) > 0 && (
+                                      <span className="ml-1.5 text-amber-400 text-xs font-normal" title={`Guild: ${r.guild_profession_stars!.join(", ")}`}>
+                                        ★ {r.guild_profession_stars!.join(", ")}
+                                      </span>
+                                    )}
                                   </span>
                                   {canEdit && (
                                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">

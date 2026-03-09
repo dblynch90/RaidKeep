@@ -436,6 +436,45 @@ export function initDb() {
     /* column may already exist */
   }
 
+  // Migration: add professions to raider_roster (JSON array of profession names)
+  try {
+    const rrCols = db.prepare("PRAGMA table_info(raider_roster)").all() as Array<{ name: string }>;
+    if (!rrCols.some((c) => c.name === "professions")) {
+      db.exec("ALTER TABLE raider_roster ADD COLUMN professions TEXT");
+    }
+  } catch {
+    /* column may already exist */
+  }
+
+  // Guild profession stars: mark character as "Guild Enchanter", "Guild Alchemist", etc.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS guild_profession_stars (
+      guild_realm_slug TEXT NOT NULL,
+      guild_name TEXT NOT NULL,
+      server_type TEXT NOT NULL DEFAULT 'Retail',
+      character_name TEXT NOT NULL,
+      profession_type TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      PRIMARY KEY (guild_realm_slug, guild_name, server_type, character_name, profession_type)
+    )
+  `);
+
+  // Character recipes: which raid-support recipes a character has (for search/filter)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS character_recipes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_realm_slug TEXT NOT NULL,
+      guild_name TEXT NOT NULL,
+      server_type TEXT NOT NULL DEFAULT 'Retail',
+      character_name TEXT NOT NULL,
+      recipe_name TEXT NOT NULL,
+      profession TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(guild_realm_slug, guild_name, server_type, character_name, recipe_name)
+    )
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_character_recipes_lookup ON character_recipes(guild_realm_slug, guild_name, server_type)");
+
   // User preferences (game version, favorite guilds)
   db.exec(`
     CREATE TABLE IF NOT EXISTS user_preferences (

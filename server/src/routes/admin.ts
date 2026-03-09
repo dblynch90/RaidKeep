@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import { getDb } from "../db/init.js";
+import { fetchGuildRoster } from "../services/blizzard.js";
 
 export const adminRoutes = Router();
 
@@ -421,6 +422,20 @@ adminRoutes.delete("/guild/:realmSlug/:guildName/raids/:raidId", requireAdmin, (
   res.json({ ok: true });
 });
 
+const PROFESSION_TYPES = [
+  "Alchemy",
+  "Blacksmithing",
+  "Enchanting",
+  "Engineering",
+  "Herbalism",
+  "Inscription",
+  "Jewelcrafting",
+  "Leatherworking",
+  "Mining",
+  "Skinning",
+  "Tailoring",
+] as const;
+
 adminRoutes.get("/guild/:realmSlug/:guildName/roster", requireAdmin, (req, res) => {
   const realmSlug = (req.params.realmSlug as string)?.toLowerCase().replace(/\s+/g, "-");
   const guildName = decodeURIComponent((req.params.guildName as string) || "");
@@ -437,7 +452,77 @@ adminRoutes.get("/guild/:realmSlug/:guildName/roster", requireAdmin, (req, res) 
        ORDER BY character_name`
     )
     .all(realmSlug, guildName, serverType);
-  res.json({ roster });
+  const stars = db
+    .prepare(
+      `SELECT character_name, profession_type FROM guild_profession_stars
+       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?`
+    )
+    .all(realmSlug, guildName, serverType) as Array<{ character_name: string; profession_type: string }>;
+  const starsByChar = new Map<string, string[]>();
+  for (const s of stars) {
+    const key = s.character_name.toLowerCase();
+    if (!starsByChar.has(key)) starsByChar.set(key, []);
+    starsByChar.get(key)!.push(s.profession_type);
+  }
+  const rosterWithStars = (roster as Array<Record<string, unknown>>).map((r) => ({
+    ...r,
+    guild_profession_stars: starsByChar.get((r.character_name as string).toLowerCase()) ?? [],
+  }));
+  res.json({ roster: rosterWithStars, profession_types: [...PROFESSION_TYPES] });
+});
+
+adminRoutes.post("/guild/:realmSlug/:guildName/roster/sync", requireAdmin, async (req, res) => {
+  const realmSlug = (req.params.realmSlug as string)?.toLowerCase().replace(/\s+/g, "-");
+  const guildName = decodeURIComponent((req.params.guildName as string) || "");
+  const serverType = (req.query.server_type as string) || "Retail";
+  const region = (req.query.region as string) || process.env.ADMIN_BLIZZARD_REGION || "us";
+  if (!realmSlug || !guildName) {
+    res.status(400).json({ error: "realm and guild_name required" });
+    return;
+  }
+  try {
+    const roster = await fetchGuildRoster(region, realmSlug, guildName, serverType);
+    const db = getDb();
+    const uid = getOrCreateUserIdForGuild(db, realmSlug, guildName, serverType);
+    const insert = db.prepare(
+      `INSERT OR REPLACE INTO raider_roster (user_id, guild_name, guild_realm_slug, server_type, character_name, character_class, primary_spec, off_spec, notes, officer_notes, raid_role, raid_lead, raid_assist, availability)
+       VALUES (?, ?, ?, ?, ?, ?, COALESCE((SELECT primary_spec FROM raider_roster WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)), NULL),
+         COALESCE((SELECT off_spec FROM raider_roster WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)), NULL),
+         COALESCE((SELECT notes FROM raider_roster WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)), NULL),
+         COALESCE((SELECT officer_notes FROM raider_roster WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)), NULL),
+         COALESCE((SELECT raid_role FROM raider_roster WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)), NULL),
+         COALESCE((SELECT raid_lead FROM raider_roster WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)), 0),
+         COALESCE((SELECT raid_assist FROM raider_roster WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)), 0),
+         COALESCE((SELECT availability FROM raider_roster WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)), '0000000')
+       )`
+    );
+    // Simpler: use upsert with INSERT ... ON CONFLICT or check-then-insert/update
+    let added = 0;
+    let updated = 0;
+    for (const m of roster.members) {
+      const existing = db.prepare(
+        "SELECT id FROM raider_roster WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)"
+      ).get(realmSlug, guildName, serverType, m.name);
+      if (existing) {
+        db.prepare(
+          `UPDATE raider_roster SET character_class = ? WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)`
+        ).run(m.class || "Unknown", realmSlug, guildName, serverType, m.name);
+        updated++;
+      } else {
+        db.prepare(
+          `INSERT INTO raider_roster (user_id, guild_name, guild_realm_slug, server_type, character_name, character_class, primary_spec, off_spec, notes, officer_notes, raid_role, raid_lead, raid_assist, availability)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ).run(uid, guildName, realmSlug, serverType, m.name, m.class || "Unknown", null, null, null, null, null, 0, 0, "0000000");
+        added++;
+      }
+    }
+    res.json({ ok: true, added, updated, total: roster.members.length });
+  } catch (err) {
+    console.error("[admin roster sync]", err);
+    res.status(502).json({
+      error: err instanceof Error ? err.message : "Failed to sync roster from Blizzard",
+    });
+  }
 });
 
 adminRoutes.post("/guild/:realmSlug/:guildName/roster", requireAdmin, (req, res) => {
@@ -484,12 +569,92 @@ adminRoutes.post("/guild/:realmSlug/:guildName/roster", requireAdmin, (req, res)
   res.json({ ok: true });
 });
 
+adminRoutes.put("/guild/:realmSlug/:guildName/profession-stars/:charName", requireAdmin, (req, res) => {
+  const realmSlug = (req.params.realmSlug as string)?.toLowerCase().replace(/\s+/g, "-");
+  const guildName = decodeURIComponent((req.params.guildName as string) || "");
+  const charName = decodeURIComponent((req.params.charName as string) || "");
+  const serverType = (req.body.server_type as string) || "Retail";
+  const { profession_type, starred } = req.body;
+  if (!realmSlug || !guildName || !charName || !profession_type || typeof profession_type !== "string") {
+    res.status(400).json({ error: "realm, guild_name, character_name, and profession_type required" });
+    return;
+  }
+  if (!(PROFESSION_TYPES as readonly string[]).includes(profession_type)) {
+    res.status(400).json({ error: "Invalid profession_type" });
+    return;
+  }
+  const db = getDb();
+  if (starred) {
+    db.prepare(
+      `INSERT OR IGNORE INTO guild_profession_stars (guild_realm_slug, guild_name, server_type, character_name, profession_type)
+       VALUES (?, ?, ?, ?, ?)`
+    ).run(realmSlug, guildName, serverType, charName, profession_type);
+  } else {
+    db.prepare(
+      `DELETE FROM guild_profession_stars
+       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?) AND profession_type = ?`
+    ).run(realmSlug, guildName, serverType, charName, profession_type);
+  }
+  res.json({ ok: true });
+});
+
+adminRoutes.get("/guild/:realmSlug/:guildName/recipes", requireAdmin, (req, res) => {
+  const realmSlug = (req.params.realmSlug as string)?.toLowerCase().replace(/\s+/g, "-");
+  const guildName = decodeURIComponent((req.params.guildName as string) || "");
+  const serverType = (req.query.server_type as string) || "Retail";
+  const recipeFilter = (req.query.recipe as string)?.trim();
+  if (!realmSlug || !guildName) {
+    res.status(400).json({ error: "realm and guild_name required" });
+    return;
+  }
+  const db = getDb();
+  let rows = db
+    .prepare(
+      `SELECT character_name, recipe_name, profession FROM character_recipes
+       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?
+       ORDER BY recipe_name, character_name`
+    )
+    .all(realmSlug, guildName, serverType) as Array<{ character_name: string; recipe_name: string; profession: string | null }>;
+  if (recipeFilter) {
+    const q = recipeFilter.toLowerCase();
+    rows = rows.filter((r) => r.recipe_name.toLowerCase().includes(q));
+  }
+  res.json({ recipes: rows });
+});
+
+adminRoutes.put("/guild/:realmSlug/:guildName/recipes", requireAdmin, (req, res) => {
+  const realmSlug = (req.params.realmSlug as string)?.toLowerCase().replace(/\s+/g, "-");
+  const guildName = decodeURIComponent((req.params.guildName as string) || "");
+  const serverType = (req.body.server_type as string) || "Retail";
+  const { character_name, recipe_name, profession, add } = req.body;
+  if (!realmSlug || !guildName || !character_name || !recipe_name || typeof character_name !== "string" || typeof recipe_name !== "string") {
+    res.status(400).json({ error: "realm, guild_name, character_name, and recipe_name required" });
+    return;
+  }
+  const db = getDb();
+  const charName = String(character_name).trim();
+  const recipeName = String(recipe_name).trim();
+  const prof = typeof profession === "string" ? profession.trim() || null : null;
+  if (add) {
+    db.prepare(
+      `INSERT OR REPLACE INTO character_recipes (guild_realm_slug, guild_name, server_type, character_name, recipe_name, profession)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(realmSlug, guildName, serverType, charName, recipeName, prof);
+  } else {
+    db.prepare(
+      `DELETE FROM character_recipes
+       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?) AND LOWER(recipe_name) = LOWER(?)`
+    ).run(realmSlug, guildName, serverType, charName, recipeName);
+  }
+  res.json({ ok: true });
+});
+
 adminRoutes.put("/guild/:realmSlug/:guildName/roster/:charName", requireAdmin, (req, res) => {
   const realmSlug = (req.params.realmSlug as string)?.toLowerCase().replace(/\s+/g, "-");
   const guildName = decodeURIComponent((req.params.guildName as string) || "");
   const charName = decodeURIComponent((req.params.charName as string) || "");
   const serverType = (req.body.server_type as string) || "Retail";
-  const { character_class, primary_spec, off_spec, notes, officer_notes, raid_role, raid_lead, raid_assist, availability } = req.body;
+  const { character_class, primary_spec, off_spec, notes, officer_notes, raid_role, raid_lead, raid_assist, availability, professions } = req.body;
   if (!realmSlug || !guildName || !charName) {
     res.status(400).json({ error: "realm, guild_name, and character_name required" });
     return;
@@ -540,6 +705,13 @@ adminRoutes.put("/guild/:realmSlug/:guildName/roster/:charName", requireAdmin, (
     const a = availability.slice(0, 7).padEnd(7, "0").replace(/[^01]/g, "0");
     updates.push("availability = ?");
     values.push(a);
+  }
+  if (professions !== undefined) {
+    const val = Array.isArray(professions)
+      ? JSON.stringify(professions.filter((p: unknown) => typeof p === "string"))
+      : null;
+    updates.push("professions = ?");
+    values.push(val);
   }
   if (updates.length > 0) {
     values.push(realmSlug, guildName, serverType, charName);

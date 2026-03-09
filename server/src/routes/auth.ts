@@ -1247,6 +1247,30 @@ authRoutes.get("/me/raider-roster", requireAuth, (req, res) => {
         .all(guildOwner.user_id, realmSlug, guildName, serverType);
     }
   }
+  const stars = db
+    .prepare(
+      `SELECT character_name, profession_type FROM guild_profession_stars
+       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?`
+    )
+    .all(realmSlug, guildName, serverType) as Array<{ character_name: string; profession_type: string }>;
+  const starsByChar = new Map<string, string[]>();
+  for (const s of stars) {
+    const key = s.character_name.toLowerCase();
+    if (!starsByChar.has(key)) starsByChar.set(key, []);
+    starsByChar.get(key)!.push(s.profession_type);
+  }
+  raiders = (raiders as Array<Record<string, unknown> & { character_name?: string }>).map((r) => ({
+    ...r,
+    guild_profession_stars: starsByChar.get((r.character_name || "").toLowerCase()) ?? [],
+    professions: (() => {
+      try {
+        const p = (r as { professions?: string | null }).professions;
+        return p ? (JSON.parse(p) as string[]) : [];
+      } catch {
+        return [];
+      }
+    })(),
+  }));
   // Hide officer_notes and optionally player notes from view-only users
   if (!perms?.manage_raid_roster) {
     const myCharRows = db.prepare(
@@ -1268,6 +1292,67 @@ authRoutes.get("/me/raider-roster", requireAuth, (req, res) => {
     });
   }
   res.json({ raiders });
+});
+
+// Guild crafters / recipe search (member-facing: search recipes from starred guild crafters)
+authRoutes.get("/me/guild-recipes", requireAuth, (req, res) => {
+  const guildRealm = (req.query.guild_realm as string)?.trim();
+  const guildName = (req.query.guild_name as string)?.trim();
+  const serverType = (req.query.server_type as string) || "Retail";
+  const recipeQuery = (req.query.recipe as string)?.trim().toLowerCase();
+  const professionFilter = (req.query.profession as string)?.trim();
+  if (!guildRealm || !guildName) {
+    res.status(400).json({ error: "guild_realm and guild_name required" });
+    return;
+  }
+  const db = getDb();
+  const userId = req.session!.user!.id;
+  const realmSlug = guildRealm.toLowerCase().replace(/\s+/g, "-");
+  const perms = getEffectiveGuildPermissions(db, userId, realmSlug, guildName, serverType);
+  if (!perms?.view_guild_roster) {
+    res.status(403).json({ error: "You do not have permission to view guild crafters" });
+    return;
+  }
+  // Only recipes from characters who are starred as guild crafters
+  const starredChars = db
+    .prepare(
+      `SELECT DISTINCT character_name FROM guild_profession_stars
+       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?`
+    )
+    .all(realmSlug, guildName, serverType) as Array<{ character_name: string }>;
+  const starredSet = new Set(starredChars.map((r) => r.character_name.toLowerCase()));
+  if (starredSet.size === 0) {
+    res.json({ recipes: [], crafters: [] });
+    return;
+  }
+  const placeholders = [...starredSet].map(() => "?").join(",");
+  let recipes = db
+    .prepare(
+      `SELECT cr.character_name, cr.recipe_name, cr.profession
+       FROM character_recipes cr
+       WHERE cr.guild_realm_slug = ? AND cr.guild_name = ? AND cr.server_type = ?
+       AND LOWER(cr.character_name) IN (${placeholders})
+       ORDER BY cr.recipe_name, cr.character_name`
+    )
+    .all(realmSlug, guildName, serverType, ...starredSet) as Array<{
+      character_name: string;
+      recipe_name: string;
+      profession: string | null;
+    }>;
+  if (recipeQuery) {
+    recipes = recipes.filter((r) => r.recipe_name.toLowerCase().includes(recipeQuery));
+  }
+  if (professionFilter) {
+    recipes = recipes.filter((r) => (r.profession || "").toLowerCase() === professionFilter.toLowerCase());
+  }
+  const crafters = db
+    .prepare(
+      `SELECT character_name, profession_type FROM guild_profession_stars
+       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?
+       ORDER BY profession_type, character_name`
+    )
+    .all(realmSlug, guildName, serverType) as Array<{ character_name: string; profession_type: string }>;
+  res.json({ recipes, crafters });
 });
 
 authRoutes.put("/me/raider-roster", requireAuth, (req, res) => {
