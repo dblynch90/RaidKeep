@@ -140,7 +140,7 @@ const DEFAULT_PERMISSIONS: GuildPermissions = {
 };
 
 export function PlanRaid() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const realm = searchParams.get("realm") ?? "";
   const guildName = searchParams.get("guild_name") ?? "";
   const serverType = searchParams.get("server_type") ?? "Retail";
@@ -699,8 +699,13 @@ export function PlanRaid() {
         await api.patch<{ raid: { id: number } }>(`/auth/me/saved-raids/${raidId}`, payload);
         setSaveMessage({ ok: true, text: "Raid updated successfully." });
       } else {
-        await api.post<{ raid: { id: number } }>("/auth/me/saved-raids", payload);
+        const res = await api.post<{ raid: { id: number } }>("/auth/me/saved-raids", payload);
         setSaveMessage({ ok: true, text: "Raid saved successfully." });
+        setSearchParams((prev) => {
+          const p = new URLSearchParams(prev);
+          p.set("raidId", String(res.raid.id));
+          return p;
+        });
       }
     } catch (err) {
       setSaveMessage({
@@ -1102,7 +1107,7 @@ export function PlanRaid() {
                         </button>
                       </div>
                     </div>
-                    <div className="space-y-6">
+                    <div className={showGuildRosterDrawer ? "space-y-6" : "grid grid-cols-2 gap-6"}>
                       {parties.map((party, partyIdx) => (
                         <div
                           key={partyIdx}
