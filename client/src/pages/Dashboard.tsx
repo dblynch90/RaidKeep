@@ -107,7 +107,6 @@ function GuildCard({
   isFavorite,
   onToggleFavorite,
   canViewDashboard,
-  guildsSynced,
   permissionsLoaded,
 }: {
   guildName: string;
@@ -122,7 +121,6 @@ function GuildCard({
   permissionsLoaded: boolean;
 }) {
   const guildDashboardUrl = `/guild-dashboard?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
-  const dashboardReady = canViewDashboard && guildsSynced;
   return (
     <div
       className="block rounded-xl border border-white/[0.05] hover:border-sky-600/50 transition overflow-hidden"
@@ -150,19 +148,13 @@ function GuildCard({
               Syncing Data
             </span>
           ) : canViewDashboard ? (
-            dashboardReady ? (
-              <Link
-                to={guildDashboardUrl}
-                className="inline-flex items-center gap-1 text-sm text-sky-400/90 hover:text-sky-400 mb-3"
-                aria-label={`Open ${guildName} dashboard`}
-              >
-                {guildName} Dashboard →
-              </Link>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-sm text-slate-500 cursor-not-allowed mb-3" title="Guild data is still syncing. Please wait...">
-                {guildName} Dashboard →
-              </span>
-            )
+            <Link
+              to={guildDashboardUrl}
+              className="inline-flex items-center gap-1 text-sm text-sky-400/90 hover:text-sky-400 mb-3"
+              aria-label={`Open ${guildName} dashboard`}
+            >
+              {guildName} Dashboard →
+            </Link>
           ) : (
             <div className="mb-3" />
           )}

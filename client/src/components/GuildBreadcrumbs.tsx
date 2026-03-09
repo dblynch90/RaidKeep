@@ -1,13 +1,5 @@
 import { Link } from "react-router-dom";
 
-function capitalizeRealm(realm: string): string {
-  if (!realm) return "";
-  return realm
-    .split(/[- ]/)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ");
-}
-
 export interface BreadcrumbItem {
   label: string;
   href?: string;
@@ -30,12 +22,20 @@ export function GuildBreadcrumbs({
 }: GuildBreadcrumbsProps) {
   const guildDashboardUrl = `/guild-dashboard?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
 
-  const items: BreadcrumbItem[] = [
-    { label: "Dashboard", href: "/" },
-    { label: `${guildName} (${capitalizeRealm(realm)})`, href: guildDashboardUrl },
-    ...extraItems,
-    { label: currentPage },
-  ];
+  const guildDashboardLabel = `Guild Dashboard (${guildName})`;
+  const isOnGuildDashboard = currentPage === "Guild Dashboard";
+
+  const items: BreadcrumbItem[] = isOnGuildDashboard
+    ? [
+        { label: "Dashboard", href: "/" },
+        { label: guildDashboardLabel },
+      ]
+    : [
+        { label: "Dashboard", href: "/" },
+        { label: guildDashboardLabel, href: guildDashboardUrl },
+        ...extraItems,
+        { label: currentPage },
+      ];
 
   return (
     <nav aria-label="Breadcrumb" className="mb-6">
