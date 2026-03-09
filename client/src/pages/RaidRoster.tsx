@@ -103,9 +103,18 @@ export function RaidRoster() {
   const [showManageTeamsModal, setShowManageTeamsModal] = useState(false);
   const [newTeamName, setNewTeamName] = useState("");
   const [selectedAddModalMembers, setSelectedAddModalMembers] = useState<Set<string>>(new Set());
+  const [myCharacters, setMyCharacters] = useState<import("../api").MyCharacter[]>([]);
 
   const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
   const canEdit = (permissions ?? DEFAULT_PERMISSIONS).manage_raid_roster;
+  const canEditOwnAvailabilityAndNotes =
+    (permissions ?? DEFAULT_PERMISSIONS).view_raid_roster && !canEdit;
+  const myCharacterNames = useMemo(
+    () => new Set(myCharacters.map((c) => c.name.toLowerCase())),
+    [myCharacters]
+  );
+  const canEditRaider = (characterName: string) =>
+    canEdit || (canEditOwnAvailabilityAndNotes && myCharacterNames.has(characterName.toLowerCase()));
 
   useEffect(() => {
     if (!realm || !guildName) {
@@ -122,6 +131,7 @@ export function RaidRoster() {
       api.get<{ members: RosterMember[] }>(
         `/auth/me/guild-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
       ).then((r) => r.members),
+      api.get<{ characters: import("../api").MyCharacter[] }>("/auth/me/characters").then((r) => r.characters ?? []).catch(() => []),
       api.get<{ raiders: RaiderEntry[] }>(
         `/auth/me/raider-roster?guild_realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
       ).then((r) =>
@@ -136,9 +146,10 @@ export function RaidRoster() {
         `/auth/me/raid-teams?guild_realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
       ).then((r) => r.teams ?? []),
     ])
-      .then(([perms, members, raidersList, teamsList]) => {
+      .then(([perms, members, chars, raidersList, teamsList]) => {
         setPermissions(perms);
         setGuildRoster(members);
+        setMyCharacters(chars);
         setRaiders(raidersList);
         setTeams(teamsList);
       })
@@ -224,14 +235,18 @@ export function RaidRoster() {
   };
 
   const updateRaider = (name: string, updates: Partial<RaiderEntry>) => {
-    if (!canEdit) return;
+    if (!canEditRaider(name)) return;
+    const filtered = canEditOwnAvailabilityAndNotes
+      ? { ...(updates.availability !== undefined && { availability: updates.availability }), ...(updates.notes !== undefined && { notes: updates.notes }) }
+      : updates;
+    if (Object.keys(filtered).length === 0) return;
     setRaiders((prev) =>
-      prev.map((r) => (r.character_name.toLowerCase() === name.toLowerCase() ? { ...r, ...updates } : r))
+      prev.map((r) => (r.character_name.toLowerCase() === name.toLowerCase() ? { ...r, ...filtered } : r))
     );
   };
 
   const toggleAvailabilityDay = (name: string, dayIndex: number) => {
-    if (!canEdit) return;
+    if (!canEditRaider(name)) return;
     setRaiders((prev) =>
       prev.map((r) => {
         if (r.character_name.toLowerCase() !== name.toLowerCase()) return r;
@@ -303,11 +318,12 @@ export function RaidRoster() {
   }, [saveMsg]);
 
   const handleSave = async () => {
-    if (!canEdit) return;
+    if (!canEdit && !canEditOwnAvailabilityAndNotes) return;
     setSaving(true);
     setSaveMsg(null);
     try {
-      await api.put("/auth/me/raider-roster", {
+      if (canEdit) {
+        await api.put("/auth/me/raider-roster", {
         guild_name: guildName,
         guild_realm: realm,
         guild_realm_slug: realm,
@@ -323,7 +339,38 @@ export function RaidRoster() {
           raid_assist: r.raid_assist ? 1 : 0,
           availability: (r.availability || DEFAULT_AVAILABILITY).padEnd(7, "0").slice(0, 7),
         })),
-      });
+        });
+      } else {
+        const myUpdates = raiders
+          .filter((r) => myCharacterNames.has(r.character_name.toLowerCase()))
+          .map((r) => ({
+            character_name: r.character_name,
+            availability: (r.availability || DEFAULT_AVAILABILITY).padEnd(7, "0").slice(0, 7),
+            notes: r.notes ?? "",
+          }));
+        if (myUpdates.length > 0) {
+          const res = await api.patch<{ raiders: RaiderEntry[] }>("/auth/me/raider-roster/self", {
+            guild_name: guildName,
+            guild_realm: realm,
+            guild_realm_slug: realmSlug,
+            server_type: serverType,
+            updates: myUpdates,
+          });
+          setRaiders(
+            (res.raiders ?? []).map((x: { character_name?: string; character_class?: string; primary_spec?: string; off_spec?: string; notes?: string; raid_role?: string; raid_lead?: unknown; raid_assist?: unknown; availability?: string }) => ({
+              character_name: x.character_name ?? "",
+              character_class: x.character_class ?? "",
+              primary_spec: x.primary_spec ?? "",
+              off_spec: x.off_spec ?? "",
+              notes: x.notes ?? "",
+              raid_role: x.raid_role ?? "",
+              raid_lead: Boolean(x.raid_lead),
+              raid_assist: Boolean(x.raid_assist),
+              availability: typeof x.availability === "string" ? x.availability.padEnd(7, "0").slice(0, 7) : DEFAULT_AVAILABILITY,
+            }))
+          );
+        }
+      }
       setSaveMsg("Saved.");
     } catch (err) {
       setSaveMsg(err instanceof Error ? err.message : "Failed to save");
@@ -550,15 +597,17 @@ export function RaidRoster() {
                   >
                     + Add from Guild
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="h-8 px-4 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-medium text-sm inline-flex items-center justify-center leading-none border border-sky-500/50"
-                  >
-                    {saving ? "Saving..." : "Save"}
-                  </button>
                 </>
+              )}
+              {(canEdit || canEditOwnAvailabilityAndNotes) && (
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="h-8 px-4 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-medium text-sm inline-flex items-center justify-center leading-none border border-sky-500/50"
+                >
+                  {saving ? "Saving..." : "Save"}
+                </button>
               )}
             </div>
 
@@ -619,11 +668,14 @@ export function RaidRoster() {
                           {DAYS.map((d, i) => {
                             const avail = (r.availability || DEFAULT_AVAILABILITY).padEnd(7, "0");
                             const checked = avail[i] === "1";
+                            const canEditAvail = canEditRaider(r.character_name);
                             return (
                               <label
                                 key={i}
-                                className={`flex items-center justify-center shrink-0 w-9 h-6 rounded text-[9px] font-medium cursor-pointer transition-colors whitespace-nowrap ${
-                                  canEdit
+                                className={`flex items-center justify-center shrink-0 w-9 h-6 rounded text-[9px] font-medium transition-colors whitespace-nowrap ${
+                                  canEditAvail ? "cursor-pointer" : "cursor-default"
+                                } ${
+                                  canEditAvail
                                     ? checked
                                       ? "bg-sky-500/30 text-sky-400 border border-sky-500/50"
                                       : "bg-slate-700/50 text-slate-500 border border-slate-600 hover:border-slate-500"
@@ -633,7 +685,7 @@ export function RaidRoster() {
                                 }`}
                                 title={DAYS[i]}
                               >
-                                {canEdit ? (
+                                {canEditAvail ? (
                                   <input
                                     type="checkbox"
                                     checked={checked}
@@ -832,7 +884,7 @@ export function RaidRoster() {
                   <button type="button" onClick={() => setNotesFor(null)} className="text-slate-400 hover:text-slate-200 text-xl leading-none">×</button>
                 </div>
                 <div className="p-4">
-                  {canEdit && r ? (
+                  {canEditRaider(r?.character_name ?? "") && r ? (
                     <textarea
                       value={r.notes ?? ""}
                       onChange={(e) => updateRaider(r.character_name, { notes: e.target.value })}

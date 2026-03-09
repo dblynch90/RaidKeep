@@ -3,6 +3,8 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Card } from "../components/Card";
 import { api } from "../api";
 import { GuildBreadcrumbs } from "../components/GuildBreadcrumbs";
+import type { GuildPermissions } from "./GuildPermissions";
+import type { MyCharacter } from "../api";
 
 const CLASS_COLORS: Record<string, string> = {
   Warrior: "#C69B6D",
@@ -46,6 +48,16 @@ const RAID_ROLES = [
 
 const DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"] as const;
 const DEFAULT_AVAILABILITY = "0000000";
+
+const DEFAULT_PERMISSIONS: GuildPermissions = {
+  view_guild_dashboard: true,
+  view_guild_roster: true,
+  view_raid_roster: true,
+  view_raid_schedule: true,
+  manage_raids: true,
+  manage_raid_roster: true,
+  manage_permissions: true,
+};
 
 interface RaiderEntry {
   character_name: string;
@@ -115,6 +127,19 @@ export function RaiderRoster() {
   const [guildMemberFilter, setGuildMemberFilter] = useState<"all" | "raider" | "non-raider">("all");
   const [teamNameDrafts, setTeamNameDrafts] = useState<Record<number, string>>({});
   const [selectedGuildMembers, setSelectedGuildMembers] = useState<Set<string>>(new Set());
+  const [permissions, setPermissions] = useState<GuildPermissions | null>(null);
+  const [myCharacters, setMyCharacters] = useState<MyCharacter[]>([]);
+
+  const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
+  const canEdit = (permissions ?? DEFAULT_PERMISSIONS).manage_raid_roster;
+  const canEditOwnAvailabilityAndNotes =
+    (permissions ?? DEFAULT_PERMISSIONS).view_raid_roster && !canEdit;
+  const myCharacterNames = useMemo(
+    () => new Set(myCharacters.map((c) => c.name.toLowerCase())),
+    [myCharacters]
+  );
+  const canEditRaider = (characterName: string) =>
+    canEdit || (canEditOwnAvailabilityAndNotes && myCharacterNames.has(characterName.toLowerCase()));
 
   const manageUrl = `/manage-raids?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
 
@@ -127,6 +152,9 @@ export function RaiderRoster() {
     setLoading(true);
     setError(null);
     Promise.all([
+      api.get<{ permissions: GuildPermissions }>(
+        `/auth/me/guild-permissions?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
+      ).then((r) => r.permissions).catch(() => DEFAULT_PERMISSIONS),
       api.get<{ members: RosterMember[] }>(
         `/auth/me/guild-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
       ).then((r) => r.members),
@@ -136,8 +164,10 @@ export function RaiderRoster() {
       api.get<{ teams: RaidTeam[] }>(
         `/auth/me/raid-teams?guild_realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
       ).then((r) => r.teams),
+      api.get<{ characters: MyCharacter[] }>("/auth/me/characters").then((r) => r.characters ?? []).catch(() => []),
     ])
-      .then(([members, raidersList, teamsList]) => {
+      .then(([perms, members, raidersList, teamsList, chars]) => {
+        setPermissions(perms);
         setGuildRoster(members);
         setRaiders(
           raidersList.map((r: { character_name: string; character_class: string; primary_spec?: string; off_spec?: string; notes?: string; raid_role?: string; raid_lead?: number | boolean; raid_assist?: number | boolean; availability?: string }) => ({
@@ -153,10 +183,11 @@ export function RaiderRoster() {
           }))
         );
         setTeams(teamsList);
+        setMyCharacters(chars);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
       .finally(() => setLoading(false));
-  }, [realm, guildName, serverType]);
+  }, [realm, realmSlug, guildName, serverType]);
 
   const raiderMap = useMemo(() => {
     const m = new Map<string, RaiderEntry>();
@@ -223,7 +254,19 @@ export function RaiderRoster() {
       .sort((a, b) => a.character_name.localeCompare(b.character_name, undefined, { sensitivity: "base" }));
   }, [raiders, raiderSearchQuery, raiderClassFilter, effectiveRaiderLevelMin, effectiveRaiderLevelMax, guildMemberByLowerName]);
 
+  const perms = permissions ?? DEFAULT_PERMISSIONS;
+  if (!loading && !perms.view_raid_roster) {
+    return (
+      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
+        <main className="max-w-6xl mx-auto px-4 py-8">
+          <p className="text-amber-500">You do not have permission to view the raid roster.</p>
+        </main>
+      </div>
+    );
+  }
+
   const toggleRaider = (member: RosterMember, add: boolean) => {
+    if (!canEdit) return;
     if (add) {
       setRaiders((prev) => [
         ...prev.filter((r) => r.character_name.toLowerCase() !== member.name.toLowerCase()),
@@ -247,6 +290,7 @@ export function RaiderRoster() {
   };
 
   const addSelectedMembers = () => {
+    if (!canEdit) return;
     const toAdd = displayGuildMembers.filter(
       (m) => !raiderMap.has(m.name.toLowerCase()) && selectedGuildMembers.has(m.name.toLowerCase())
     );
@@ -272,6 +316,7 @@ export function RaiderRoster() {
   };
 
   const toggleGuildMemberSelection = (name: string) => {
+    if (!canEdit) return;
     const key = name.toLowerCase();
     if (raiderMap.has(key)) return;
     setSelectedGuildMembers((prev) => {
@@ -298,14 +343,20 @@ export function RaiderRoster() {
   }, [displayGuildMembers, raiderMap, selectedGuildMembers]);
 
   const updateRaider = (name: string, updates: Partial<RaiderEntry>) => {
+    if (!canEditRaider(name)) return;
+    const filtered = canEditOwnAvailabilityAndNotes
+      ? { ...(updates.availability !== undefined && { availability: updates.availability }), ...(updates.notes !== undefined && { notes: updates.notes }) }
+      : updates;
+    if (Object.keys(filtered).length === 0) return;
     setRaiders((prev) =>
       prev.map((r) =>
-        r.character_name.toLowerCase() === name.toLowerCase() ? { ...r, ...updates } : r
+        r.character_name.toLowerCase() === name.toLowerCase() ? { ...r, ...filtered } : r
       )
     );
   };
 
   const toggleAvailabilityDay = (name: string, dayIndex: number) => {
+    if (!canEditRaider(name)) return;
     setRaiders((prev) =>
       prev.map((r) => {
         if (r.character_name.toLowerCase() !== name.toLowerCase()) return r;
@@ -317,26 +368,59 @@ export function RaiderRoster() {
   };
 
   const handleSave = async () => {
+    if (!canEdit && !canEditOwnAvailabilityAndNotes) return;
     setSaving(true);
     setSaveMsg(null);
     try {
-      await api.put("/auth/me/raider-roster", {
-        guild_name: guildName,
-        guild_realm: realm,
-        guild_realm_slug: realm,
-        server_type: serverType,
-        raiders: raiders.map((r) => ({
-          character_name: r.character_name,
-          character_class: r.character_class,
-          primary_spec: r.primary_spec || null,
-          off_spec: r.off_spec || null,
-          notes: r.notes || null,
-          raid_role: r.raid_role || null,
-          raid_lead: r.raid_lead ? 1 : 0,
-          raid_assist: r.raid_assist ? 1 : 0,
-          availability: (r.availability || DEFAULT_AVAILABILITY).padEnd(7, "0").slice(0, 7),
-        })),
-      });
+      if (canEdit) {
+        await api.put("/auth/me/raider-roster", {
+          guild_name: guildName,
+          guild_realm: realm,
+          guild_realm_slug: realm,
+          server_type: serverType,
+          raiders: raiders.map((r) => ({
+            character_name: r.character_name,
+            character_class: r.character_class,
+            primary_spec: r.primary_spec || null,
+            off_spec: r.off_spec || null,
+            notes: r.notes || null,
+            raid_role: r.raid_role || null,
+            raid_lead: r.raid_lead ? 1 : 0,
+            raid_assist: r.raid_assist ? 1 : 0,
+            availability: (r.availability || DEFAULT_AVAILABILITY).padEnd(7, "0").slice(0, 7),
+          })),
+        });
+      } else {
+        const myUpdates = raiders
+          .filter((r) => myCharacterNames.has(r.character_name.toLowerCase()))
+          .map((r) => ({
+            character_name: r.character_name,
+            availability: (r.availability || DEFAULT_AVAILABILITY).padEnd(7, "0").slice(0, 7),
+            notes: r.notes ?? "",
+          }));
+        if (myUpdates.length > 0) {
+          const res = await api.patch<{ raiders: RaiderEntry[] }>("/auth/me/raider-roster/self", {
+            guild_name: guildName,
+            guild_realm: realm,
+            guild_realm_slug: realmSlug,
+            server_type: serverType,
+            updates: myUpdates,
+          });
+          setRaiders(
+            (res.raiders ?? []).map((r: { character_name?: string; character_class?: string; primary_spec?: string; off_spec?: string; notes?: string; raid_role?: string; raid_lead?: unknown; raid_assist?: unknown; availability?: string }) => ({
+              character_name: r.character_name ?? "",
+              character_class: r.character_class ?? "",
+              primary_spec: r.primary_spec ?? "",
+              off_spec: r.off_spec ?? "",
+              notes: r.notes ?? "",
+              raid_role: r.raid_role ?? "",
+              raid_lead: Boolean(r.raid_lead),
+              raid_assist: Boolean(r.raid_assist),
+              availability: typeof r.availability === "string" ? r.availability.padEnd(7, "0").slice(0, 7) : DEFAULT_AVAILABILITY,
+            }))
+          );
+        }
+      }
       setSaveMsg("Raid team saved.");
     } catch (err) {
       setSaveMsg(err instanceof Error ? err.message : "Failed to save");
@@ -346,6 +430,7 @@ export function RaiderRoster() {
   };
 
   const createTeam = async () => {
+    if (!canEdit) return;
     const name = prompt("Team name:");
     if (!name?.trim()) return;
     try {
@@ -363,6 +448,7 @@ export function RaiderRoster() {
   };
 
   const updateTeamMembers = async (teamId: number, members: Array<{ character_name: string; character_class: string }>) => {
+    if (!canEdit) return;
     try {
       await api.put(`/auth/me/raid-teams/${teamId}/members`, { members });
       setTeams((prev) =>
@@ -374,7 +460,7 @@ export function RaiderRoster() {
   };
 
   const updateTeamName = async (teamId: number, teamName: string) => {
-    if (!teamName.trim()) return;
+    if (!canEdit || !teamName.trim()) return;
     try {
       await api.patch(`/auth/me/raid-teams/${teamId}`, { team_name: teamName.trim() });
       setTeams((prev) => prev.map((t) => (t.id === teamId ? { ...t, team_name: teamName.trim() } : t)));
@@ -389,7 +475,7 @@ export function RaiderRoster() {
   };
 
   const deleteTeam = async (teamId: number) => {
-    if (!confirm("Delete this team?")) return;
+    if (!canEdit || !confirm("Delete this team?")) return;
     try {
       await api.delete(`/auth/me/raid-teams/${teamId}`);
       setTeams((prev) => prev.filter((t) => t.id !== teamId));
@@ -473,7 +559,7 @@ export function RaiderRoster() {
                     Guild Members
                   </button>
                 </nav>
-                {activeTab === "roster" ? (
+                {activeTab === "roster" && (canEdit || canEditOwnAvailabilityAndNotes) ? (
                   <button
                     type="button"
                     onClick={handleSave}
@@ -482,7 +568,7 @@ export function RaiderRoster() {
                   >
                     {saving ? "Saving..." : "Save Roster"}
                   </button>
-                ) : activeTab === "teams" ? (
+                ) : activeTab === "teams" && canEdit ? (
                   <button
                     type="button"
                     onClick={createTeam}
@@ -554,30 +640,32 @@ export function RaiderRoster() {
                         ))}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 ml-auto flex-wrap">
-                      <button
-                        type="button"
-                        onClick={selectAllNonRaiders}
-                        className="px-2 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 border border-slate-600"
-                      >
-                        Select all non-raiders
-                      </button>
-                      <button
-                        type="button"
-                        onClick={clearGuildMemberSelection}
-                        className="px-2 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 border border-slate-600"
-                      >
-                        Clear selection
-                      </button>
-                      <button
-                        type="button"
-                        onClick={addSelectedMembers}
-                        disabled={selectedNonRaiderCount === 0}
-                        className="px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium border border-sky-500/50"
-                      >
-                        Add selected {selectedNonRaiderCount > 0 ? `(${selectedNonRaiderCount})` : ""}
-                      </button>
-                    </div>
+                    {canEdit && (
+                      <div className="flex items-center gap-2 ml-auto flex-wrap">
+                        <button
+                          type="button"
+                          onClick={selectAllNonRaiders}
+                          className="px-2 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 border border-slate-600"
+                        >
+                          Select all non-raiders
+                        </button>
+                        <button
+                          type="button"
+                          onClick={clearGuildMemberSelection}
+                          className="px-2 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 border border-slate-600"
+                        >
+                          Clear selection
+                        </button>
+                        <button
+                          type="button"
+                          onClick={addSelectedMembers}
+                          disabled={selectedNonRaiderCount === 0}
+                          className="px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium border border-sky-500/50"
+                        >
+                          Add selected {selectedNonRaiderCount > 0 ? `(${selectedNonRaiderCount})` : ""}
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <div className="max-h-[420px] overflow-y-auto space-y-1.5">
                     {displayGuildMembers.length === 0 ? (
@@ -595,7 +683,7 @@ export function RaiderRoster() {
                             className="flex items-center gap-2 rounded-lg border border-slate-600 p-2 hover:bg-slate-800/50"
                             style={{ borderLeftWidth: 4, borderLeftColor: classColor }}
                           >
-                            {!isRaider ? (
+                            {!isRaider && canEdit ? (
                               <label className="shrink-0 flex items-center cursor-pointer">
                                 <input
                                   type="checkbox"
@@ -616,7 +704,7 @@ export function RaiderRoster() {
                                 <span>✓</span>
                                 Raider
                               </span>
-                            ) : (
+                            ) : canEdit ? (
                               <button
                                 type="button"
                                 onClick={() => toggleRaider(m, true)}
@@ -625,7 +713,7 @@ export function RaiderRoster() {
                               >
                                 Add
                               </button>
-                            )}
+                            ) : null}
                           </div>
                         );
                       })
@@ -713,32 +801,38 @@ export function RaiderRoster() {
                                   <span className="text-slate-500 text-sm">
                                     {guildMember ? `Lv${guildMember.level}` : ""} {r.character_class}
                                   </span>
-                                  <label className="flex items-center gap-1.5 text-slate-400 text-sm cursor-pointer shrink-0">
-                                    <input
-                                      type="checkbox"
-                                      checked={r.raid_lead ?? false}
-                                      onChange={(e) => updateRaider(r.character_name, { raid_lead: e.target.checked })}
-                                      className="rounded border-slate-600 bg-slate-700 text-amber-500 focus:ring-amber-500/50"
-                                    />
-                                    Raid Lead
-                                  </label>
-                                  <label className="flex items-center gap-1.5 text-slate-400 text-sm cursor-pointer shrink-0">
-                                    <input
-                                      type="checkbox"
-                                      checked={r.raid_assist ?? false}
-                                      onChange={(e) => updateRaider(r.character_name, { raid_assist: e.target.checked })}
-                                      className="rounded border-slate-600 bg-slate-700 text-amber-500 focus:ring-amber-500/50"
-                                    />
-                                    Raid Assist
-                                  </label>
+                                  {canEdit && (
+                                    <>
+                                      <label className="flex items-center gap-1.5 text-slate-400 text-sm cursor-pointer shrink-0">
+                                        <input
+                                          type="checkbox"
+                                          checked={r.raid_lead ?? false}
+                                          onChange={(e) => updateRaider(r.character_name, { raid_lead: e.target.checked })}
+                                          className="rounded border-slate-600 bg-slate-700 text-amber-500 focus:ring-amber-500/50"
+                                        />
+                                        Raid Lead
+                                      </label>
+                                      <label className="flex items-center gap-1.5 text-slate-400 text-sm cursor-pointer shrink-0">
+                                        <input
+                                          type="checkbox"
+                                          checked={r.raid_assist ?? false}
+                                          onChange={(e) => updateRaider(r.character_name, { raid_assist: e.target.checked })}
+                                          className="rounded border-slate-600 bg-slate-700 text-amber-500 focus:ring-amber-500/50"
+                                        />
+                                        Raid Assist
+                                      </label>
+                                    </>
+                                  )}
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => toggleRaider({ name: r.character_name, class: r.character_class, level: guildMember?.level ?? 0 }, false)}
-                                  className="text-slate-500 hover:text-red-400 text-xs shrink-0"
-                                >
-                                  Remove
-                                </button>
+                                {canEdit && (
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleRaider({ name: r.character_name, class: r.character_class, level: guildMember?.level ?? 0 }, false)}
+                                    className="text-slate-500 hover:text-red-400 text-xs shrink-0"
+                                  >
+                                    Remove
+                                  </button>
+                                )}
                               </div>
                               <div className="flex flex-wrap items-center gap-2 mb-2">
                                 <span className="text-slate-500 text-xs shrink-0">Availability:</span>
@@ -746,22 +840,27 @@ export function RaiderRoster() {
                                   {DAYS.map((d, i) => {
                                     const avail = (r.availability || DEFAULT_AVAILABILITY).padEnd(7, "0");
                                     const checked = avail[i] === "1";
+                                    const canEditAvail = canEditRaider(r.character_name);
                                     return (
                                       <label
                                         key={i}
-                                        className={`flex items-center justify-center shrink-0 w-9 h-6 rounded text-[9px] font-medium cursor-pointer transition-colors ${
+                                        className={`flex items-center justify-center shrink-0 w-9 h-6 rounded text-[9px] font-medium transition-colors ${
+                                          canEditAvail ? "cursor-pointer" : "cursor-default"
+                                        } ${
                                           checked
                                             ? "bg-sky-500/30 text-sky-400 border border-sky-500/50"
-                                            : "bg-slate-700/50 text-slate-500 border border-slate-600 hover:border-slate-500"
+                                            : "bg-slate-700/50 text-slate-500 border border-slate-600" + (canEditAvail ? " hover:border-slate-500" : "")
                                         }`}
                                         title={d}
                                       >
-                                        <input
-                                          type="checkbox"
-                                          checked={checked}
-                                          onChange={() => toggleAvailabilityDay(r.character_name, i)}
-                                          className="sr-only"
-                                        />
+                                        {canEditAvail ? (
+                                          <input
+                                            type="checkbox"
+                                            checked={checked}
+                                            onChange={() => toggleAvailabilityDay(r.character_name, i)}
+                                            className="sr-only"
+                                          />
+                                        ) : null}
                                         {d}
                                       </label>
                                     );
@@ -769,44 +868,56 @@ export function RaiderRoster() {
                                 </div>
                               </div>
                               <div className="flex flex-wrap gap-2">
-                                <select
-                                  value={r.raid_role ?? ""}
-                                  onChange={(e) => updateRaider(r.character_name, { raid_role: e.target.value })}
-                                  className="px-2 py-1 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm"
-                                  title="Primary role"
-                                >
-                                  {RAID_ROLES.map((opt) => (
-                                    <option key={opt.value || "_"} value={opt.value}>
-                                      {opt.label}
-                                    </option>
-                                  ))}
-                                </select>
-                                <select
-                                  value={["tank", "healer", "dps"].includes((r.off_spec ?? "").toLowerCase()) ? (r.off_spec ?? "").toLowerCase() : ""}
-                                  onChange={(e) => updateRaider(r.character_name, { off_spec: e.target.value })}
-                                  className="px-2 py-1 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm"
-                                  title="Off role"
-                                >
-                                  <option value="">— Off role</option>
-                                  <option value="tank">Tank (off)</option>
-                                  <option value="healer">Healer (off)</option>
-                                  <option value="dps">DPS (off)</option>
-                                </select>
-                                <input
-                                  type="text"
-                                  placeholder="Primary spec"
-                                  value={r.primary_spec ?? ""}
-                                  onChange={(e) => updateRaider(r.character_name, { primary_spec: e.target.value })}
-                                  className="px-2 py-1 rounded bg-slate-700 border border-slate-600 text-sm w-28"
-                                  title="e.g. Restoration, Feral"
-                                />
-                                <textarea
-                                  placeholder="Your notes..."
-                                  value={r.notes ?? ""}
-                                  onChange={(e) => updateRaider(r.character_name, { notes: e.target.value })}
-                                  rows={2}
-                                  className="px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm flex-1 min-w-[180px] resize-y focus:ring-1 focus:ring-sky-500/50 placeholder-slate-500"
-                                />
+                                {canEdit ? (
+                                  <>
+                                    <select
+                                      value={r.raid_role ?? ""}
+                                      onChange={(e) => updateRaider(r.character_name, { raid_role: e.target.value })}
+                                      className="px-2 py-1 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm"
+                                      title="Primary role"
+                                    >
+                                      {RAID_ROLES.map((opt) => (
+                                        <option key={opt.value || "_"} value={opt.value}>
+                                          {opt.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <select
+                                      value={["tank", "healer", "dps"].includes((r.off_spec ?? "").toLowerCase()) ? (r.off_spec ?? "").toLowerCase() : ""}
+                                      onChange={(e) => updateRaider(r.character_name, { off_spec: e.target.value })}
+                                      className="px-2 py-1 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm"
+                                      title="Off role"
+                                    >
+                                      <option value="">— Off role</option>
+                                      <option value="tank">Tank (off)</option>
+                                      <option value="healer">Healer (off)</option>
+                                      <option value="dps">DPS (off)</option>
+                                    </select>
+                                    <input
+                                      type="text"
+                                      placeholder="Primary spec"
+                                      value={r.primary_spec ?? ""}
+                                      onChange={(e) => updateRaider(r.character_name, { primary_spec: e.target.value })}
+                                      className="px-2 py-1 rounded bg-slate-700 border border-slate-600 text-sm w-28"
+                                      title="e.g. Restoration, Feral"
+                                    />
+                                  </>
+                                ) : (
+                                  <span className="text-slate-400 text-sm">
+                                    {[r.raid_role, r.off_spec, r.primary_spec].filter(Boolean).join(" · ") || "—"}
+                                  </span>
+                                )}
+                                {canEditRaider(r.character_name) ? (
+                                  <textarea
+                                    placeholder="Your notes..."
+                                    value={r.notes ?? ""}
+                                    onChange={(e) => updateRaider(r.character_name, { notes: e.target.value })}
+                                    rows={2}
+                                    className="px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm flex-1 min-w-[180px] resize-y focus:ring-1 focus:ring-sky-500/50 placeholder-slate-500"
+                                  />
+                                ) : (
+                                  <span className="text-slate-400 text-sm flex-1 min-w-[180px]">{r.notes || "—"}</span>
+                                )}
                               </div>
                             </div>
                           );
@@ -827,55 +938,59 @@ export function RaiderRoster() {
                       {teams.map((team) => (
                         <CollapsibleSection key={team.id} title={`${team.team_name} (${team.members.length})`} defaultOpen={false}>
                           <div className="p-4">
-                            <div className="flex flex-wrap items-center gap-2 mb-3">
-                              <span className="text-slate-400 text-sm">Team name:</span>
-                              <input
-                                type="text"
-                                value={teamNameDrafts[team.id] ?? team.team_name}
-                                onChange={(e) => setTeamNameDrafts((d) => ({ ...d, [team.id]: e.target.value }))}
-                                className="px-2 py-1 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm w-40 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
-                                placeholder="Team name"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => updateTeamName(team.id, teamNameDrafts[team.id] ?? team.team_name)}
-                                className="px-2 py-1 rounded bg-sky-600/90 hover:bg-sky-500 text-white text-sm border border-sky-500/50"
-                              >
-                                Update name
-                              </button>
-                            </div>
-                            <div className="flex items-center gap-2 mb-3">
-                              <span className="text-slate-400 text-sm">Assign raiders:</span>
-                              <select
-                                className="px-2 py-1 rounded bg-slate-700 border border-slate-600 text-sm"
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  e.target.value = "";
-                                  if (!val) return;
-                                  const [name, cls] = val.split("|");
-                                  const current = team.members.map((x) => ({ character_name: x.character_name, character_class: x.character_class }));
-                                  if (current.some((c) => c.character_name === name)) return;
-                                  updateTeamMembers(team.id, [...current, { character_name: name, character_class: cls }]);
-                                }}
-                              >
-                                <option value="">+ Add raider</option>
-                                {[...raiders]
-                                  .filter((r) => !team.members.some((m) => m.character_name === r.character_name))
-                                  .sort((a, b) => a.character_name.localeCompare(b.character_name, undefined, { sensitivity: "base" }))
-                                  .map((r) => (
-                                    <option key={r.character_name} value={`${r.character_name}|${r.character_class}`}>
-                                      {r.character_name} ({r.character_class})
-                                    </option>
-                                  ))}
-                              </select>
-                              <button
-                                type="button"
-                                onClick={() => deleteTeam(team.id)}
-                                className="text-red-400 hover:text-red-300 text-sm"
-                              >
-                                Delete team
-                              </button>
-                            </div>
+                            {canEdit ? (
+                              <>
+                                <div className="flex flex-wrap items-center gap-2 mb-3">
+                                  <span className="text-slate-400 text-sm">Team name:</span>
+                                  <input
+                                    type="text"
+                                    value={teamNameDrafts[team.id] ?? team.team_name}
+                                    onChange={(e) => setTeamNameDrafts((d) => ({ ...d, [team.id]: e.target.value }))}
+                                    className="px-2 py-1 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm w-40 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                                    placeholder="Team name"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => updateTeamName(team.id, teamNameDrafts[team.id] ?? team.team_name)}
+                                    className="px-2 py-1 rounded bg-sky-600/90 hover:bg-sky-500 text-white text-sm border border-sky-500/50"
+                                  >
+                                    Update name
+                                  </button>
+                                </div>
+                                <div className="flex items-center gap-2 mb-3">
+                                  <span className="text-slate-400 text-sm">Assign raiders:</span>
+                                  <select
+                                    className="px-2 py-1 rounded bg-slate-700 border border-slate-600 text-sm"
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      e.target.value = "";
+                                      if (!val) return;
+                                      const [name, cls] = val.split("|");
+                                      const current = team.members.map((x) => ({ character_name: x.character_name, character_class: x.character_class }));
+                                      if (current.some((c) => c.character_name === name)) return;
+                                      updateTeamMembers(team.id, [...current, { character_name: name, character_class: cls }]);
+                                    }}
+                                  >
+                                    <option value="">+ Add raider</option>
+                                    {[...raiders]
+                                      .filter((r) => !team.members.some((m) => m.character_name === r.character_name))
+                                      .sort((a, b) => a.character_name.localeCompare(b.character_name, undefined, { sensitivity: "base" }))
+                                      .map((r) => (
+                                        <option key={r.character_name} value={`${r.character_name}|${r.character_class}`}>
+                                          {r.character_name} ({r.character_class})
+                                        </option>
+                                      ))}
+                                  </select>
+                                  <button
+                                    type="button"
+                                    onClick={() => deleteTeam(team.id)}
+                                    className="text-red-400 hover:text-red-300 text-sm"
+                                  >
+                                    Delete team
+                                  </button>
+                                </div>
+                              </>
+                            ) : null}
                             <ul className="space-y-2">
                               {team.members.map((m) => (
                                 <li
@@ -884,18 +999,20 @@ export function RaiderRoster() {
                                   style={{ borderLeft: `3px solid ${getClassColor(m.character_class)}` }}
                                 >
                                   <span style={{ color: getClassColor(m.character_class) }}>{m.character_name}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      updateTeamMembers(
-                                        team.id,
-                                        team.members.filter((x) => x.character_name !== m.character_name)
-                                      );
-                                    }}
-                                    className="text-slate-500 hover:text-red-400 text-xs"
-                                  >
-                                    Remove
-                                  </button>
+                                  {canEdit && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        updateTeamMembers(
+                                          team.id,
+                                          team.members.filter((x) => x.character_name !== m.character_name)
+                                        );
+                                      }}
+                                      className="text-slate-500 hover:text-red-400 text-xs"
+                                    >
+                                      Remove
+                                    </button>
+                                  )}
                                 </li>
                               ))}
                             </ul>

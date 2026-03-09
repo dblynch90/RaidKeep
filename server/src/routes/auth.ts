@@ -1152,13 +1152,34 @@ authRoutes.get("/me/raider-roster", requireAuth, (req, res) => {
   const db = getDb();
   const userId = req.session!.user!.id;
   const realmSlug = guildRealm.toLowerCase().replace(/\s+/g, "-");
-  const raiders = db
+  const perms = getEffectiveGuildPermissions(db, userId, realmSlug, guildName, serverType);
+  if (!perms?.view_raid_roster) {
+    res.status(403).json({ error: "You do not have permission to view the raid roster" });
+    return;
+  }
+  let raiders = db
     .prepare(
       `SELECT * FROM raider_roster
        WHERE user_id = ? AND guild_realm_slug = ? AND guild_name = ? AND server_type = ?
        ORDER BY character_name`
     )
     .all(userId, realmSlug, guildName, serverType);
+  if (raiders.length === 0) {
+    const guildOwner = db.prepare(
+      `SELECT user_id FROM raider_roster
+       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?
+       GROUP BY user_id ORDER BY COUNT(*) DESC LIMIT 1`
+    ).get(realmSlug, guildName, serverType) as { user_id: number } | undefined;
+    if (guildOwner) {
+      raiders = db
+        .prepare(
+          `SELECT * FROM raider_roster
+           WHERE user_id = ? AND guild_realm_slug = ? AND guild_name = ? AND server_type = ?
+           ORDER BY character_name`
+        )
+        .all(guildOwner.user_id, realmSlug, guildName, serverType);
+    }
+  }
   res.json({ raiders });
 });
 
@@ -1171,6 +1192,11 @@ authRoutes.put("/me/raider-roster", requireAuth, (req, res) => {
   const db = getDb();
   const userId = req.session!.user!.id;
   const realmSlug = guild_realm_slug ?? String(guild_realm).toLowerCase().replace(/\s+/g, "-");
+  const perms = getEffectiveGuildPermissions(db, userId, realmSlug, guild_name, server_type || "Retail");
+  if (!perms?.manage_raid_roster) {
+    res.status(403).json({ error: "You do not have permission to manage the raid roster" });
+    return;
+  }
   db.prepare(
     "DELETE FROM raider_roster WHERE user_id = ? AND guild_realm_slug = ? AND guild_name = ? AND server_type = ?"
   ).run(userId, realmSlug, guild_name, server_type || "Retail");
@@ -1204,6 +1230,66 @@ authRoutes.put("/me/raider-roster", requireAuth, (req, res) => {
   res.json({ raiders: saved });
 });
 
+// View-only users can update their own availability and notes only
+authRoutes.patch("/me/raider-roster/self", requireAuth, (req, res) => {
+  const { guild_name, guild_realm, guild_realm_slug, server_type, updates } = req.body;
+  if (!guild_name || !guild_realm || !updates || !Array.isArray(updates)) {
+    res.status(400).json({ error: "guild_name, guild_realm, updates (array) required" });
+    return;
+  }
+  const db = getDb();
+  const userId = req.session!.user!.id;
+  const realmSlug = guild_realm_slug ?? String(guild_realm).toLowerCase().replace(/\s+/g, "-");
+  const serverType = server_type || "Retail";
+  const perms = getEffectiveGuildPermissions(db, userId, realmSlug, guild_name, serverType);
+  if (!perms?.view_raid_roster || perms.manage_raid_roster) {
+    res.status(403).json({ error: "Use PUT /me/raider-roster for full roster updates" });
+    return;
+  }
+  const myCharRows = db.prepare(
+    `SELECT LOWER(bnc.name) as name FROM battle_net_characters bnc
+     LEFT JOIN guilds g ON bnc.guild_id = g.id
+     WHERE bnc.user_id = ? AND bnc.realm_slug = ? AND (LOWER(COALESCE(g.name, bnc.guild_name, '')) = LOWER(?) OR LOWER(bnc.guild_name) = LOWER(?))
+     AND (bnc.server_type = ? OR (bnc.server_type IS NULL AND ? = 'Retail'))`
+  ).all(userId, realmSlug, guild_name, guild_name, serverType, serverType) as Array<{ name: string }>;
+  const myCharSet = new Set(myCharRows.map((r) => r.name));
+  for (const u of updates as Array<{ character_name: string; availability?: string; notes?: string }>) {
+    const charName = (u.character_name || "").trim();
+    if (!charName || !myCharSet.has(charName.toLowerCase())) continue;
+    const sets: string[] = [];
+    const vals: unknown[] = [];
+    if (typeof u.availability === "string") {
+      sets.push("availability = ?");
+      vals.push(normalizeAvailability(u.availability));
+    }
+    if (typeof u.notes === "string") {
+      sets.push("notes = ?");
+      vals.push(u.notes.trim() || null);
+    }
+    if (sets.length > 0) {
+      vals.push(realmSlug, guild_name, serverType, charName);
+      db.prepare(
+        `UPDATE raider_roster SET ${sets.join(", ")} WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)`
+      ).run(...vals);
+    }
+  }
+  const guildOwner = db.prepare(
+    `SELECT user_id FROM raider_roster
+     WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?
+     GROUP BY user_id ORDER BY COUNT(*) DESC LIMIT 1`
+  ).get(realmSlug, guild_name, serverType) as { user_id: number } | undefined;
+  const raiders = guildOwner
+    ? db
+        .prepare(
+          `SELECT * FROM raider_roster
+           WHERE user_id = ? AND guild_realm_slug = ? AND guild_name = ? AND server_type = ?
+           ORDER BY character_name`
+        )
+        .all(guildOwner.user_id, realmSlug, guild_name, serverType)
+    : [];
+  res.json({ raiders });
+});
+
 // Raid teams
 authRoutes.get("/me/raid-teams", requireAuth, (req, res) => {
   const guildRealm = (req.query.guild_realm as string)?.trim();
@@ -1216,13 +1302,34 @@ authRoutes.get("/me/raid-teams", requireAuth, (req, res) => {
   const db = getDb();
   const userId = req.session!.user!.id;
   const realmSlug = guildRealm.toLowerCase().replace(/\s+/g, "-");
-  const teams = db
+  const perms = getEffectiveGuildPermissions(db, userId, realmSlug, guildName, serverType);
+  if (!perms?.view_raid_roster) {
+    res.status(403).json({ error: "You do not have permission to view raid teams" });
+    return;
+  }
+  let teams = db
     .prepare(
       `SELECT * FROM raid_teams
        WHERE user_id = ? AND guild_realm_slug = ? AND guild_name = ? AND server_type = ?
        ORDER BY team_name`
     )
     .all(userId, realmSlug, guildName, serverType);
+  if (teams.length === 0) {
+    const guildOwner = db.prepare(
+      `SELECT user_id FROM raid_teams
+       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?
+       GROUP BY user_id ORDER BY COUNT(*) DESC LIMIT 1`
+    ).get(realmSlug, guildName, serverType) as { user_id: number } | undefined;
+    if (guildOwner) {
+      teams = db
+        .prepare(
+          `SELECT * FROM raid_teams
+           WHERE user_id = ? AND guild_realm_slug = ? AND guild_name = ? AND server_type = ?
+           ORDER BY team_name`
+        )
+        .all(guildOwner.user_id, realmSlug, guildName, serverType);
+    }
+  }
   const teamsWithMembers = teams.map((t) => {
     const row = t as Record<string, unknown>;
     const members = db.prepare(
@@ -1242,6 +1349,11 @@ authRoutes.post("/me/raid-teams", requireAuth, (req, res) => {
   const db = getDb();
   const userId = req.session!.user!.id;
   const realmSlug = guild_realm_slug ?? String(guild_realm).toLowerCase().replace(/\s+/g, "-");
+  const perms = getEffectiveGuildPermissions(db, userId, realmSlug, guild_name, server_type || "Retail");
+  if (!perms?.manage_raid_roster) {
+    res.status(403).json({ error: "You do not have permission to manage raid teams" });
+    return;
+  }
   const result = db
     .prepare(
       `INSERT INTO raid_teams (user_id, guild_name, guild_realm_slug, server_type, team_name)
@@ -1265,9 +1377,14 @@ authRoutes.patch("/me/raid-teams/:id", requireAuth, (req, res) => {
   }
   const db = getDb();
   const userId = req.session!.user!.id;
-  const team = db.prepare("SELECT * FROM raid_teams WHERE id = ? AND user_id = ?").get(teamId, userId);
+  const team = db.prepare("SELECT * FROM raid_teams WHERE id = ? AND user_id = ?").get(teamId, userId) as { guild_realm_slug: string; guild_name: string; server_type: string } | undefined;
   if (!team) {
     res.status(404).json({ error: "Team not found" });
+    return;
+  }
+  const perms = getEffectiveGuildPermissions(db, userId, team.guild_realm_slug, team.guild_name, team.server_type || "Retail");
+  if (!perms?.manage_raid_roster) {
+    res.status(403).json({ error: "You do not have permission to manage raid teams" });
     return;
   }
   db.prepare("UPDATE raid_teams SET team_name = ? WHERE id = ?").run(team_name.trim(), teamId);
@@ -1280,9 +1397,14 @@ authRoutes.put("/me/raid-teams/:id/members", requireAuth, (req, res) => {
   const { members } = req.body as { members: Array<{ character_name: string; character_class: string }> };
   const db = getDb();
   const userId = req.session!.user!.id;
-  const team = db.prepare("SELECT * FROM raid_teams WHERE id = ? AND user_id = ?").get(teamId, userId);
+  const team = db.prepare("SELECT * FROM raid_teams WHERE id = ? AND user_id = ?").get(teamId, userId) as { guild_realm_slug: string; guild_name: string; server_type: string } | undefined;
   if (!team) {
     res.status(404).json({ error: "Team not found" });
+    return;
+  }
+  const perms = getEffectiveGuildPermissions(db, userId, team.guild_realm_slug, team.guild_name, team.server_type || "Retail");
+  if (!perms?.manage_raid_roster) {
+    res.status(403).json({ error: "You do not have permission to manage raid teams" });
     return;
   }
   db.prepare("DELETE FROM raid_team_members WHERE team_id = ?").run(teamId);
@@ -1302,9 +1424,14 @@ authRoutes.delete("/me/raid-teams/:id", requireAuth, (req, res) => {
   const teamId = parseInt(paramStr(req.params.id), 10);
   const db = getDb();
   const userId = req.session!.user!.id;
-  const team = db.prepare("SELECT * FROM raid_teams WHERE id = ? AND user_id = ?").get(teamId, userId);
+  const team = db.prepare("SELECT * FROM raid_teams WHERE id = ? AND user_id = ?").get(teamId, userId) as { guild_realm_slug: string; guild_name: string; server_type: string } | undefined;
   if (!team) {
     res.status(404).json({ error: "Team not found" });
+    return;
+  }
+  const perms = getEffectiveGuildPermissions(db, userId, team.guild_realm_slug, team.guild_name, team.server_type || "Retail");
+  if (!perms?.manage_raid_roster) {
+    res.status(403).json({ error: "You do not have permission to manage raid teams" });
     return;
   }
   db.prepare("DELETE FROM raid_teams WHERE id = ?").run(teamId);
