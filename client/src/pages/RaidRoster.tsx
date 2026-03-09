@@ -506,7 +506,7 @@ export function RaidRoster() {
                               value={r.primary_spec ?? ""}
                               onChange={(e) => updateRaider(r.character_name, { primary_spec: e.target.value })}
                               placeholder="Spec"
-                              className="h-7 w-[44px] min-w-[44px] shrink-0 px-1.5 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500/50 placeholder-slate-500"
+                              className="h-7 w-[77px] min-w-[77px] shrink-0 px-1.5 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500/50 placeholder-slate-500"
                               title="Spec 1"
                             />
                             <select
@@ -524,7 +524,7 @@ export function RaidRoster() {
                               value={r.secondary_spec ?? ""}
                               onChange={(e) => updateRaider(r.character_name, { secondary_spec: e.target.value })}
                               placeholder="Spec"
-                              className="h-7 w-[44px] min-w-[44px] shrink-0 px-1.5 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500/50 placeholder-slate-500"
+                              className="h-7 w-[77px] min-w-[77px] shrink-0 px-1.5 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500/50 placeholder-slate-500"
                               title="Spec 2"
                             />
                           </>
