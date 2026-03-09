@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { GuildBreadcrumbs } from "../components/GuildBreadcrumbs";
 import { formatRaidDateTime } from "../utils/raidDateTime";
+import type { GuildPermissions } from "./GuildPermissions";
 
 interface SavedRaid {
   id: number;
@@ -30,6 +31,16 @@ function isUpcoming(raidDate: string): boolean {
   return raidDate >= today;
 }
 
+const DEFAULT_PERMISSIONS: GuildPermissions = {
+  view_guild_dashboard: true,
+  view_guild_roster: true,
+  view_raid_roster: true,
+  view_raid_schedule: true,
+  manage_raids: true,
+  manage_raid_roster: true,
+  manage_permissions: true,
+};
+
 export function ManageRaids() {
   const [searchParams] = useSearchParams();
   const realm = searchParams.get("realm") ?? "";
@@ -40,6 +51,9 @@ export function ManageRaids() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [permissions, setPermissions] = useState<GuildPermissions | null>(null);
+
+  const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
 
   useEffect(() => {
     if (!realm || !guildName) {
@@ -49,11 +63,18 @@ export function ManageRaids() {
     }
     setLoading(true);
     setError(null);
-    api
-      .get<{ raids: SavedRaid[] }>(
+    Promise.all([
+      api.get<{ permissions: GuildPermissions }>(
+        `/auth/me/guild-permissions?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
+      ).then((r) => r.permissions).catch(() => DEFAULT_PERMISSIONS),
+      api.get<{ raids: SavedRaid[] }>(
         `/auth/me/saved-raids?guild_realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
-      )
-      .then((r) => setRaids(r.raids))
+      ).then((r) => r.raids),
+    ])
+      .then(([perms, r]) => {
+        setPermissions(perms);
+        setRaids(r);
+      })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load raids"))
       .finally(() => setLoading(false));
   }, [realm, guildName, serverType]);
@@ -73,13 +94,27 @@ export function ManageRaids() {
     }
   };
 
-  const raidRosterUrl = `/raid-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
+  const raidRosterUrl = `/raider-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
+
+  const perms = permissions ?? DEFAULT_PERMISSIONS;
+  const canManageRaids = perms.manage_raids;
+  const canViewRaidSchedule = perms.view_raid_schedule;
 
   if (error) {
     return (
       <div className="min-h-screen bg-[#0b1628]" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
         <main className="max-w-6xl mx-auto px-4 py-8">
           <p className="text-amber-500">{error}</p>
+        </main>
+      </div>
+    );
+  }
+
+  if (!loading && !canViewRaidSchedule) {
+    return (
+      <div className="min-h-screen bg-[#0b1628]" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
+        <main className="max-w-6xl mx-auto px-4 py-8">
+          <p className="text-amber-500">You do not have permission to view the raid schedule.</p>
         </main>
       </div>
     );
@@ -115,12 +150,14 @@ export function ManageRaids() {
               Raider Roster
             </Link>
           </nav>
-          <Link
-            to={planRaidUrl}
-            className="h-9 px-3.5 rounded-lg bg-slate-700/80 hover:bg-slate-600 border border-slate-600 text-slate-200 text-sm font-medium flex items-center shrink-0 transition"
-          >
-            + Create Raid
-          </Link>
+          {canManageRaids && (
+            <Link
+              to={planRaidUrl}
+              className="h-9 px-3.5 rounded-lg bg-slate-700/80 hover:bg-slate-600 border border-slate-600 text-slate-200 text-sm font-medium flex items-center shrink-0 transition"
+            >
+              + Create Raid
+            </Link>
+          )}
         </div>
 
         {loading ? (
@@ -135,13 +172,15 @@ export function ManageRaids() {
           >
             <div className="text-4xl mb-4">📅</div>
             <p className="text-slate-400 font-medium mb-1">No raids scheduled yet</p>
-            <p className="text-slate-500 text-sm mb-6">Create your first raid to get started.</p>
-            <Link
-              to={planRaidUrl}
-              className="inline-flex h-9 px-3.5 items-center rounded-lg bg-slate-700/80 hover:bg-slate-600 border border-slate-600 text-slate-200 text-sm font-medium transition"
-            >
-              + Create Raid
-            </Link>
+            <p className="text-slate-500 text-sm mb-6">{canManageRaids ? "Create your first raid to get started." : "Raids will appear here once they are scheduled."}</p>
+            {canManageRaids && (
+              <Link
+                to={planRaidUrl}
+                className="inline-flex h-9 px-3.5 items-center rounded-lg bg-slate-700/80 hover:bg-slate-600 border border-slate-600 text-slate-200 text-sm font-medium transition"
+              >
+                + Create Raid
+              </Link>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
@@ -186,20 +225,24 @@ export function ManageRaids() {
                       >
                         View
                       </Link>
-                      <Link
-                        to={`/plan-raid?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}&raidId=${r.id}`}
-                        className="h-9 px-3.5 rounded-lg bg-slate-600 hover:bg-slate-500 border border-slate-500 text-slate-100 text-sm font-medium flex items-center justify-center"
-                      >
-                        Edit
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(r.id)}
-                        disabled={deletingId === r.id}
-                        className="h-9 px-3.5 rounded-lg bg-red-900/30 hover:bg-red-800/40 border border-red-800/50 text-red-400 text-sm font-medium disabled:opacity-50 flex items-center justify-center"
-                      >
-                        {deletingId === r.id ? "..." : "Delete"}
-                      </button>
+                      {canManageRaids && (
+                        <>
+                          <Link
+                            to={`/plan-raid?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}&raidId=${r.id}`}
+                            className="h-9 px-3.5 rounded-lg bg-slate-600 hover:bg-slate-500 border border-slate-500 text-slate-100 text-sm font-medium flex items-center justify-center"
+                          >
+                            Edit
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(r.id)}
+                            disabled={deletingId === r.id}
+                            className="h-9 px-3.5 rounded-lg bg-red-900/30 hover:bg-red-800/40 border border-red-800/50 text-red-400 text-sm font-medium disabled:opacity-50 flex items-center justify-center"
+                          >
+                            {deletingId === r.id ? "..." : "Delete"}
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

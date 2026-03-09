@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Card } from "../components/Card";
 import { api } from "../api";
 import { GuildBreadcrumbs } from "../components/GuildBreadcrumbs";
@@ -104,6 +104,7 @@ function CollapsibleSection({
 
 export function RaiderRoster() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const realm = searchParams.get("realm") ?? "";
   const guildName = searchParams.get("guild_name") ?? "";
   const serverType = searchParams.get("server_type") ?? "Retail";
@@ -141,7 +142,8 @@ export function RaiderRoster() {
   const canEditRaider = (characterName: string) =>
     canEdit || (canEditOwnAvailabilityAndNotes && myCharacterNames.has(characterName.toLowerCase()));
 
-  const manageUrl = `/manage-raids?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
+  const manageRaidsUrl = `/manage-raids?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
+  const raidScheduleUrl = `/raid-schedule?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
 
   useEffect(() => {
     if (!realm || !guildName) {
@@ -263,6 +265,12 @@ export function RaiderRoster() {
         </main>
       </div>
     );
+  }
+  // View-only users should use the simplified Raid Roster page, not the admin Raider Roster
+  if (!loading && perms.view_raid_roster && !perms.manage_raid_roster) {
+    const viewOnlyUrl = `/raid-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
+    navigate(viewOnlyUrl, { replace: true });
+    return null;
   }
 
   const toggleRaider = (member: RosterMember, add: boolean) => {
@@ -509,12 +517,14 @@ export function RaiderRoster() {
 
         <div className="mb-8">
           <nav className="flex rounded-lg bg-slate-800/60 p-1 border border-slate-700/50 w-fit">
-            <Link
-              to={manageUrl}
-              className="px-4 py-2 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 text-sm font-medium transition"
-            >
-              View Raids
-            </Link>
+            {(perms.view_raid_schedule || perms.manage_raids) && (
+              <Link
+                to={perms.manage_raids ? manageRaidsUrl : raidScheduleUrl}
+                className="px-4 py-2 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 text-sm font-medium transition"
+              >
+                View Raids
+              </Link>
+            )}
             <span
               className="px-4 py-2 rounded-md text-slate-200 bg-[#223657] border-b-2 border-sky-500 text-sm font-medium"
               aria-current="page"

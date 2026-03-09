@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Card } from "../components/Card";
 import { api } from "../api";
 import { GuildBreadcrumbs } from "../components/GuildBreadcrumbs";
 import { formatRaidDateShort } from "../utils/raidDateTime";
+import type { GuildPermissions } from "./GuildPermissions";
 
 /** Raid instances available in each game version */
 const RAID_INSTANCES_BY_VERSION: Record<string, string[]> = {
@@ -128,6 +129,16 @@ interface GuildRosterData {
 
 const SLOTS_PER_PARTY = 5;
 
+const DEFAULT_PERMISSIONS: GuildPermissions = {
+  view_guild_dashboard: true,
+  view_guild_roster: true,
+  view_raid_roster: true,
+  view_raid_schedule: true,
+  manage_raids: true,
+  manage_raid_roster: true,
+  manage_permissions: true,
+};
+
 export function PlanRaid() {
   const [searchParams] = useSearchParams();
   const realm = searchParams.get("realm") ?? "";
@@ -157,6 +168,7 @@ export function PlanRaid() {
   >([]);
   const [teams, setTeams] = useState<Array<{ id: number; team_name: string; members: Array<{ character_name: string; character_class: string }> }>>([]);
   const [savedRaids, setSavedRaids] = useState<Array<{ id: number; raid_name: string; raid_date: string; raid_instance?: string | null }>>([]);
+  const [permissions, setPermissions] = useState<GuildPermissions | null>(null);
   const [parties, setParties] = useState<(RaidSlot | null)[][]>([
     Array(SLOTS_PER_PARTY).fill(null),
     Array(SLOTS_PER_PARTY).fill(null),
@@ -164,6 +176,8 @@ export function PlanRaid() {
   const [backups, setBackups] = useState<Array<{ characterName: string; characterClass: string }>>([]);
   const [signedUp, setSignedUp] = useState<Array<{ character_name: string; character_class: string }>>([]);
   const [unavailableSlots, setUnavailableSlots] = useState<RaidSlot[]>([]);
+
+  const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
 
   useEffect(() => {
     if (!realm || !guildName) {
@@ -173,11 +187,18 @@ export function PlanRaid() {
     }
     setLoading(true);
     setError(null);
-    api
-      .get<GuildRosterData>(
+    Promise.all([
+      api.get<GuildRosterData>(
         `/auth/me/guild-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
-      )
-      .then(setData)
+      ),
+      api.get<{ permissions: GuildPermissions }>(
+        `/auth/me/guild-permissions?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
+      ).then((r) => r.permissions).catch(() => DEFAULT_PERMISSIONS),
+    ])
+      .then(([rosterData, perms]) => {
+        setData(rosterData);
+        setPermissions(perms);
+      })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to fetch roster"))
       .finally(() => setLoading(false));
   }, [realm, guildName, serverType]);
@@ -649,6 +670,21 @@ export function PlanRaid() {
       <div className="min-h-screen bg-slate-900 text-slate-100">
         <main className="max-w-6xl mx-auto px-4 py-8">
           <p className="text-amber-500">{error}</p>
+        </main>
+      </div>
+    );
+  }
+
+  const perms = permissions ?? DEFAULT_PERMISSIONS;
+  if (!loading && !perms.manage_raids) {
+    const manageRaidsUrl = realm && guildName
+      ? `/manage-raids?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
+      : "/";
+    return (
+      <div className="min-h-screen bg-slate-900 text-slate-100">
+        <main className="max-w-6xl mx-auto px-4 py-8">
+          <p className="text-amber-500 mb-4">You do not have permission to create or edit raids.</p>
+          <Link to={manageRaidsUrl} className="text-sky-400 hover:text-sky-300">← Back to Raid Schedule</Link>
         </main>
       </div>
     );

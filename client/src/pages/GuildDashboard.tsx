@@ -56,7 +56,7 @@ export function GuildDashboard() {
   const rosterUrl = `/guild-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
   const manageRaidsUrl = `/manage-raids?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
   const raidScheduleUrl = `/raid-schedule?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
-  const raidTeamsUrl = `/raider-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
+  const raidRosterUrl = `/raid-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
   const permissionsUrl = `/guild-permissions?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
 
   useEffect(() => {
@@ -114,7 +114,7 @@ export function GuildDashboard() {
                   <DashboardCard to={rosterUrl} title="Guild Roster" description="View guild members, filter by class and level." />
                 )}
                 {perms.view_raid_roster && (
-                  <DashboardCard to={raidTeamsUrl} title="Raider Roster" description="View and manage raiders, roles, specs, and team assignments." />
+                  <DashboardCard to={raidRosterUrl} title="Raid Roster" description="View raid roster, set your availability and notes." />
                 )}
                 {perms.view_raid_schedule && (
                   <DashboardCard to={raidScheduleUrl} title="Raid Schedule" description="View upcoming and past raids for this guild." />

@@ -269,6 +269,12 @@ authRoutes.get("/me/guild-roster", requireAuth, async (req, res) => {
   }
   const db = getDb();
   const userId = req.session!.user!.id;
+  const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
+  const perms = getEffectiveGuildPermissions(db, userId, realmSlug, guildName, serverType);
+  if (!perms?.view_guild_roster) {
+    res.status(403).json({ error: "You do not have permission to view the guild roster" });
+    return;
+  }
   const userRow = db.prepare("SELECT battlenet_region FROM users WHERE id = ?").get(userId) as { battlenet_region: string | null } | undefined;
   const region = userRow?.battlenet_region ?? "us";
   try {
@@ -314,6 +320,11 @@ authRoutes.post("/me/saved-raids", requireAuth, (req, res) => {
   const db = getDb();
   const userId = req.session!.user!.id;
   const realmSlug = guild_realm_slug ?? String(guild_realm).toLowerCase().replace(/\s+/g, "-");
+  const perms = getEffectiveGuildPermissions(db, userId, realmSlug, guild_name, server_type || "Retail");
+  if (!perms?.manage_raids) {
+    res.status(403).json({ error: "You do not have permission to create raids" });
+    return;
+  }
   const result = db
     .prepare(
       `INSERT INTO saved_raids (user_id, guild_name, guild_realm, guild_realm_slug, server_type, raid_name, raid_instance, raid_date, start_time, finish_time)
@@ -426,15 +437,40 @@ authRoutes.get("/me/saved-raids", requireAuth, (req, res) => {
   const serverType = (req.query.server_type as string) || "Retail";
   const db = getDb();
   const userId = req.session!.user!.id;
+  if (guildRealm && guildName) {
+    const realmSlug = guildRealm.toLowerCase().replace(/\s+/g, "-");
+    const perms = getEffectiveGuildPermissions(db, userId, realmSlug, guildName, serverType);
+    if (!perms?.view_raid_schedule) {
+      res.status(403).json({ error: "You do not have permission to view the raid schedule" });
+      return;
+    }
+  }
   let raids: Array<Record<string, unknown>>;
   if (guildRealm && guildName) {
+    const realmSlug = guildRealm.toLowerCase().replace(/\s+/g, "-");
     raids = db
       .prepare(
         `SELECT * FROM saved_raids
          WHERE user_id = ? AND guild_realm_slug = ? AND guild_name = ? AND server_type = ?
          ORDER BY raid_date DESC, start_time DESC`
       )
-      .all(userId, guildRealm.toLowerCase().replace(/\s+/g, "-"), guildName, serverType) as Array<Record<string, unknown>>;
+      .all(userId, realmSlug, guildName, serverType) as Array<Record<string, unknown>>;
+    if (raids.length === 0) {
+      const guildOwner = db.prepare(
+        `SELECT user_id FROM saved_raids
+         WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?
+         GROUP BY user_id ORDER BY COUNT(*) DESC LIMIT 1`
+      ).get(realmSlug, guildName, serverType) as { user_id: number } | undefined;
+      if (guildOwner) {
+        raids = db
+          .prepare(
+            `SELECT * FROM saved_raids
+             WHERE user_id = ? AND guild_realm_slug = ? AND guild_name = ? AND server_type = ?
+             ORDER BY raid_date DESC, start_time DESC`
+          )
+          .all(guildOwner.user_id, realmSlug, guildName, serverType) as Array<Record<string, unknown>>;
+      }
+    }
   } else {
     raids = db
       .prepare(
@@ -582,9 +618,14 @@ authRoutes.patch("/me/saved-raids/:id", requireAuth, (req, res) => {
   } = req.body;
   const db = getDb();
   const userId = req.session!.user!.id;
-  const raid = db.prepare("SELECT * FROM saved_raids WHERE id = ? AND user_id = ?").get(raidId, userId);
+  const raid = db.prepare("SELECT * FROM saved_raids WHERE id = ?").get(raidId) as { user_id: number; guild_realm_slug: string; guild_name: string; server_type: string } | undefined;
   if (!raid) {
     res.status(404).json({ error: "Raid not found" });
+    return;
+  }
+  const perms = getEffectiveGuildPermissions(db, userId, raid.guild_realm_slug, raid.guild_name, raid.server_type || "Retail");
+  if (!perms?.manage_raids) {
+    res.status(403).json({ error: "You do not have permission to edit raids" });
     return;
   }
   const updates: string[] = [];
@@ -1442,9 +1483,14 @@ authRoutes.delete("/me/saved-raids/:id", requireAuth, (req, res) => {
   const raidId = parseInt(paramStr(req.params.id), 10);
   const db = getDb();
   const userId = req.session!.user!.id;
-  const raid = db.prepare("SELECT * FROM saved_raids WHERE id = ? AND user_id = ?").get(raidId, userId);
+  const raid = db.prepare("SELECT * FROM saved_raids WHERE id = ?").get(raidId) as { guild_realm_slug: string; guild_name: string; server_type: string } | undefined;
   if (!raid) {
     res.status(404).json({ error: "Raid not found" });
+    return;
+  }
+  const perms = getEffectiveGuildPermissions(db, userId, raid.guild_realm_slug, raid.guild_name, raid.server_type || "Retail");
+  if (!perms?.manage_raids) {
+    res.status(403).json({ error: "You do not have permission to delete raids" });
     return;
   }
   db.prepare("DELETE FROM saved_raids WHERE id = ?").run(raidId);

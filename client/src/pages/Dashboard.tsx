@@ -153,7 +153,7 @@ function GuildCard({
               className="inline-flex items-center gap-1 text-sm text-sky-400/90 hover:text-sky-400 mb-3"
               aria-label={`Open ${guildName} dashboard`}
             >
-              {guildName} Dashboard →
+              Guild Dashboard →
             </Link>
           ) : (
             <div className="mb-3" />
@@ -322,6 +322,18 @@ export function Dashboard() {
       }
     };
     load();
+  }, []);
+
+  // Refetch when user returns to tab (e.g. after OAuth redirect) to avoid needing a manual refresh
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== "visible") return;
+      fetchPreferences().catch(() => {});
+      fetchCharacters().then(() => {}).catch(() => {});
+      api.get<{ raids: SavedRaid[] }>("/auth/me/saved-raids/my-assignments").then((r) => setMyAssignmentRaids(r.raids ?? [])).catch(() => {});
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
   }, []);
 
   useEffect(() => {

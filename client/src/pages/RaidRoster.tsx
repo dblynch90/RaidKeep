@@ -508,12 +508,12 @@ export function RaidRoster() {
   return (
     <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
       <main className="max-w-6xl mx-auto px-4 py-8">
-        <GuildBreadcrumbs guildName={guildName} realm={realm} serverType={serverType} currentPage="Raider Roster" />
+        <GuildBreadcrumbs guildName={guildName} realm={realm} serverType={serverType} currentPage="Raid Roster" />
 
         <header className="mb-6">
           <h1 className="text-2xl font-semibold text-sky-400">{guildName}</h1>
           <p className="text-slate-400 text-sm mt-1">
-            Raider Roster · {capitalizeRealm(realm)} · {serverType}
+            Raid Roster · {capitalizeRealm(realm)} · {serverType}
             {!loading && ` · ${raiders.length} raider${raiders.length !== 1 ? "s" : ""}`}
           </p>
           <div className="mt-4 h-px bg-slate-700/60" />
@@ -599,7 +599,7 @@ export function RaidRoster() {
                   </button>
                 </>
               )}
-              {canEdit && (
+              {(canEdit || canEditOwnAvailabilityAndNotes) && (
                 <button
                   type="button"
                   onClick={handleSave}
