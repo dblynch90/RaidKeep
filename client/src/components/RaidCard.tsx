@@ -128,11 +128,7 @@ export function RaidCard({
         <div className="flex shrink-0 gap-2">
           <Link
             to={showSignUp && !isAssigned ? `${baseUrl}/${raid.id}#signup` : `${baseUrl}/${raid.id}`}
-            className={`h-9 px-3.5 rounded-lg border text-sm font-medium flex items-center justify-center ${
-              showSignUp && !isAssigned
-                ? "bg-sky-600 hover:bg-sky-500 border-sky-500/60 text-white"
-                : "bg-slate-600 hover:bg-slate-500 border-slate-500 text-slate-100"
-            }`}
+            className="h-9 px-3.5 rounded-lg bg-slate-600 hover:bg-slate-500 border border-slate-500 text-slate-100 text-sm font-medium flex items-center justify-center"
           >
             {showSignUp && !isAssigned ? "View/Sign Up" : "View"}
           </Link>

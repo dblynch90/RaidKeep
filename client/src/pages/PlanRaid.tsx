@@ -655,8 +655,8 @@ export function PlanRaid() {
     );
   };
 
-  const handleSave = async () => {
-    if (saving || !raidName.trim() || !realm || !guildName) return;
+  const handleSave = async (): Promise<number | null> => {
+    if (saving || !raidName.trim() || !realm || !guildName) return null;
     setSaving(true);
     setSaveMessage(null);
     const payload = {
@@ -698,6 +698,7 @@ export function PlanRaid() {
       if (isEdit && raidId) {
         await api.patch<{ raid: { id: number } }>(`/auth/me/saved-raids/${raidId}`, payload);
         setSaveMessage({ ok: true, text: "Raid updated successfully." });
+        return raidId;
       } else {
         const res = await api.post<{ raid: { id: number } }>("/auth/me/saved-raids", payload);
         setSaveMessage({ ok: true, text: "Raid saved successfully." });
@@ -706,15 +707,32 @@ export function PlanRaid() {
           p.set("raidId", String(res.raid.id));
           return p;
         });
+        return res.raid.id;
       }
     } catch (err) {
       setSaveMessage({
         ok: false,
         text: err instanceof Error ? err.message : "Failed to save raid",
       });
+      return null;
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleOpenOfficerNotes = async () => {
+    if (!perms.manage_raids) return;
+    let id: number | null = raidId;
+    if (!id) {
+      if (!raidName.trim() || !realm || !guildName) {
+        setSaveMessage({ ok: false, text: "Fill Raid Name and select a guild first." });
+        return;
+      }
+      id = await handleSave();
+      if (id === null) return;
+    }
+    const url = `${window.location.origin}/raid-officer-notes-popout?raidId=${encodeURIComponent(id)}`;
+    window.open(url, "raid-officer-notes-popout", "width=700,height=500,scrollbars=yes,resizable=yes");
   };
 
   const moveSlotToBackup = (slotData: RaidSlot, fromPartyIdx: number, fromSlotIdx: number) => {
@@ -826,22 +844,7 @@ export function PlanRaid() {
           <div className={sectionGap}>
             <Card className="rounded-xl shadow-lg bg-slate-800/95 border-slate-700/80">
               <div className="p-5">
-                <div className="flex items-center justify-between gap-4 mb-4">
-                  <h2 className="text-slate-400 font-normal text-sm uppercase tracking-wider">Raid Details</h2>
-                  {isEdit && raidId && perms.manage_raids && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const url = `${window.location.origin}/raid-officer-notes-popout?raidId=${encodeURIComponent(raidId)}`;
-                        window.open(url, "raid-officer-notes-popout", "width=700,height=500,scrollbars=yes,resizable=yes");
-                      }}
-                      className="text-xs px-3 py-2 rounded-lg bg-slate-700/80 hover:bg-slate-600 border border-slate-600 text-slate-200 font-medium inline-flex items-center gap-1.5"
-                      title="Open officer notes in a separate window"
-                    >
-                      Officer Notes
-                    </button>
-                  )}
-                </div>
+                <h2 className="text-slate-400 font-normal text-sm uppercase tracking-wider mb-4">Raid Details</h2>
                 {!isEdit && raidsForCopy.length > 0 && (
                   <div className="mb-4 p-4 rounded-lg bg-slate-700/40 border border-slate-600/60">
                     <label className="block text-slate-400 text-sm mb-2 font-medium">Start from a copy of a previous raid</label>
@@ -924,6 +927,19 @@ export function PlanRaid() {
                       className="w-full px-3 py-2 rounded-lg bg-slate-700/80 border border-slate-600 text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
                     />
                   </div>
+                  {perms.manage_raids && (
+                    <div className="flex items-end">
+                      <button
+                        type="button"
+                        onClick={handleOpenOfficerNotes}
+                        disabled={saving}
+                        className="w-full px-3 py-2 rounded-lg bg-slate-700/80 hover:bg-slate-600 border border-slate-600 text-slate-200 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed transition"
+                        title="Open officer notes in a separate window"
+                      >
+                        Officer Notes
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </Card>
