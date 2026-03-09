@@ -766,3 +766,150 @@ export async function fetchCharacterGuild(
     return null;
   }
 }
+
+export interface CharacterProfession {
+  name: string;
+  skill_points?: number;
+  max_skill_points?: number;
+}
+
+// Cache for character professions (10 min TTL, max 500 entries)
+const characterProfessionsCache = new Map<
+  string,
+  { value: CharacterProfession[]; expiresAt: number }
+>();
+const PROFESSIONS_CACHE_TTL_MS = 10 * 60 * 1000;
+const PROFESSIONS_CACHE_MAX = 500;
+
+function getCachedProfessions(key: string): CharacterProfession[] | null {
+  const entry = characterProfessionsCache.get(key);
+  if (!entry || Date.now() > entry.expiresAt) return null;
+  return entry.value;
+}
+
+function setCachedProfessions(key: string, value: CharacterProfession[]) {
+  if (characterProfessionsCache.size >= PROFESSIONS_CACHE_MAX) {
+    const oldest = [...characterProfessionsCache.entries()].sort(
+      (a, b) => a[1].expiresAt - b[1].expiresAt
+    )[0];
+    if (oldest) characterProfessionsCache.delete(oldest[0]);
+  }
+  characterProfessionsCache.set(key, {
+    value,
+    expiresAt: Date.now() + PROFESSIONS_CACHE_TTL_MS,
+  });
+}
+
+async function fetchCharacterProfessionsWithNamespace(
+  realmSlug: string,
+  characterName: string,
+  origin: "us" | "eu" | "kr" | "tw",
+  namespace: string
+): Promise<CharacterProfession[]> {
+  const client = await getWowClassicClient();
+  const tokenRes = await client.getApplicationToken({ origin });
+  const token = tokenRes.data.access_token as string;
+  const host = API_HOSTS[origin] ?? API_HOSTS.us;
+  const realm = realmSlug.toLowerCase().replace(/\s+/g, "-");
+  const name = characterName.toLowerCase().replace(/\s+/g, "-");
+  const fullNs = `${namespace}-${origin}`;
+  const url = `${host}/profile/wow/character/${realm}/${name}/professions`;
+  const res = await fetch(`${url}?namespace=${fullNs}&locale=en_US`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  });
+  if (!res.ok) return [];
+  const data = (await res.json()) as {
+    primaries?: Array<{
+      profession?: { name?: string };
+      tiers?: Array<{ skill_points?: number; max_skill_points?: number }>;
+    }>;
+    secondaries?: Array<{
+      profession?: { name?: string };
+      tiers?: Array<{ skill_points?: number; max_skill_points?: number }>;
+    }>;
+  };
+  const out: CharacterProfession[] = [];
+  const add = (arr: typeof data.primaries) => {
+    if (!Array.isArray(arr)) return;
+    for (const p of arr) {
+      const name = p?.profession?.name;
+      if (!name || typeof name !== "string") continue;
+      const tier = Array.isArray(p.tiers) && p.tiers.length > 0 ? p.tiers[0] : undefined;
+      out.push({
+        name,
+        skill_points: tier?.skill_points,
+        max_skill_points: tier?.max_skill_points,
+      });
+    }
+  };
+  add(data.primaries);
+  add(data.secondaries);
+  return out;
+}
+
+/**
+ * Fetch character professions from Blizzard API.
+ * Endpoint: /profile/wow/character/{realm}/{name}/professions
+ * Returns profession names and skill levels. Uses app token (public data).
+ */
+export async function fetchCharacterProfessions(
+  realmSlug: string,
+  characterName: string,
+  region: string,
+  serverType: string = "Retail"
+): Promise<CharacterProfession[]> {
+  const cacheKey = `${region}:${realmSlug.toLowerCase()}:${characterName.toLowerCase()}:${serverType}`;
+  const cached = getCachedProfessions(cacheKey);
+  if (cached) return cached;
+
+  const origin = region.toLowerCase() as "us" | "eu" | "kr" | "tw";
+  const realmLower = realmSlug.toLowerCase().replace(/\s+/g, "-");
+  const nameLower = characterName.toLowerCase().replace(/\s+/g, "-");
+
+  const TBC_NAMESPACES = ["profile-classicann", "profile-classic-tbc", "profile-classic"];
+
+  if (serverType === "TBC Anniversary") {
+    for (const ns of TBC_NAMESPACES) {
+      try {
+        const profs = await fetchCharacterProfessionsWithNamespace(
+          realmLower,
+          nameLower,
+          origin,
+          ns
+        );
+        if (profs.length > 0) {
+          setCachedProfessions(cacheKey, profs);
+          return profs;
+        }
+      } catch {
+        continue;
+      }
+    }
+    return [];
+  }
+
+  let namespace: string;
+  if (serverType === "Classic Era" || serverType === "Classic Hardcore") {
+    namespace = "profile-classic1x";
+  } else if (["MOP Classic", "Seasons of Discovery"].includes(serverType)) {
+    namespace = "profile-classic";
+  } else {
+    namespace = "profile";
+  }
+
+  try {
+    const profs = await fetchCharacterProfessionsWithNamespace(
+      realmLower,
+      nameLower,
+      origin,
+      namespace
+    );
+    if (profs.length > 0) setCachedProfessions(cacheKey, profs);
+    return profs;
+  } catch {
+    return [];
+  }
+}

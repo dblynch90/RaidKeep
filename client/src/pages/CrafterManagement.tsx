@@ -115,7 +115,9 @@ export function CrafterManagement() {
       const q = searchQuery.trim().toLowerCase();
       if (q && !m.name.toLowerCase().includes(q)) return false;
       if (professionFilter) {
-        const hasProf = m.professions.includes(professionFilter) || m.guild_profession_stars.includes(professionFilter);
+        const hasProf =
+          m.professions.some((p) => p === professionFilter || p.startsWith(professionFilter + " ")) ||
+          m.guild_profession_stars.includes(professionFilter);
         if (!hasProf) return false;
       }
       return true;
@@ -250,7 +252,7 @@ export function CrafterManagement() {
                 </div>
               )}
               <p className="text-slate-500 text-xs mt-4">
-                Profession data comes from Raid Roster sync and recipe imports. You can star any guild member as a guild crafter for any profession.
+                Professions and skill levels come from the Blizzard API. You can star any guild member as a guild crafter for any profession.
               </p>
             </div>
           </div>

@@ -7,7 +7,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { paramStr } from "../utils.js";
 import { getAuthorizeUrl, exchangeCodeForToken, decodeIdToken, fetchBattleNetUserInfo } from "../services/battlenet-oauth.js";
 import { syncGuildsFromBattleNet, syncCharacterGuild } from "../services/battlenet-sync.js";
-import { fetchGuildRoster } from "../services/blizzard.js";
+import { fetchCharacterProfessions, fetchGuildRoster } from "../services/blizzard.js";
 import { getRaidStatus, type RaidStatus } from "../utils/raidStatus.js";
 
 export const authRoutes = Router();
@@ -1236,6 +1236,30 @@ authRoutes.get("/me/guild-crafters-management", requireAuth, async (req, res) =>
     return;
   }
   const professionsByChar = new Map<string, string[]>();
+  const BATCH_SIZE = 5;
+  const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  for (let i = 0; i < roster.members.length; i += BATCH_SIZE) {
+    const batch = roster.members.slice(i, i + BATCH_SIZE);
+    await Promise.all(
+      batch.map(async (m) => {
+        const profs = await fetchCharacterProfessions(
+          roster.realm ?? realmSlug,
+          m.name,
+          region,
+          serverType
+        );
+        if (profs.length > 0) {
+          const formatted = profs.map((p) =>
+            p.skill_points != null && p.max_skill_points != null
+              ? `${p.name} (${p.skill_points}/${p.max_skill_points})`
+              : p.name
+          );
+          professionsByChar.set(m.name.toLowerCase(), formatted);
+        }
+      })
+    );
+    if (i + BATCH_SIZE < roster.members.length) await delay(80);
+  }
   const rrRows = db
     .prepare(
       `SELECT character_name, professions FROM raider_roster
@@ -1243,15 +1267,15 @@ authRoutes.get("/me/guild-crafters-management", requireAuth, async (req, res) =>
     )
     .all(realmSlug, guildName, serverType) as Array<{ character_name: string; professions: string | null }>;
   for (const r of rrRows) {
+    const key = r.character_name.toLowerCase();
+    if (professionsByChar.has(key)) continue;
     let list: string[] = [];
     try {
       if (r.professions) list = JSON.parse(r.professions) as string[];
     } catch {
       /* ignore */
     }
-    if (list.length > 0) {
-      professionsByChar.set(r.character_name.toLowerCase(), list);
-    }
+    if (list.length > 0) professionsByChar.set(key, list);
   }
   const recipeProfs = db
     .prepare(
