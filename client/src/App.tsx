@@ -17,6 +17,7 @@ import { RaidRosterPopout } from "./pages/RaidRosterPopout";
 import { RaidOfficerNotesPopout } from "./pages/RaidOfficerNotesPopout";
 import { GuildDashboard } from "./pages/GuildDashboard";
 import { GuildCrafters } from "./pages/GuildCrafters";
+import { CrafterManagement } from "./pages/CrafterManagement";
 import { RaidSchedule } from "./pages/RaidSchedule";
 import { GuildPermissions } from "./pages/GuildPermissions";
 import { AdminLogin } from "./pages/AdminLogin";
@@ -75,6 +76,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <GuildCrafters />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/crafter-management"
+        element={
+          <ProtectedRoute>
+            <CrafterManagement />
           </ProtectedRoute>
         }
       />

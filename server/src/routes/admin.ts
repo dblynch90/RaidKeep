@@ -234,6 +234,7 @@ const PERMISSION_KEYS = [
   "manage_raids",
   "manage_raid_roster",
   "manage_permissions",
+  "manage_guild_crafters",
 ];
 
 adminRoutes.put("/guild/:realmSlug/:guildName/permissions", requireAdmin, (req, res) => {

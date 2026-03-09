@@ -10,7 +10,8 @@ type GuildPermissionKey =
   | "view_raid_schedule"
   | "manage_raids"
   | "manage_raid_roster"
-  | "manage_permissions";
+  | "manage_permissions"
+  | "manage_guild_crafters";
 
 const GUILD_PERMISSION_LABELS: Record<GuildPermissionKey, string> = {
   view_guild_dashboard: "View Guild Dashboard",
@@ -20,6 +21,7 @@ const GUILD_PERMISSION_LABELS: Record<GuildPermissionKey, string> = {
   manage_raids: "Manage Raids",
   manage_raid_roster: "Manage Raid Roster",
   manage_permissions: "Manage Permissions",
+  manage_guild_crafters: "Manage Guild Crafters",
 };
 
 const RANK_LABELS: Record<string, string> = {
@@ -65,7 +67,7 @@ export function AdminGuildDetail() {
   const navigate = useNavigate();
   const serverType = searchParams.get("server_type") || "Retail";
 
-  const [tab, setTab] = useState<"permissions" | "raids" | "teams" | "roster" | "professions">("permissions");
+  const [tab, setTab] = useState<"permissions" | "raids" | "teams" | "roster">("permissions");
   const [config, setConfig] = useState<Record<string, Record<string, boolean>> | null>(null);
   const [characterOverrides, setCharacterOverrides] = useState<Array<{ character_name: string; permissions: Record<string, boolean> }>>([]);
   const [raids, setRaids] = useState<SavedRaid[]>([]);
@@ -84,7 +86,6 @@ export function AdminGuildDetail() {
   const [newRosterEntry, setNewRosterEntry] = useState<Partial<RosterEntry>>({ character_name: "", character_class: "Unknown" });
   const [deleteGuildConfirm, setDeleteGuildConfirm] = useState(false);
   const [syncingRoster, setSyncingRoster] = useState(false);
-  const [professionTypes, setProfessionTypes] = useState<string[]>([]);
 
   const guildDisplay = guildName ? decodeURIComponent(guildName) : "";
   const realmDisplay = realmSlug ? capitalizeRealm(realmSlug.replace(/-/g, " ")) : "";
@@ -104,7 +105,6 @@ export function AdminGuildDetail() {
         setRaids(raidsRes.raids || []);
         setTeams(teamsRes.teams || []);
         setRoster(rosterRes.roster || []);
-        setProfessionTypes(rosterRes.profession_types || []);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -243,15 +243,6 @@ export function AdminGuildDetail() {
       .finally(() => setSyncingRoster(false));
   };
 
-  const toggleProfessionStar = (charName: string, professionType: string, starred: boolean) => {
-    fetch(`${API}/admin/guild/${realmSlug}/${guildName}/profession-stars/${encodeURIComponent(charName)}`, {
-      method: "PUT",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ server_type: serverType, profession_type: professionType, starred }),
-    }).then((r) => r.ok && fetchData());
-  };
-
   const addRosterEntry = () => {
     const name = newRosterEntry.character_name?.trim();
     if (!name) return;
@@ -306,7 +297,7 @@ export function AdminGuildDetail() {
       </header>
       <main className="max-w-5xl mx-auto px-4 py-6">
         <nav className="flex gap-2 mb-6 flex-wrap">
-          {(["permissions", "raids", "teams", "roster", "professions"] as const).map((t) => (
+          {(["permissions", "raids", "teams", "roster"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -551,27 +542,12 @@ export function AdminGuildDetail() {
                       <>
                         <div>
                           <span className="font-medium text-slate-200">{e.character_name}</span>
-                          {(e.guild_profession_stars?.length ?? 0) > 0 && (
-                            <span className="ml-2 text-amber-400 text-xs" title="Guild profession">
-                              ★ {e.guild_profession_stars!.join(", ")}
-                            </span>
-                          )}
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-slate-500 text-sm">
                             {e.character_class} {e.primary_spec && `· ${e.primary_spec}`}
                             {(e.professions?.length ?? 0) > 0 && ` · ${e.professions!.join(", ")}`}
                           </span>
-                          {professionTypes.slice(0, 5).map((pt) => (
-                            <button
-                              key={pt}
-                              onClick={() => toggleProfessionStar(e.character_name, pt, !e.guild_profession_stars?.includes(pt))}
-                              className={`text-xs px-1.5 py-0.5 rounded ${e.guild_profession_stars?.includes(pt) ? "bg-amber-600/50 text-amber-200" : "bg-slate-600/50 text-slate-400 hover:text-slate-200"}`}
-                              title={e.guild_profession_stars?.includes(pt) ? `Unstar as Guild ${pt}` : `Star as Guild ${pt}`}
-                            >
-                              {pt} {e.guild_profession_stars?.includes(pt) ? "★" : "☆"}
-                            </button>
-                          ))}
                           <button onClick={() => setEditingRoster(e)} className="text-sky-400 hover:text-sky-300 text-xs">Edit</button>
                           <button onClick={() => deleteRosterEntry(e)} className="text-red-400 hover:text-red-300 text-xs">Delete</button>
                         </div>
@@ -581,49 +557,6 @@ export function AdminGuildDetail() {
                 ))}
               </div>
             )}
-          </div>
-        ) : tab === "professions" ? (
-          <div className="rounded-xl border border-slate-700 p-6" style={{ background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)" }}>
-            <h3 className="font-semibold text-sky-400 mb-4">Professions & Raid Support</h3>
-            <p className="text-slate-500 text-sm mb-4">
-              Find guild members by profession. Star someone as &quot;Guild Enchanter&quot;, &quot;Guild Alchemist&quot;, etc. in the Roster tab.
-            </p>
-            <div className="space-y-4">
-              {professionTypes.map((prof) => {
-                const starred = roster.filter((r) => r.guild_profession_stars?.includes(prof));
-                const hasProf = roster.filter((r) => r.professions?.includes(prof) || r.guild_profession_stars?.includes(prof));
-                return (
-                  <div key={prof} className="rounded-lg border border-slate-600/60 p-4 bg-slate-800/40">
-                    <h4 className="font-medium text-slate-200 mb-2">
-                      {prof}
-                      {starred.length > 0 && (
-                        <span className="ml-2 text-amber-400 text-sm font-normal">
-                          — {starred.map((s) => s.character_name).join(", ")} (Guild {prof}{starred.length > 1 ? "s" : ""})
-                        </span>
-                      )}
-                    </h4>
-                    <div className="flex flex-wrap gap-2 text-sm">
-                      {hasProf.length === 0 ? (
-                        <span className="text-slate-500">No members with {prof}. Add professions in Roster tab.</span>
-                      ) : (
-                        hasProf.map((r) => (
-                          <span
-                            key={r.character_name}
-                            className={`px-2 py-0.5 rounded ${r.guild_profession_stars?.includes(prof) ? "bg-amber-600/30 text-amber-200" : "bg-slate-700/60 text-slate-300"}`}
-                          >
-                            {r.character_name}
-                            {r.guild_profession_stars?.includes(prof) && " ★"}
-                          </span>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <p className="text-slate-500 text-xs mt-4">
-              Use &quot;Sync from Blizzard&quot; in Roster to auto-populate. Add professions manually per character.
-            </p>
           </div>
         ) : null}
       </main>

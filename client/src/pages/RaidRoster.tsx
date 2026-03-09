@@ -37,6 +37,7 @@ const DEFAULT_PERMISSIONS: GuildPermissions = {
   manage_raids: true,
   manage_raid_roster: true,
   manage_permissions: true,
+  manage_guild_crafters: true,
 };
 
 const RAID_ROLES = [

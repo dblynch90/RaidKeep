@@ -18,7 +18,8 @@ export type GuildPermissionKey =
   | "view_raid_schedule"
   | "manage_raids"
   | "manage_raid_roster"
-  | "manage_permissions";
+  | "manage_permissions"
+  | "manage_guild_crafters";
 
 export const GUILD_PERMISSION_LABELS: Record<GuildPermissionKey, string> = {
   view_guild_dashboard: "View Guild Dashboard",
@@ -28,6 +29,7 @@ export const GUILD_PERMISSION_LABELS: Record<GuildPermissionKey, string> = {
   manage_raids: "Manage Raids",
   manage_raid_roster: "Manage Raid Team",
   manage_permissions: "Manage Permissions",
+  manage_guild_crafters: "Manage Guild Crafters",
 };
 
 export type GuildPermissions = Record<GuildPermissionKey, boolean>;
