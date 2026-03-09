@@ -429,6 +429,13 @@ export function initDb() {
     )
   `);
 
+  // Migrations: add officer_notes to saved_raids if not present
+  try {
+    db.exec("ALTER TABLE saved_raids ADD COLUMN officer_notes TEXT");
+  } catch {
+    /* column may already exist */
+  }
+
   // User preferences (game version, favorite guilds)
   db.exec(`
     CREATE TABLE IF NOT EXISTS user_preferences (

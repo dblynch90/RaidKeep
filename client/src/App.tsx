@@ -14,6 +14,7 @@ import { ManageRaids } from "./pages/ManageRaids";
 import { RaidRoster } from "./pages/RaidRoster";
 import { RaiderRoster } from "./pages/RaiderRoster";
 import { RaidRosterPopout } from "./pages/RaidRosterPopout";
+import { RaidOfficerNotesPopout } from "./pages/RaidOfficerNotesPopout";
 import { GuildDashboard } from "./pages/GuildDashboard";
 import { RaidSchedule } from "./pages/RaidSchedule";
 import { GuildPermissions } from "./pages/GuildPermissions";
@@ -129,6 +130,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute bare>
             <RaidRosterPopout />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/raid-officer-notes-popout"
+        element={
+          <ProtectedRoute bare>
+            <RaidOfficerNotesPopout />
           </ProtectedRoute>
         }
       />

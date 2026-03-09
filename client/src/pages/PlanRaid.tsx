@@ -821,7 +821,22 @@ export function PlanRaid() {
           <div className={sectionGap}>
             <Card className="rounded-xl shadow-lg bg-slate-800/95 border-slate-700/80">
               <div className="p-5">
-                <h2 className="text-slate-400 font-normal text-sm uppercase tracking-wider mb-4">Raid Details</h2>
+                <div className="flex items-center justify-between gap-4 mb-4">
+                  <h2 className="text-slate-400 font-normal text-sm uppercase tracking-wider">Raid Details</h2>
+                  {isEdit && raidId && perms.manage_raids && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = `${window.location.origin}/raid-officer-notes-popout?raidId=${encodeURIComponent(raidId)}`;
+                        window.open(url, "raid-officer-notes-popout", "width=700,height=500,scrollbars=yes,resizable=yes");
+                      }}
+                      className="text-xs px-3 py-2 rounded-lg bg-slate-700/80 hover:bg-slate-600 border border-slate-600 text-slate-200 font-medium inline-flex items-center gap-1.5"
+                      title="Open officer notes in a separate window"
+                    >
+                      Officer Notes
+                    </button>
+                  )}
+                </div>
                 {!isEdit && raidsForCopy.length > 0 && (
                   <div className="mb-4 p-4 rounded-lg bg-slate-700/40 border border-slate-600/60">
                     <label className="block text-slate-400 text-sm mb-2 font-medium">Start from a copy of a previous raid</label>
@@ -1118,8 +1133,7 @@ export function PlanRaid() {
                               )}
                             </div>
                           </div>
-                          <div className="overflow-x-auto">
-                            <div className="grid gap-3 min-w-0" style={{ gridTemplateColumns: "repeat(5, minmax(200px, 1fr))" }}>
+                          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>
                             {party.map((slot, slotIdx) => (
                               <RaidSlotCard
                                 key={slotIdx}
@@ -1141,7 +1155,6 @@ export function PlanRaid() {
                                 onClear={() => clearSlot(partyIdx, slotIdx)}
                               />
                             ))}
-                            </div>
                           </div>
                         </div>
                       ))}

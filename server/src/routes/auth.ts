@@ -506,7 +506,11 @@ authRoutes.get("/me/saved-raids/:id", requireAuth, (req, res) => {
   const slots = db.prepare("SELECT * FROM saved_raid_slots WHERE raid_id = ? ORDER BY party_index, slot_index").all(raidId);
   const backups = db.prepare("SELECT * FROM saved_raid_backups WHERE raid_id = ? ORDER BY position, character_name").all(raidId);
   const available = db.prepare("SELECT character_name, character_class FROM saved_raid_available WHERE raid_id = ? ORDER BY character_name").all(raidId);
+  const perms = getEffectiveGuildPermissions(db, userId, (raid as { guild_realm_slug: string }).guild_realm_slug, (raid as { guild_name: string }).guild_name, (raid as { server_type?: string }).server_type || "Retail");
   const enrichedRaid = enrichRaidWithSlotCounts(db, raid as Record<string, unknown>);
+  if (!perms?.manage_raids && "officer_notes" in enrichedRaid) {
+    delete enrichedRaid.officer_notes;
+  }
   res.json({ raid: enrichedRaid, slots, backups, available });
 });
 
@@ -629,6 +633,7 @@ authRoutes.patch("/me/saved-raids/:id", requireAuth, (req, res) => {
     raid_date,
     start_time,
     finish_time,
+    officer_notes,
     parties,
     backups,
     unavailable_slots,
@@ -666,6 +671,10 @@ authRoutes.patch("/me/saved-raids/:id", requireAuth, (req, res) => {
   if (finish_time !== undefined) {
     updates.push("finish_time = ?");
     values.push(finish_time);
+  }
+  if (officer_notes !== undefined) {
+    updates.push("officer_notes = ?");
+    values.push(officer_notes ?? null);
   }
   if (updates.length > 0) {
     values.push(raidId);
