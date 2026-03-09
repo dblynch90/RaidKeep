@@ -42,6 +42,8 @@ app.use(
       secure: process.env.NODE_ENV === "production",
       maxAge: 7 * 24 * 60 * 60 * 1000,
       sameSite: "lax",
+      // In prod, frontend is on raidkeep.com; API is proxied via Vercel. Cookie must work for raidkeep.com.
+      ...(process.env.NODE_ENV === "production" && { domain: ".raidkeep.com" }),
     },
   })
 );
