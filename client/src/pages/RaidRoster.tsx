@@ -422,10 +422,10 @@ export function RaidRoster() {
             {/* Table container - header sticks during scroll */}
             <div className="max-h-[60vh] overflow-auto overflow-x-auto">
               {/* Table header - sticky */}
-              <div className="sticky top-0 z-10 grid grid-cols-[minmax(120px,1.7fr)_minmax(320px,3fr)_minmax(400px,2.5fr)_80px_40px] gap-x-2 gap-y-0 px-4 py-2 h-10 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700/60 text-slate-400 text-xs font-medium uppercase tracking-wider min-w-[960px] items-center shrink-0">
+              <div className="sticky top-0 z-10 grid grid-cols-[minmax(105px,1.55fr)_minmax(290px,2.775fr)_minmax(460px,2.875fr)_80px_40px] gap-x-2 gap-y-0 px-4 py-2 h-10 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700/60 text-slate-400 text-xs font-medium uppercase tracking-wider min-w-[960px] items-center shrink-0">
                 <span className="truncate" title="The character or player assigned to the roster.">Player</span>
                 <span className="truncate" title="Days this player is available to participate in raids.">General Availability</span>
-                <span className="truncate whitespace-nowrap" title="Role 1 Spec 1 Role 2 Spec 2">Role 1 Spec 1 Role 2 Spec 2</span>
+                <span className="truncate whitespace-nowrap" title="Role and spec">ROLE/SPEC</span>
                 <span className="truncate" title="The raid team this player is assigned to.">Team</span>
                 <span className="flex items-center justify-center" title="Add or edit player and officer notes.">📝</span>
               </div>
@@ -443,7 +443,7 @@ export function RaidRoster() {
                   return (
                     <div
                       key={r.character_name}
-                      className="group grid grid-cols-[minmax(120px,1.7fr)_minmax(320px,3fr)_minmax(400px,2.5fr)_80px_40px] gap-x-2 gap-y-0 px-4 py-0 h-10 min-h-10 items-center border-b border-slate-700/30 min-w-[960px] hover:bg-slate-700/20 transition-colors"
+                      className="group grid grid-cols-[minmax(105px,1.55fr)_minmax(290px,2.775fr)_minmax(460px,2.875fr)_80px_40px] gap-x-2 gap-y-0 px-4 py-0 h-10 min-h-10 items-center border-b border-slate-700/30 min-w-[960px] hover:bg-slate-700/20 transition-colors"
                       style={{ borderLeftWidth: 4, borderLeftColor: classColor }}
                     >
                       {/* Player */}
@@ -506,7 +506,7 @@ export function RaidRoster() {
                               value={r.primary_spec ?? ""}
                               onChange={(e) => updateRaider(r.character_name, { primary_spec: e.target.value })}
                               placeholder="Spec"
-                              className="h-7 min-w-[88px] shrink-0 px-1.5 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500/50 placeholder-slate-500"
+                              className="h-7 w-[44px] min-w-[44px] shrink-0 px-1.5 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500/50 placeholder-slate-500"
                               title="Spec 1"
                             />
                             <select
@@ -524,7 +524,7 @@ export function RaidRoster() {
                               value={r.secondary_spec ?? ""}
                               onChange={(e) => updateRaider(r.character_name, { secondary_spec: e.target.value })}
                               placeholder="Spec"
-                              className="h-7 min-w-[88px] shrink-0 px-1.5 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500/50 placeholder-slate-500"
+                              className="h-7 w-[44px] min-w-[44px] shrink-0 px-1.5 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500/50 placeholder-slate-500"
                               title="Spec 2"
                             />
                           </>
