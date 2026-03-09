@@ -102,6 +102,7 @@ export function RaidRoster() {
   const [notesFor, setNotesFor] = useState<string | null>(null);
   const [showManageTeamsModal, setShowManageTeamsModal] = useState(false);
   const [newTeamName, setNewTeamName] = useState("");
+  const [selectedAddModalMembers, setSelectedAddModalMembers] = useState<Set<string>>(new Set());
 
   const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
   const canEdit = (permissions ?? DEFAULT_PERMISSIONS).manage_raid_roster;
@@ -401,8 +402,39 @@ export function RaidRoster() {
     setAddModalLevelMax(String(maxLvl));
     setAddModalSearch("");
     setAddModalClassFilter("");
+    setSelectedAddModalMembers(new Set());
     setShowAddModal(true);
   };
+
+  const toggleAddModalMemberSelection = (name: string) => {
+    const key = name.toLowerCase();
+    setSelectedAddModalMembers((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const selectAllAddModalMembers = () => {
+    setSelectedAddModalMembers(new Set(filteredAddModalMembers.map((m) => m.name.toLowerCase())));
+  };
+
+  const clearAddModalSelection = () => setSelectedAddModalMembers(new Set());
+
+  const addSelectedMembers = () => {
+    const toAdd = filteredAddModalMembers.filter((m) => selectedAddModalMembers.has(m.name.toLowerCase()));
+    if (toAdd.length === 0) return;
+    for (const m of toAdd) {
+      toggleRaider(m, true);
+    }
+    setSelectedAddModalMembers(new Set());
+    setShowAddModal(false);
+  };
+
+  const selectedAddModalCount = filteredAddModalMembers.filter((m) =>
+    selectedAddModalMembers.has(m.name.toLowerCase())
+  ).length;
 
   const perms = permissions ?? DEFAULT_PERMISSIONS;
 
@@ -871,23 +903,62 @@ export function RaidRoster() {
                 ) : filteredAddModalMembers.length === 0 ? (
                   <p className="text-slate-500 text-sm">No guild members match the current filters.</p>
                 ) : (
-                  <div className="space-y-1">
-                    {filteredAddModalMembers.map((m) => {
-                      const cc = getClassColor(m.class);
-                      return (
-                        <button
-                          key={m.name}
-                          type="button"
-                          onClick={() => { toggleRaider(m, true); setShowAddModal(false); }}
-                          className="w-full text-left px-3 py-2 rounded flex items-center gap-2 hover:bg-slate-700/50"
-                          style={{ borderLeftWidth: 4, borderLeftColor: cc }}
-                        >
-                          <span className="font-medium" style={{ color: cc }}>{m.name}</span>
-                          <span className="text-slate-500 text-sm">Lv{m.level} · {m.class}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <>
+                    <div className="flex items-center gap-2 mb-3">
+                      <button
+                        type="button"
+                        onClick={selectAllAddModalMembers}
+                        className="px-2 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
+                      >
+                        Select all
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearAddModalSelection}
+                        className="px-2 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
+                      >
+                        Clear
+                      </button>
+                      <button
+                        type="button"
+                        onClick={addSelectedMembers}
+                        disabled={selectedAddModalCount === 0}
+                        className="ml-auto px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium"
+                      >
+                        Add selected {selectedAddModalCount > 0 ? `(${selectedAddModalCount})` : ""}
+                      </button>
+                    </div>
+                    <div className="space-y-1">
+                      {filteredAddModalMembers.map((m) => {
+                        const cc = getClassColor(m.class);
+                        const isSelected = selectedAddModalMembers.has(m.name.toLowerCase());
+                        return (
+                          <div
+                            key={m.name}
+                            className="flex items-center gap-2 px-3 py-2 rounded hover:bg-slate-700/50"
+                            style={{ borderLeftWidth: 4, borderLeftColor: cc }}
+                          >
+                            <label className="shrink-0 flex items-center cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleAddModalMemberSelection(m.name)}
+                                className="rounded border-slate-600 bg-slate-700 text-sky-500 focus:ring-sky-500/50"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => { toggleRaider(m, true); setShowAddModal(false); }}
+                              className="flex-1 text-left min-w-0"
+                            >
+                              <span className="font-medium" style={{ color: cc }}>{m.name}</span>
+                              <span className="text-slate-500 text-sm"> · Lv{m.level} · {m.class}</span>
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
                 )}
               </div>
             </div>
