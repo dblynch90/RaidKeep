@@ -44,6 +44,17 @@ npm run dev
 - **API**: http://localhost:3001
 - **Admin panel**: http://localhost:5173/admin/login (requires ADMIN_USERNAME/ADMIN_PASSWORD)
 
+## Deployment (Render / persistent data)
+
+By default the SQLite database is stored in `server/data/raidkeep.db`. On Render and similar platforms, the project filesystem is **ephemeral** — it is wiped on every deploy or restart. To persist your data:
+
+1. **Add a persistent disk** in the Render dashboard for your web service.
+2. **Mount path**: Use `/opt/render/project/src/data` (or the path Render assigns).
+3. **Environment variable**: Set `DATA_DIR=/opt/render/project/src/data` (or your mount path).
+4. **Redeploy**: The database will be created and stored on the persistent disk.
+
+Without `DATA_DIR` pointing to a persistent disk, all data (users, roster, raids, preferences) is lost on each deploy or service restart.
+
 ## Project structure
 
 ```

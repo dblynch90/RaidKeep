@@ -17,6 +17,7 @@ interface User {
   battlenet_id: string | null;
   battlenet_battletag: string | null;
   created_at: string;
+  game_version?: string | null;
 }
 
 export function AdminDashboard() {
@@ -155,6 +156,9 @@ export function AdminDashboard() {
                     <span>Role: {u.role}</span>
                     {u.battlenet_battletag && (
                       <span>BattleTag: {u.battlenet_battletag}</span>
+                    )}
+                    {u.game_version && (
+                      <span>Default game: {u.game_version}</span>
                     )}
                     <span>Created: {u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}</span>
                   </div>

@@ -87,7 +87,15 @@ adminRoutes.get("/users", requireAdmin, (req, res) => {
   const users = db.prepare(
     `SELECT id, username, role, battlenet_id, battlenet_battletag, created_at FROM users ORDER BY id`
   ).all() as Array<{ id: number; username: string; role: string; battlenet_id: string | null; battlenet_battletag: string | null; created_at: string }>;
-  res.json({ users });
+  const prefs = db.prepare(
+    `SELECT user_id, pref_value FROM user_preferences WHERE pref_key = 'game_version'`
+  ).all() as Array<{ user_id: number; pref_value: string | null }>;
+  const gameVersionByUser = new Map(prefs.map((p) => [p.user_id, p.pref_value || null]));
+  const usersWithPrefs = users.map((u) => ({
+    ...u,
+    game_version: gameVersionByUser.get(u.id) ?? null,
+  }));
+  res.json({ users: usersWithPrefs });
 });
 
 adminRoutes.delete("/users/:id", requireAdmin, (req, res) => {

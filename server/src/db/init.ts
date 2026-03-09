@@ -5,7 +5,10 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dataDir = path.join(__dirname, "../../data");
+// Use DATA_DIR env for persistent storage (e.g. Render persistent disk at /opt/render/project/src/data)
+const dataDir = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.join(__dirname, "../../data");
 const dbPath = path.join(dataDir, "raidkeep.db");
 
 export function getDb() {

@@ -187,6 +187,7 @@ function GuildCard({
 
 export function Dashboard() {
   const [gameVersion, setGameVersion] = useState("");
+  const [savedDefaultGameVersion, setSavedDefaultGameVersion] = useState<string>("");
   const [favoriteGuilds, setFavoriteGuilds] = useState<FavoriteGuild[]>([]);
   const [allCharacters, setAllCharacters] = useState<MyCharacter[]>([]);
   const [myAssignmentRaids, setMyAssignmentRaids] = useState<SavedRaid[]>([]);
@@ -200,9 +201,13 @@ export function Dashboard() {
 
   const fetchPreferences = () =>
     api.get<{ preferences: Record<string, string> }>("/auth/me/preferences").then((res) => {
-      if (res.preferences.game_version) setGameVersion(res.preferences.game_version);
+      const gv = (res.preferences?.game_version ?? "").trim();
+      if (gv) {
+        setGameVersion(gv);
+        setSavedDefaultGameVersion(gv);
+      }
       try {
-        const favs = res.preferences.favorite_guilds ? JSON.parse(res.preferences.favorite_guilds) : [];
+        const favs = res.preferences?.favorite_guilds ? JSON.parse(res.preferences.favorite_guilds) : [];
         setFavoriteGuilds(Array.isArray(favs) ? favs : []);
       } catch {
         setFavoriteGuilds([]);
@@ -266,7 +271,9 @@ export function Dashboard() {
         const prefsRes = await fetchPreferences().catch(() => ({ preferences: {} }));
         const prefs = prefsRes.preferences ?? {};
         const gv = (prefs as Record<string, string>).game_version?.trim();
-        setGameVersion(gv || ""); // Explicitly set from saved user preferences
+        const gvStr = gv || "";
+        setGameVersion(gvStr);
+        setSavedDefaultGameVersion(gvStr);
         const serverType = gv && gv !== "Please Select" ? gv : undefined;
 
         const [charsRes, raidsRes] = await Promise.all([
@@ -486,14 +493,14 @@ export function Dashboard() {
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100">
       <main className="max-w-6xl mx-auto px-4 py-8">
-        <div className="flex items-center gap-2 mb-8">
-          <span className="text-slate-400 text-sm font-medium">Game Version</span>
+        <div className="flex flex-wrap items-center gap-4 mb-8">
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400 text-sm font-medium">Game Version</span>
           <select
             value={gameVersion}
             onChange={(e) => {
               const v = e.target.value;
               setGameVersion(v);
-              savePreferences({ game_version: v });
             }}
             className="px-3 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
           >
@@ -504,6 +511,20 @@ export function Dashboard() {
               </option>
             ))}
           </select>
+          </div>
+          {gameVersion && gameVersion !== "Please Select" && gameVersion !== savedDefaultGameVersion && (
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                onChange={() => {
+                  savePreferences({ game_version: gameVersion });
+                  setSavedDefaultGameVersion(gameVersion);
+                }}
+                className="rounded border-slate-500 bg-slate-700 text-sky-500 focus:ring-sky-500"
+              />
+              <span className="text-slate-400 text-sm">Save as Default</span>
+            </label>
+          )}
         </div>
 
         {/* My Guilds */}
