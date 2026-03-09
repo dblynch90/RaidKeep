@@ -1262,10 +1262,10 @@ authRoutes.put("/me/raider-roster", requireAuth, (req, res) => {
     "DELETE FROM raider_roster WHERE user_id = ? AND guild_realm_slug = ? AND guild_name = ? AND server_type = ?"
   ).run(userId, realmSlug, guild_name, server_type || "Retail");
   const insert = db.prepare(
-    `INSERT INTO raider_roster (user_id, guild_name, guild_realm_slug, server_type, character_name, character_class, primary_spec, off_spec, notes, officer_notes, raid_role, raid_lead, raid_assist, availability, notes_public)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO raider_roster (user_id, guild_name, guild_realm_slug, server_type, character_name, character_class, primary_spec, off_spec, secondary_spec, notes, officer_notes, raid_role, raid_lead, raid_assist, availability, notes_public)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
-  for (const r of raiders as Array<{ character_name: string; character_class: string; primary_spec?: string; off_spec?: string; notes?: string; officer_notes?: string; raid_role?: string; raid_lead?: number; raid_assist?: number; availability?: string; notes_public?: number | boolean }>) {
+  for (const r of raiders as Array<{ character_name: string; character_class: string; primary_spec?: string; off_spec?: string; secondary_spec?: string; notes?: string; officer_notes?: string; raid_role?: string; raid_lead?: number; raid_assist?: number; availability?: string; notes_public?: number | boolean }>) {
     if (r.character_name && r.character_class) {
       const avail = normalizeAvailability(r.availability);
       const notesPublic = r.notes_public === true || r.notes_public === 1 ? 1 : 0;
@@ -1278,6 +1278,7 @@ authRoutes.put("/me/raider-roster", requireAuth, (req, res) => {
         r.character_class,
         r.primary_spec || null,
         r.off_spec || null,
+        r.secondary_spec || null,
         r.notes || null,
         r.officer_notes || null,
         r.raid_role || null,

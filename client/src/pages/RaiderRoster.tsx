@@ -64,6 +64,7 @@ interface RaiderEntry {
   character_class: string;
   primary_spec?: string;
   off_spec?: string;
+  secondary_spec?: string;
   notes?: string;
   officer_notes?: string;
   notes_public?: boolean;
@@ -281,6 +282,7 @@ export function RaiderRoster() {
           character_class: member.class,
           primary_spec: "",
           off_spec: "",
+          secondary_spec: "",
           notes: "",
           officer_notes: "",
           notes_public: false,
@@ -312,6 +314,7 @@ export function RaiderRoster() {
           character_class: m.class,
           primary_spec: "",
           off_spec: "",
+          secondary_spec: "",
           notes: "",
           officer_notes: "",
           notes_public: false,
@@ -394,6 +397,7 @@ export function RaiderRoster() {
             character_class: r.character_class,
             primary_spec: r.primary_spec || null,
             off_spec: r.off_spec || null,
+            secondary_spec: r.secondary_spec || null,
             notes: r.notes || null,
             officer_notes: r.officer_notes || null,
             notes_public: r.notes_public ? 1 : 0,
@@ -425,6 +429,7 @@ export function RaiderRoster() {
               character_class: r.character_class ?? "",
               primary_spec: r.primary_spec ?? "",
               off_spec: r.off_spec ?? "",
+              secondary_spec: (r as RaiderEntry & { secondary_spec?: string }).secondary_spec ?? "",
               notes: r.notes ?? "",
               officer_notes: r.officer_notes ?? "",
               notes_public: r.notes_public === 1 || Boolean(r.notes_public),
@@ -830,7 +835,7 @@ export function RaiderRoster() {
                                 {/* Left: character info + checkboxes + availability */}
                                 <div className="flex flex-col gap-1.5 min-w-0">
                                   <span className="font-medium text-slate-100 truncate" style={{ color: classColor }}>
-                                    {r.character_name} {guildMember ? `- Lv${guildMember.level}` : ""} {r.character_class}
+                                    {r.character_name} {guildMember ? `- ${guildMember.level}` : ""} {r.character_class}
                                   </span>
                                   {canEdit && (
                                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -888,43 +893,51 @@ export function RaiderRoster() {
                                     </div>
                                   </div>
                                 </div>
-                                {/* Middle: role/spec dropdowns in a horizontal row */}
+                                {/* Middle: role/spec in 2x2 grid */}
                                 <div className="flex flex-col justify-center min-w-0">
                                   {canEdit ? (
-                                    <div className="flex flex-row flex-wrap items-center gap-2">
+                                    <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1.5 items-center">
                                       <select
                                         value={r.raid_role ?? ""}
                                         onChange={(e) => updateRaider(r.character_name, { raid_role: e.target.value })}
-                                        className="px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm min-w-0 flex-1 max-w-[100px]"
-                                        title="Main role"
+                                        className="px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm min-w-[72px]"
+                                        title="Primary role"
                                       >
                                         {RAID_ROLES.map((opt) => (
                                           <option key={opt.value || "_"} value={opt.value}>{opt.label}</option>
                                         ))}
                                       </select>
+                                      <input
+                                        type="text"
+                                        placeholder="Primary spec"
+                                        value={r.primary_spec ?? ""}
+                                        onChange={(e) => updateRaider(r.character_name, { primary_spec: e.target.value })}
+                                        className="px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm min-w-0"
+                                        title="e.g. Restoration, Feral"
+                                      />
                                       <select
                                         value={["tank", "healer", "dps"].includes((r.off_spec ?? "").toLowerCase()) ? (r.off_spec ?? "").toLowerCase() : ""}
                                         onChange={(e) => updateRaider(r.character_name, { off_spec: e.target.value })}
-                                        className="px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm min-w-0 flex-1 max-w-[90px]"
-                                        title="Off role"
+                                        className="px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm min-w-[72px]"
+                                        title="Secondary role"
                                       >
-                                        <option value="">Off Role</option>
+                                        <option value="">Secondary</option>
                                         <option value="tank">Tank</option>
                                         <option value="healer">Healer</option>
                                         <option value="dps">DPS</option>
                                       </select>
                                       <input
                                         type="text"
-                                        placeholder="Spec"
-                                        value={r.primary_spec ?? ""}
-                                        onChange={(e) => updateRaider(r.character_name, { primary_spec: e.target.value })}
-                                        className="px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm min-w-0 flex-1 max-w-[90px]"
-                                        title="e.g. Restoration, Feral"
+                                        placeholder="Secondary spec"
+                                        value={r.secondary_spec ?? ""}
+                                        onChange={(e) => updateRaider(r.character_name, { secondary_spec: e.target.value })}
+                                        className="px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm min-w-0"
+                                        title="e.g. Protection, Discipline"
                                       />
                                     </div>
                                   ) : (
                                     <span className="text-slate-400 text-sm py-0.5">
-                                      {[r.raid_role, r.off_spec, r.primary_spec].filter(Boolean).join(" · ") || "—"}
+                                      {[r.raid_role, r.primary_spec, r.off_spec, r.secondary_spec].filter(Boolean).join(" · ") || "—"}
                                     </span>
                                   )}
                                 </div>

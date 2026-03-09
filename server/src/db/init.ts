@@ -265,6 +265,7 @@ export function initDb() {
       character_class TEXT NOT NULL,
       primary_spec TEXT,
       off_spec TEXT,
+      secondary_spec TEXT,
       notes TEXT,
       raid_role TEXT,
       raid_lead INTEGER NOT NULL DEFAULT 0,
@@ -347,6 +348,9 @@ export function initDb() {
     }
     if (!rrCols.some((c) => c.name === "notes_public")) {
       db.exec("ALTER TABLE raider_roster ADD COLUMN notes_public INTEGER NOT NULL DEFAULT 0");
+    }
+    if (!rrCols.some((c) => c.name === "secondary_spec")) {
+      db.exec("ALTER TABLE raider_roster ADD COLUMN secondary_spec TEXT");
     }
   } catch {
     // Column may already exist
