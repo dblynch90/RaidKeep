@@ -1459,17 +1459,20 @@ authRoutes.post("/battlenet/callback", async (req, res) => {
       role: user.role,
     };
 
+    // Return immediately to avoid timeout (Vercel/Render ~30s). Sync runs in background.
+    res.json({ user: req.session!.user });
+
     const prefRow = db.prepare("SELECT pref_value FROM user_preferences WHERE user_id = ? AND pref_key = ?").get(user.id, "game_version") as { pref_value: string } | undefined;
     const preferredGameVersion = prefRow?.pref_value?.trim();
     const serverType = preferredGameVersion && preferredGameVersion !== "Please Select" ? preferredGameVersion : undefined;
 
-    // Await sync before returning - client shows overlay until this completes (sync can take 30-60+ sec with many characters)
-    const syncResult = await syncGuildsFromBattleNet(user.id, tokenRes.access_token, region, serverType);
-    if (syncResult.guildsImported > 0) {
-      console.log(`Synced ${syncResult.guildsImported} guild(s) for user ${user.username}`);
-    }
-
-    res.json({ user: req.session!.user });
+    syncGuildsFromBattleNet(user.id, tokenRes.access_token, region, serverType)
+      .then((syncResult) => {
+        if (syncResult.guildsImported > 0) {
+          console.log(`Synced ${syncResult.guildsImported} guild(s) for user ${user.username}`);
+        }
+      })
+      .catch((err) => console.error("Background sync failed:", err));
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Battle.net login failed";
     console.error("Battle.net callback error:", err);
