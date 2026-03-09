@@ -1221,11 +1221,23 @@ authRoutes.get("/me/raider-roster", requireAuth, (req, res) => {
         .all(guildOwner.user_id, realmSlug, guildName, serverType);
     }
   }
-  // Hide officer_notes from view-only users (only guild/raid leads can see)
+  // Hide officer_notes and optionally player notes from view-only users
   if (!perms?.manage_raid_roster) {
-    raiders = (raiders as Array<Record<string, unknown>>).map((r) => {
+    const myCharRows = db.prepare(
+      `SELECT LOWER(bnc.name) as name FROM battle_net_characters bnc
+       LEFT JOIN guilds g ON bnc.guild_id = g.id
+       WHERE bnc.user_id = ? AND bnc.realm_slug = ? AND (LOWER(COALESCE(g.name, bnc.guild_name, '')) = LOWER(?) OR LOWER(bnc.guild_name) = LOWER(?))
+       AND (bnc.server_type = ? OR (bnc.server_type IS NULL AND ? = 'Retail'))`
+    ).all(userId, realmSlug, guildName, guildName, serverType, serverType) as Array<{ name: string }>;
+    const myCharSet = new Set(myCharRows.map((row) => row.name));
+    raiders = (raiders as Array<Record<string, unknown> & { character_name?: string; notes_public?: number }>).map((r) => {
       const copy = { ...r };
       delete copy.officer_notes;
+      const isOwn = myCharSet.has((r.character_name || "").toLowerCase());
+      const isPublic = r.notes_public === 1;
+      if (!isOwn && !isPublic) {
+        copy.notes = null;
+      }
       return copy;
     });
   }
@@ -1250,12 +1262,13 @@ authRoutes.put("/me/raider-roster", requireAuth, (req, res) => {
     "DELETE FROM raider_roster WHERE user_id = ? AND guild_realm_slug = ? AND guild_name = ? AND server_type = ?"
   ).run(userId, realmSlug, guild_name, server_type || "Retail");
   const insert = db.prepare(
-    `INSERT INTO raider_roster (user_id, guild_name, guild_realm_slug, server_type, character_name, character_class, primary_spec, off_spec, notes, officer_notes, raid_role, raid_lead, raid_assist, availability)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO raider_roster (user_id, guild_name, guild_realm_slug, server_type, character_name, character_class, primary_spec, off_spec, notes, officer_notes, raid_role, raid_lead, raid_assist, availability, notes_public)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
-  for (const r of raiders as Array<{ character_name: string; character_class: string; primary_spec?: string; off_spec?: string; notes?: string; officer_notes?: string; raid_role?: string; raid_lead?: number; raid_assist?: number; availability?: string }>) {
+  for (const r of raiders as Array<{ character_name: string; character_class: string; primary_spec?: string; off_spec?: string; notes?: string; officer_notes?: string; raid_role?: string; raid_lead?: number; raid_assist?: number; availability?: string; notes_public?: number | boolean }>) {
     if (r.character_name && r.character_class) {
       const avail = normalizeAvailability(r.availability);
+      const notesPublic = r.notes_public === true || r.notes_public === 1 ? 1 : 0;
       insert.run(
         userId,
         guild_name,
@@ -1270,7 +1283,8 @@ authRoutes.put("/me/raider-roster", requireAuth, (req, res) => {
         r.raid_role || null,
         r.raid_lead ? 1 : 0,
         r.raid_assist ? 1 : 0,
-        avail
+        avail,
+        notesPublic
       );
     }
   }
@@ -1303,7 +1317,7 @@ authRoutes.patch("/me/raider-roster/self", requireAuth, (req, res) => {
      AND (bnc.server_type = ? OR (bnc.server_type IS NULL AND ? = 'Retail'))`
   ).all(userId, realmSlug, guild_name, guild_name, serverType, serverType) as Array<{ name: string }>;
   const myCharSet = new Set(myCharRows.map((r) => r.name));
-  for (const u of updates as Array<{ character_name: string; availability?: string; notes?: string; raid_role?: string; primary_spec?: string }>) {
+  for (const u of updates as Array<{ character_name: string; availability?: string; notes?: string; raid_role?: string; primary_spec?: string; notes_public?: number | boolean }>) {
     const charName = (u.character_name || "").trim();
     if (!charName || !myCharSet.has(charName.toLowerCase())) continue;
     const sets: string[] = [];
@@ -1323,6 +1337,11 @@ authRoutes.patch("/me/raider-roster/self", requireAuth, (req, res) => {
     if (typeof u.primary_spec === "string") {
       sets.push("primary_spec = ?");
       vals.push(u.primary_spec.trim() || null);
+    }
+    if (u.notes_public === true || u.notes_public === 1) {
+      sets.push("notes_public = 1");
+    } else if (u.notes_public === false || u.notes_public === 0) {
+      sets.push("notes_public = 0");
     }
     if (sets.length > 0) {
       vals.push(realmSlug, guild_name, serverType, charName);

@@ -345,6 +345,9 @@ export function initDb() {
     if (!rrCols.some((c) => c.name === "officer_notes")) {
       db.exec("ALTER TABLE raider_roster ADD COLUMN officer_notes TEXT");
     }
+    if (!rrCols.some((c) => c.name === "notes_public")) {
+      db.exec("ALTER TABLE raider_roster ADD COLUMN notes_public INTEGER NOT NULL DEFAULT 0");
+    }
   } catch {
     // Column may already exist
   }

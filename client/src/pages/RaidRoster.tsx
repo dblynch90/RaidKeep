@@ -56,6 +56,7 @@ interface RaiderEntry {
   off_spec?: string;
   notes?: string;
   officer_notes?: string;
+  notes_public?: boolean;
   raid_role?: string;
   raid_lead?: boolean;
   raid_assist?: boolean;
@@ -113,13 +114,14 @@ export function RaidRoster() {
         `/auth/me/guild-permissions?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
       ).then((r) => r.permissions).catch(() => DEFAULT_PERMISSIONS),
       api.get<{ characters: import("../api").MyCharacter[] }>("/auth/me/characters").then((r) => r.characters ?? []).catch(() => []),
-      api.get<{ raiders: RaiderEntry[] }>(
+      api.get<{ raiders: Array<Omit<RaiderEntry, "notes_public"> & { notes_public?: number; raid_lead?: unknown; raid_assist?: unknown; availability?: string }> }>(
         `/auth/me/raider-roster?guild_realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
       ).then((r) =>
-        (r.raiders ?? []).map((x: { character_name: string; character_class: string; primary_spec?: string; off_spec?: string; notes?: string; officer_notes?: string; raid_role?: string; raid_lead?: unknown; raid_assist?: unknown; availability?: string }) => ({
+        (r.raiders ?? []).map((x) => ({
           ...x,
           raid_lead: Boolean(x.raid_lead),
           raid_assist: Boolean(x.raid_assist),
+          notes_public: x.notes_public === 1,
           availability: typeof x.availability === "string" ? x.availability.padEnd(7, "0").slice(0, 7) : DEFAULT_AVAILABILITY,
         })
       )),
@@ -193,6 +195,7 @@ export function RaidRoster() {
           ...(updates.notes !== undefined && { notes: updates.notes }),
           ...(updates.raid_role !== undefined && { raid_role: updates.raid_role }),
           ...(updates.primary_spec !== undefined && { primary_spec: updates.primary_spec }),
+          ...(updates.notes_public !== undefined && { notes_public: updates.notes_public }),
         }
       : updates;
     if (Object.keys(filtered).length === 0) return;
@@ -237,6 +240,7 @@ export function RaidRoster() {
           off_spec: r.off_spec || null,
           notes: r.notes || null,
           officer_notes: r.officer_notes || null,
+          notes_public: r.notes_public ? 1 : 0,
           raid_role: r.raid_role || null,
           raid_lead: r.raid_lead ? 1 : 0,
           raid_assist: r.raid_assist ? 1 : 0,
@@ -252,9 +256,10 @@ export function RaidRoster() {
             notes: r.notes ?? "",
             raid_role: r.raid_role ?? "",
             primary_spec: r.primary_spec ?? "",
+            notes_public: r.notes_public ?? false,
           }));
         if (myUpdates.length > 0) {
-          const res = await api.patch<{ raiders: RaiderEntry[] }>("/auth/me/raider-roster/self", {
+          const res = await api.patch<{ raiders: Array<Omit<RaiderEntry, "notes_public"> & { notes_public?: number }> }>("/auth/me/raider-roster/self", {
             guild_name: guildName,
             guild_realm: realm,
             guild_realm_slug: realmSlug,
@@ -262,13 +267,14 @@ export function RaidRoster() {
             updates: myUpdates,
           });
           setRaiders(
-            (res.raiders ?? []).map((x: { character_name?: string; character_class?: string; primary_spec?: string; off_spec?: string; notes?: string; officer_notes?: string; raid_role?: string; raid_lead?: unknown; raid_assist?: unknown; availability?: string }) => ({
+            (res.raiders ?? []).map((x) => ({
               character_name: x.character_name ?? "",
               character_class: x.character_class ?? "",
               primary_spec: x.primary_spec ?? "",
               off_spec: x.off_spec ?? "",
               notes: x.notes ?? "",
               officer_notes: x.officer_notes ?? "",
+              notes_public: x.notes_public === 1,
               raid_role: x.raid_role ?? "",
               raid_lead: Boolean(x.raid_lead),
               raid_assist: Boolean(x.raid_assist),
@@ -570,17 +576,32 @@ export function RaidRoster() {
                     <>
                       <div>
                         <label className="block text-slate-400 text-xs font-medium uppercase tracking-wider mb-1.5">Player Notes</label>
-                        <p className="text-slate-500 text-xs mb-1">Visible to the player; they can edit their own.</p>
+                        <p className="text-slate-500 text-xs mb-1">
+                          {canEdit ? "Visible to the player." : "Visible to you; other members only see these if you make them public."}
+                        </p>
                         {canEditRaider(r.character_name) ? (
-                          <textarea
-                            value={r.notes ?? ""}
-                            onChange={(e) => updateRaider(r.character_name, { notes: e.target.value })}
-                            placeholder="Add player notes..."
-                            rows={3}
-                            className="w-full px-3 py-2 rounded bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-500 text-sm resize-y focus:ring-1 focus:ring-sky-500/50"
-                          />
+                          <>
+                            <textarea
+                              value={r.notes ?? ""}
+                              onChange={(e) => updateRaider(r.character_name, { notes: e.target.value })}
+                              placeholder="Add player notes..."
+                              rows={3}
+                              className="w-full px-3 py-2 rounded bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-500 text-sm resize-y focus:ring-1 focus:ring-sky-500/50"
+                            />
+                            <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={r.notes_public ?? false}
+                                onChange={(e) => updateRaider(r.character_name, { notes_public: e.target.checked })}
+                                className="rounded border-slate-600 bg-slate-700 text-sky-500 focus:ring-sky-500/50"
+                              />
+                              <span className="text-slate-400 text-sm">
+                                {canEdit ? "Notes visible to other roster members" : "Make notes visible to other roster members"}
+                              </span>
+                            </label>
+                          </>
                         ) : (
-                          <p className="text-slate-300 text-sm whitespace-pre-wrap py-2">{r.notes || "No notes."}</p>
+                          <p className="text-slate-300 text-sm whitespace-pre-wrap py-2">{r.notes ?? "No notes."}</p>
                         )}
                       </div>
                       {canEdit ? (
