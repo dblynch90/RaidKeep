@@ -4,6 +4,10 @@
     {
       "source": "/api/:path*",
       "destination": "https://raidkeep-b9fb.onrender.com/api/:path*"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
     }
   ]
 }
