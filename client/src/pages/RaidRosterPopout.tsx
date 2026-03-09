@@ -139,7 +139,18 @@ export function RaidRosterPopout() {
 
       {/* Excel-style table - full width */}
       <div className="overflow-auto p-4" style={{ minHeight: "calc(100vh - 60px)" }}>
-        <table className="w-full border-collapse text-sm" style={{ minWidth: 900 }}>
+        <table className="w-full border-collapse text-sm table-fixed" style={{ minWidth: 1000 }}>
+          <colgroup>
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "9%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "6%" }} />
+            <col style={{ width: "7%" }} />
+            <col style={{ width: "10%" }} />
+            <col style={{ width: "4%" }} />
+            <col style={{ width: "4%" }} />
+            <col style={{ width: "36%" }} />
+          </colgroup>
           <thead>
             <tr className="border-b border-slate-600">
               <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Player</th>
@@ -148,8 +159,8 @@ export function RaidRosterPopout() {
               <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Role</th>
               <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Off Role</th>
               <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Team</th>
-              <th className="text-center py-2 px-3 text-slate-400 font-medium uppercase tracking-wider w-12">Lead</th>
-              <th className="text-center py-2 px-3 text-slate-400 font-medium uppercase tracking-wider w-12">Assist</th>
+              <th className="text-center py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Lead</th>
+              <th className="text-center py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Assist</th>
               <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Notes</th>
             </tr>
           </thead>
@@ -200,8 +211,14 @@ export function RaidRosterPopout() {
                     <td className="py-2 px-3 text-slate-400">{team ? team.team_name : "—"}</td>
                     <td className="py-2 px-3 text-center">{r.raid_lead ? "★" : "—"}</td>
                     <td className="py-2 px-3 text-center">{r.raid_assist ? "🛡" : "—"}</td>
-                    <td className="py-2 px-3 text-slate-500 max-w-xs truncate" title={r.notes || ""}>
-                      {r.notes || "—"}
+                    <td className="py-2 px-3 align-top whitespace-pre-wrap break-words">
+                      {r.notes ? (
+                        <div className="text-slate-400 mb-1"><span className="text-slate-500 text-xs uppercase">Player:</span> {r.notes}</div>
+                      ) : null}
+                      {r.officer_notes ? (
+                        <div className="text-slate-500"><span className="text-slate-500 text-xs uppercase">Officer:</span> {r.officer_notes}</div>
+                      ) : null}
+                      {!r.notes && !r.officer_notes ? "—" : null}
                     </td>
                   </tr>
                 );
