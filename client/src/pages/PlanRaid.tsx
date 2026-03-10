@@ -6,17 +6,8 @@ import { GuildBreadcrumbs } from "../components/GuildBreadcrumbs";
 import { formatRaidDateShort } from "../utils/raidDateTime";
 import type { GuildPermissions } from "./GuildPermissions";
 
-/** Raid instances available in each game version */
+/** Raid instances for TBC Anniversary */
 const RAID_INSTANCES_BY_VERSION: Record<string, string[]> = {
-  "Classic Era": [
-    "Molten Core",
-    "Onyxia's Lair",
-    "Blackwing Lair",
-    "Temple of Ahn'Qiraj",
-    "Ruins of Ahn'Qiraj",
-    "Naxxramas",
-    "Zul'Gurub",
-  ],
   "TBC Anniversary": [
     "Karazhan",
     "Gruul's Lair",
@@ -26,38 +17,6 @@ const RAID_INSTANCES_BY_VERSION: Record<string, string[]> = {
     "Battle for Mount Hyjal",
     "Black Temple",
     "Sunwell Plateau",
-  ],
-  "MOP Classic": [
-    "Mogu'shan Vaults",
-    "Heart of Fear",
-    "Terrace of Endless Spring",
-    "Siege of Orgrimmar",
-  ],
-  Retail: [
-    "Baradin Hold",
-    "Dragon Soul",
-    "Throne of Thunder",
-    "Siege of Orgrimmar",
-    "Blackrock Foundry",
-    "Highmaul",
-    "Hellfire Citadel",
-    "Emerald Nightmare",
-    "Trial of Valor",
-    "Nighthold",
-    "Tomb of Sargeras",
-    "Antorus",
-    "Uldir",
-    "Battle of Dazar'alor",
-    "Crucible of Storms",
-    "Eternal Palace",
-    "Ny'alotha",
-    "Castle Nathria",
-    "Sanctum of Domination",
-    "Sepulcher of the First Ones",
-    "Vault of the Incarnates",
-    "Aberrus",
-    "Amirdrassil",
-    "The War Within Raids",
   ],
 };
 
@@ -126,7 +85,7 @@ export function PlanRaid() {
   const [searchParams, setSearchParams] = useSearchParams();
   const realm = searchParams.get("realm") ?? "";
   const guildName = searchParams.get("guild_name") ?? "";
-  const serverType = searchParams.get("server_type") ?? "Retail";
+  const serverType = searchParams.get("server_type") ?? "TBC Anniversary";
   const raidIdParam = searchParams.get("raidId");
   const raidId = raidIdParam ? parseInt(raidIdParam, 10) : null;
   const isEdit = !!raidId && !isNaN(raidId);
@@ -258,7 +217,7 @@ export function PlanRaid() {
   }, [isEdit, raidId]);
 
   const raidInstancesForVersion = useMemo(() => {
-    const list = RAID_INSTANCES_BY_VERSION[serverType] ?? RAID_INSTANCES_BY_VERSION.Retail;
+    const list = RAID_INSTANCES_BY_VERSION[serverType] ?? RAID_INSTANCES_BY_VERSION["TBC Anniversary"];
     return [...list].sort((a, b) => a.localeCompare(b));
   }, [serverType]);
 

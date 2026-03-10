@@ -109,7 +109,7 @@ export interface Guild {
   is_leader?: number;
 }
 
-export const SERVER_TYPES = ["Retail", "Classic Era", "TBC Anniversary", "MOP Classic"] as const;
+export const SERVER_TYPES = ["TBC Anniversary"] as const;
 
 export interface Character {
   id: number;

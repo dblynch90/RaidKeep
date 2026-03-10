@@ -114,7 +114,7 @@ export function RaidView() {
         const r = raidRes.raid;
         const realm = r.guild_realm_slug ?? r.guild_realm?.toLowerCase().replace(/\s+/g, "-") ?? "";
         const guildName = r.guild_name ?? "";
-        const serverType = r.server_type ?? "Retail";
+        const serverType = r.server_type ?? "TBC Anniversary";
         return Promise.all([
           api.get<{ characters: MyCharacter[] }>("/auth/me/characters"),
           realm && guildName
@@ -173,7 +173,7 @@ export function RaidView() {
   const partyIndices = [...partiesMap.keys()].sort((a, b) => a - b);
 
   const raidRealmSlug = (raid.guild_realm_slug ?? "").toLowerCase().replace(/\s+/g, "-");
-  const raidServerType = raid.server_type ?? "Retail";
+  const raidServerType = raid.server_type ?? "TBC Anniversary";
   const myCharNames = new Set(myCharacters.map((c) => c.name.toLowerCase()));
   const canEditAvailabilityForOthers = Boolean(permissions?.manage_raid_roster || permissions?.manage_raids);
   const inParty = new Set(slots.map((s) => s.character_name.toLowerCase()));
@@ -181,7 +181,7 @@ export function RaidView() {
   const inAvailable = new Set(available.map((a) => a.character_name.toLowerCase()));
   const canSignUp = myCharacters.filter((c) => {
     const charRealm = (c.realm_slug ?? (c.realm ?? "").toLowerCase().replace(/\s+/g, "-")).toLowerCase();
-    const charServerType = c.server_type ?? "Retail";
+    const charServerType = c.server_type ?? "TBC Anniversary";
     const sameRealm = charRealm === raidRealmSlug;
     const sameVersion = charServerType === raidServerType;
     const notAssigned =
@@ -225,7 +225,7 @@ export function RaidView() {
   };
 
   const realmSlug = raid.guild_realm_slug ?? raid.guild_realm?.toLowerCase().replace(/\s+/g, "-") ?? "";
-  const raidScheduleUrl = `/raid-schedule?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(raid.guild_name)}&server_type=${encodeURIComponent(raid.server_type ?? "Retail")}`;
+  const raidScheduleUrl = `/raid-schedule?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(raid.guild_name)}&server_type=${encodeURIComponent(raid.server_type ?? "TBC Anniversary")}`;
 
   return (
     <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
@@ -233,7 +233,7 @@ export function RaidView() {
         <GuildBreadcrumbs
           guildName={raid.guild_name}
           realm={realmSlug}
-          serverType={raid.server_type ?? "Retail"}
+          serverType={raid.server_type ?? "TBC Anniversary"}
           extraItems={[{ label: "Raid Schedule", href: raidScheduleUrl }]}
           currentPage={raid.raid_name}
         />

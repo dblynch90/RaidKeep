@@ -6,7 +6,7 @@ import type { GuildPermissions } from "./GuildPermissions";
 import { LoadingOverlay } from "../components/LoadingOverlay";
 import { RaidCard } from "../components/RaidCard";
 
-const GAME_VERSIONS = ["Retail", "Classic Era", "TBC Anniversary", "MOP Classic"];
+const DEFAULT_GAME_VERSION = "TBC Anniversary";
 
 const ALLIANCE_RACES = ["Human", "Dwarf", "Night Elf", "Gnome", "Draenei", "Worgen", "Void Elf", "Lightforged Draenei", "Dark Iron Dwarf", "Kul Tiran", "Mechagnome"];
 const HORDE_RACES = ["Orc", "Undead", "Tauren", "Troll", "Blood Elf", "Goblin", "Nightborne", "Highmountain Tauren", "Mag'har Orc", "Zandalari Troll", "Vulpera"];
@@ -192,8 +192,7 @@ function GuildCard({
 }
 
 export function Dashboard() {
-  const [gameVersion, setGameVersion] = useState("");
-  const [savedDefaultGameVersion, setSavedDefaultGameVersion] = useState<string>("");
+  const [gameVersion, setGameVersion] = useState(DEFAULT_GAME_VERSION);
   const [favoriteGuilds, setFavoriteGuilds] = useState<FavoriteGuild[]>([]);
   const [allCharacters, setAllCharacters] = useState<MyCharacter[]>([]);
   const [myAssignmentRaids, setMyAssignmentRaids] = useState<SavedRaid[]>([]);
@@ -215,10 +214,8 @@ export function Dashboard() {
   const fetchPreferences = () =>
     api.get<{ preferences: Record<string, string> }>("/auth/me/preferences").then((res) => {
       const gv = (res.preferences?.game_version ?? "").trim();
-      if (gv) {
-        setGameVersion(gv);
-        setSavedDefaultGameVersion(gv);
-      }
+      const version = gv || DEFAULT_GAME_VERSION;
+      setGameVersion(version);
       try {
         const favs = res.preferences?.favorite_guilds ? JSON.parse(res.preferences.favorite_guilds) : [];
         setFavoriteGuilds(Array.isArray(favs) ? favs : []);
@@ -284,13 +281,9 @@ export function Dashboard() {
         const prefsRes = await fetchPreferences().catch(() => ({ preferences: {} }));
         const prefs = prefsRes.preferences ?? {};
         const gv = (prefs as Record<string, string>).game_version?.trim();
-        const gvStr = gv || "";
-        // Only overwrite from prefs when we have a saved value; avoid reverting a new user's selection during retries
-        if (gvStr && gvStr !== "Please Select") {
-          setGameVersion(gvStr);
-          setSavedDefaultGameVersion(gvStr);
-        }
-        const serverType = gvStr && gvStr !== "Please Select" ? gvStr : (gameVersionRef.current && gameVersionRef.current !== "Please Select" ? gameVersionRef.current : undefined);
+        const version = gv || DEFAULT_GAME_VERSION;
+        setGameVersion(version);
+        const serverType = version;
 
         const [charsRes, raidsRes] = await Promise.all([
           fetchCharacters(serverType).catch(() => ({ characters: [], syncStatus: { lastSyncAt: null } })),
@@ -364,7 +357,7 @@ export function Dashboard() {
 
   useEffect(() => {
     if (!initialLoadDone || !gameVersion || gameVersion === "Please Select") return;
-    const hasDataForVersion = allCharacters.some((c) => (c.server_type ?? "Retail") === gameVersion);
+    const hasDataForVersion = allCharacters.some((c) => (c.server_type ?? "TBC Anniversary") === gameVersion);
     if (hasDataForVersion) return;
     const v = gameVersion;
     setLoading(true);
@@ -416,7 +409,7 @@ export function Dashboard() {
         guildName: first.guild_name,
         realm: first.realm || "Unknown",
         realmSlug,
-        serverType: first.server_type ?? "Retail",
+        serverType: first.server_type ?? "TBC Anniversary",
         characters: chars,
       });
     }
@@ -431,7 +424,7 @@ export function Dashboard() {
           c.guild_name &&
           (c.realm_slug ?? (c.realm ?? "").toLowerCase().replace(/\s+/g, "-")) === fav.realmSlug &&
           c.guild_name === fav.guildName &&
-          (c.server_type ?? "Retail") === fav.serverType
+          (c.server_type ?? "TBC Anniversary") === fav.serverType
       );
       const realmDisplay = matchingChars[0]?.realm ?? fav.realmSlug.replace(/-/g, " ");
       result.push({
@@ -543,7 +536,7 @@ export function Dashboard() {
     return list.sort((a, b) => (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" }));
   }, [filteredCharacters, characterFactionFilter, characterRealmFilter]);
 
-  const hasSelection = !!gameVersion && gameVersion !== "Please Select";
+  const hasSelection = !!gameVersion;
 
   const cardBaseStyle = {
     background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)",
@@ -561,40 +554,6 @@ export function Dashboard() {
   return (
     <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
       <main className="max-w-6xl mx-auto px-4 py-8">
-        <div className="flex flex-wrap items-center gap-4 mb-8">
-          <div className="flex items-center gap-2">
-            <span className="text-slate-400 text-sm font-medium">Game Version</span>
-          <select
-            value={gameVersion}
-            onChange={(e) => {
-              const v = e.target.value;
-              setGameVersion(v);
-            }}
-            className="px-3 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
-          >
-            <option value="">Please Select</option>
-            {GAME_VERSIONS.map((v) => (
-              <option key={v} value={v}>
-                {v}
-              </option>
-            ))}
-          </select>
-          </div>
-          {gameVersion && gameVersion !== "Please Select" && gameVersion !== savedDefaultGameVersion && (
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                onChange={() => {
-                  savePreferences({ game_version: gameVersion });
-                  setSavedDefaultGameVersion(gameVersion);
-                }}
-                className="rounded border-slate-500 bg-slate-700 text-sky-500 focus:ring-sky-500"
-              />
-              <span className="text-slate-400 text-sm">Save as Default</span>
-            </label>
-          )}
-        </div>
-
         {/* My Guilds */}
         <section className="mb-10">
           <h2 className="text-lg font-semibold text-slate-200 mb-4">

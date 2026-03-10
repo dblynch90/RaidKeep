@@ -60,7 +60,7 @@ export function RaidRosterView() {
   const [searchParams] = useSearchParams();
   const realm = searchParams.get("realm") ?? "";
   const guildName = searchParams.get("guild_name") ?? "";
-  const serverType = searchParams.get("server_type") ?? "Retail";
+  const serverType = searchParams.get("server_type") ?? "TBC Anniversary";
 
   const [guildRoster, setGuildRoster] = useState<RosterMember[]>([]);
   const [raiders, setRaiders] = useState<RaiderEntry[]>([]);

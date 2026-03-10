@@ -54,7 +54,7 @@ export function GuildPermissions() {
   const realm = searchParams.get("realm") ?? "";
   const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
   const guildName = searchParams.get("guild_name") ?? "";
-  const serverType = searchParams.get("server_type") ?? "Retail";
+  const serverType = searchParams.get("server_type") ?? "TBC Anniversary";
 
   const [config, setConfig] = useState<GuildPermissionConfig | null>(null);
   const [savedConfig, setSavedConfig] = useState<GuildPermissionConfig | null>(null);

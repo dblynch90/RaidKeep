@@ -36,11 +36,11 @@ guildRoutes.get("/", requireAuth, (req, res) => {
   res.json({ guilds });
 });
 
-const VALID_SERVER_TYPES = ["Retail", "Classic Era", "TBC Anniversary", "MOP Classic"];
+const VALID_SERVER_TYPES = ["TBC Anniversary"];
 
 // Create guild (leader only)
 guildRoutes.post("/", requireAuth, (req, res) => {
-  const { name, server, server_type = "Retail" } = req.body;
+  const { name, server, server_type = "TBC Anniversary" } = req.body;
   if (!name || !server) {
     res.status(400).json({ error: "Guild name and server required" });
     return;
@@ -130,7 +130,7 @@ guildRoutes.post("/import-export", requireAuth, async (req, res) => {
     return;
   }
   if (!VALID_SERVER_TYPES.includes(serverType)) {
-    res.status(400).json({ error: "Invalid server_type. Use: Retail, Classic Era, TBC Anniversary, MOP Classic" });
+    res.status(400).json({ error: "Invalid server_type. Use: TBC Anniversary" });
     return;
   }
 
@@ -204,7 +204,7 @@ guildRoutes.post("/import-export", requireAuth, async (req, res) => {
 
 // Import guild from Blizzard API
 guildRoutes.post("/import", requireAuth, async (req, res) => {
-  const { region, realm, guild_name, server_type = "Retail" } = req.body;
+  const { region, realm, guild_name, server_type = "TBC Anniversary" } = req.body;
   if (!region || !realm || !guild_name) {
     res.status(400).json({ error: "region, realm, and guild_name required" });
     return;

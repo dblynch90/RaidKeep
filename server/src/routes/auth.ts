@@ -2130,11 +2130,11 @@ authRoutes.delete("/me/saved-raids/:id", requireAuth, (req, res) => {
 // On-demand sync when user selects a game version (e.g. new user, or adding another version)
 authRoutes.post("/me/sync", requireAuth, async (req, res) => {
   const serverType = (req.body?.server_type ?? req.query?.server_type) as string | undefined;
-  if (!serverType || serverType === "Please Select" || !serverType.trim()) {
-    res.status(400).json({ error: "server_type is required (e.g. Retail, MOP Classic)" });
+  if (!serverType || !serverType.trim()) {
+    res.status(400).json({ error: "server_type is required (TBC Anniversary)" });
     return;
   }
-  const validTypes = ["Retail", "Classic Era", "TBC Anniversary", "MOP Classic"];
+  const validTypes = ["TBC Anniversary"];
   if (!validTypes.includes(serverType)) {
     res.status(400).json({ error: "Invalid server_type" });
     return;
@@ -2297,20 +2297,8 @@ authRoutes.post("/battlenet/callback", async (req, res) => {
     // Return immediately to avoid timeout (Vercel/Render ~30s). Sync runs in background.
     res.json({ user: req.session!.user });
 
-    // New user: no API calls until they select a game version. Returning user: only sync server types they have guilds in + default.
-    const guildServerTypes = db.prepare(
-      "SELECT DISTINCT g.server_type FROM guilds g JOIN guild_members gm ON gm.guild_id = g.id WHERE gm.user_id = ?"
-    ).all(user.id) as Array<{ server_type: string }>;
-    const prefRow = db.prepare("SELECT pref_value FROM user_preferences WHERE user_id = ? AND pref_key = ?").get(user.id, "game_version") as { pref_value: string } | undefined;
-    const defaultGameVersion = prefRow?.pref_value?.trim();
-    const hasCachedData = guildServerTypes.length > 0 || (!!defaultGameVersion && defaultGameVersion !== "Please Select");
-
-    let serverTypesToFetch: string[] | null = null;
-    if (hasCachedData) {
-      const types = new Set<string>(guildServerTypes.map((r) => r.server_type));
-      if (defaultGameVersion && defaultGameVersion !== "Please Select") types.add(defaultGameVersion);
-      serverTypesToFetch = [...types];
-    }
+    // Always sync TBC Anniversary for all users
+    const serverTypesToFetch = ["TBC Anniversary"];
 
     syncGuildsFromBattleNet(user.id, tokenRes.access_token, region, serverTypesToFetch)
       .then((syncResult) => {

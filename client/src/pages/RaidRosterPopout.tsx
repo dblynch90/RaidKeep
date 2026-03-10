@@ -61,7 +61,7 @@ export function RaidRosterPopout() {
   const [searchParams] = useSearchParams();
   const realm = searchParams.get("realm") ?? "";
   const guildName = searchParams.get("guild_name") ?? "";
-  const serverType = searchParams.get("server_type") ?? "Retail";
+  const serverType = searchParams.get("server_type") ?? "TBC Anniversary";
 
   const [raiders, setRaiders] = useState<RaiderEntry[]>([]);
   const [teams, setTeams] = useState<RaidTeam[]>([]);

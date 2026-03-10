@@ -65,7 +65,7 @@ export function AdminGuildDetail() {
   const { realmSlug, guildName } = useParams<{ realmSlug: string; guildName: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const serverType = searchParams.get("server_type") || "Retail";
+  const serverType = searchParams.get("server_type") || "TBC Anniversary";
 
   const [tab, setTab] = useState<"permissions" | "raids" | "teams" | "roster">("permissions");
   const [config, setConfig] = useState<Record<string, Record<string, boolean>> | null>(null);

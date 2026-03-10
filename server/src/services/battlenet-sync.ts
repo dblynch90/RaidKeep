@@ -1,6 +1,6 @@
 /**
  * Sync user's guilds and characters from their Battle.net WoW profile.
- * Supports Retail, Classic Era, and Classic (SoD, TBC, Wrath including TBC Anniversary).
+ * TBC Anniversary only.
  */
 
 import { getDb } from "../db/init.js";
@@ -11,12 +11,8 @@ import {
   fetchGuildRoster,
 } from "./blizzard.js";
 
-// Blizzard API: Retail, Classic Era, TBC Anniversary, MOP Classic
-const PROFILE_FETCHES: Array<{ serverType: string; apiNamespace: "retail" | "classic-era" | "classic" | "classicann" }> = [
-  { serverType: "Retail", apiNamespace: "retail" },
-  { serverType: "Classic Era", apiNamespace: "classic-era" },
+const PROFILE_FETCHES: Array<{ serverType: string; apiNamespace: "classicann" }> = [
   { serverType: "TBC Anniversary", apiNamespace: "classicann" },
-  { serverType: "MOP Classic", apiNamespace: "classic" },
 ];
 
 function generateCode() {
