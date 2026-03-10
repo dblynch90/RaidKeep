@@ -132,9 +132,12 @@ function GuildCard({
     >
       {!permissionsLoaded && (
         <div
-          className="absolute inset-0 z-20 flex items-center justify-center rounded-xl bg-slate-900/70"
+          className="absolute inset-0 z-20 flex items-center justify-center rounded-xl bg-slate-900/70 cursor-wait"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
           aria-busy="true"
           aria-label="Syncing guild data"
+          role="presentation"
         >
           <div
             className="h-10 w-10 rounded-full border-4 border-slate-600 border-t-sky-500 animate-spin"
@@ -499,8 +502,20 @@ export function Dashboard() {
       navigate(
         `/guild-dashboard?realm=${encodeURIComponent(g.realmSlug)}&guild_name=${encodeURIComponent(g.guildName)}&server_type=${encodeURIComponent(g.serverType)}`
       );
-    } else {
-      setPendingGuildClick(g);
+      return;
+    }
+    setPendingGuildClick(g);
+    if (!loaded) {
+      api
+        .get<{ permissions: GuildPermissions }>(
+          `/auth/me/guild-permissions?realm=${encodeURIComponent(g.realmSlug)}&guild_name=${encodeURIComponent(g.guildName)}&server_type=${encodeURIComponent(g.serverType)}`
+        )
+        .then((r) => {
+          setGuildPermissions((prev) => ({ ...prev, [key]: r.permissions }));
+        })
+        .catch(() => {
+          setPendingGuildClick(null);
+        });
     }
   };
 

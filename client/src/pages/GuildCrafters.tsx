@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
+import { Card } from "../components/Card";
 import { GuildBreadcrumbs } from "../components/GuildBreadcrumbs";
 import type { GuildPermissions } from "./GuildPermissions";
 
@@ -8,6 +9,16 @@ const PROFESSION_TYPES = [
   "Alchemy", "Blacksmithing", "Cooking", "Enchanting", "Engineering", "First Aid",
   "Herbalism", "Inscription", "Jewelcrafting", "Leatherworking", "Mining", "Skinning", "Tailoring",
 ];
+
+const CLASS_COLORS: Record<string, string> = {
+  Warrior: "#C69B6D", Paladin: "#F58CBA", Hunter: "#AAD372", Rogue: "#FFF569", Priest: "#FFFFFF",
+  "Death Knight": "#C41E3A", Shaman: "#0070DD", Mage: "#3FC7EB", Warlock: "#8788EE", Monk: "#00FF98",
+  Druid: "#FF7D0A", "Demon Hunter": "#A330C9", Evoker: "#33937F",
+};
+
+function getClassColor(className: string): string {
+  return CLASS_COLORS[className] ?? "#6B7280";
+}
 
 interface MemberProfession {
   profession_type: string;
@@ -22,20 +33,23 @@ interface Member {
   professions: MemberProfession[];
 }
 
+interface RosterMember {
+  name: string;
+  class: string;
+  level: number;
+}
+
 interface GuildCraftersFullResponse {
   members: Member[];
-  guild_roster: Array<{ name: string; class: string; level: number }>;
+  guild_roster: RosterMember[];
   permissions: GuildPermissions;
   my_character_names: string[];
-  my_characters?: Array<{ name: string; class: string; level: number }>;
+  my_characters?: RosterMember[];
 }
 
 function capitalizeRealm(realm: string): string {
   if (!realm) return "";
-  return realm
-    .split(/[- ]/)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ");
+  return realm.split(/[- ]/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
 }
 
 export function GuildCrafters() {
@@ -45,24 +59,37 @@ export function GuildCrafters() {
   const serverType = searchParams.get("server_type") ?? "Retail";
 
   const [members, setMembers] = useState<Member[]>([]);
-  const [guildRoster, setGuildRoster] = useState<Array<{ name: string; class: string; level: number }>>([]);
-  const [myCharacters, setMyCharacters] = useState<Array<{ name: string; class: string; level: number }>>([]);
+  const [guildRoster, setGuildRoster] = useState<RosterMember[]>([]);
+  const [myCharacters, setMyCharacters] = useState<RosterMember[]>([]);
   const [permissions, setPermissions] = useState<GuildPermissions | null>(null);
   const [myCharacterNames, setMyCharacterNames] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [activeTab, setActiveTab] = useState<"crafters" | "guild">("crafters");
   const [searchQuery, setSearchQuery] = useState("");
+  const [classFilter, setClassFilter] = useState("");
+  const [levelMin, setLevelMin] = useState<number | null>(null);
+  const [levelMax, setLevelMax] = useState<number | null>(null);
+  const [guildMemberFilter, setGuildMemberFilter] = useState<"all" | "crafter" | "non-crafter">("all");
+  const [selectedGuildMembers, setSelectedGuildMembers] = useState<Set<string>>(new Set());
+  const [crafterSearchQuery, setCrafterSearchQuery] = useState("");
+  const [crafterClassFilter, setCrafterClassFilter] = useState("");
   const [professionFilter, setProfessionFilter] = useState("");
-  const [addMemberChar, setAddMemberChar] = useState<string | null>(null);
+  const [addProfessionFor, setAddProfessionFor] = useState<string | null>(null);
   const [editProfession, setEditProfession] = useState<{ member: string; profession: string; notes: string; is_guild_crafter: boolean } | null>(null);
 
   const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
 
   const canManage = permissions?.manage_guild_crafters ?? false;
-
   const isOwnChar = (charName: string) => myCharacterNames.has(charName.toLowerCase());
   const canEditMember = (charName: string) => canManage || isOwnChar(charName);
+
+  const crafterMap = useMemo(() => {
+    const m = new Map<string, Member>();
+    for (const c of members) m.set(c.name.toLowerCase(), c);
+    return m;
+  }, [members]);
 
   const fetchData = () => {
     if (!realm || !guildName) return;
@@ -92,25 +119,47 @@ export function GuildCrafters() {
     fetchData();
   }, [realm, guildName, serverType, realmSlug]);
 
-  const filteredMembers = useMemo(() => {
-    return members
+  const maxLevelInRoster = useMemo(() => (guildRoster.length ? Math.max(...guildRoster.map((m) => m.level)) : 80), [guildRoster]);
+  const effectiveLevelMin = levelMin ?? maxLevelInRoster;
+  const effectiveLevelMax = levelMax ?? maxLevelInRoster;
+  const classList = useMemo(() => [...new Set(guildRoster.map((m) => m.class))].sort((a, b) => a.localeCompare(b)), [guildRoster]);
+
+  const displayGuildMembers = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const roster = canManage ? guildRoster : myCharacters;
+    return [...roster]
+      .filter((m) => m.level >= effectiveLevelMin && m.level <= effectiveLevelMax)
+      .filter((m) => !classFilter || m.class === classFilter)
+      .filter((m) => !q || m.name.toLowerCase().includes(q))
       .filter((m) => {
-        const q = searchQuery.trim().toLowerCase();
-        if (q && !m.name.toLowerCase().includes(q)) return false;
-        if (professionFilter) {
-          const hasProf = m.professions.some((p) => p.profession_type === professionFilter);
-          if (!hasProf) return false;
-        }
+        const isCrafter = crafterMap.has(m.name.toLowerCase());
+        if (guildMemberFilter === "crafter") return isCrafter;
+        if (guildMemberFilter === "non-crafter") return !isCrafter;
         return true;
       })
-      .map((m) => ({
-        ...m,
-        professions: professionFilter
-          ? m.professions.filter((p) => p.profession_type === professionFilter)
-          : m.professions,
-      }))
       .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
-  }, [members, searchQuery, professionFilter]);
+  }, [guildRoster, myCharacters, canManage, classFilter, searchQuery, effectiveLevelMin, effectiveLevelMax, guildMemberFilter, crafterMap]);
+
+  const crafterClassList = useMemo(() => [...new Set(members.map((m) => m.class))].filter(Boolean).sort((a, b) => a.localeCompare(b)), [members]);
+
+  const filteredCrafters = useMemo(() => {
+    const q = crafterSearchQuery.trim().toLowerCase();
+    return [...members]
+      .filter((m) => !q || m.name.toLowerCase().includes(q))
+      .filter((m) => !crafterClassFilter || m.class === crafterClassFilter)
+      .filter((m) => !professionFilter || m.professions.some((p) => p.profession_type === professionFilter))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  }, [members, crafterSearchQuery, crafterClassFilter, professionFilter]);
+
+  const rosterNotInCrafterMap = useMemo(() => {
+    const roster = canManage ? guildRoster : myCharacters;
+    return roster.filter((r) => !crafterMap.has(r.name.toLowerCase()));
+  }, [guildRoster, myCharacters, canManage, crafterMap]);
+
+  const selectedNonCrafterCount = useMemo(
+    () => displayGuildMembers.filter((m) => !crafterMap.has(m.name.toLowerCase()) && selectedGuildMembers.has(m.name.toLowerCase())).length,
+    [displayGuildMembers, crafterMap, selectedGuildMembers]
+  );
 
   const addProfession = (charName: string, prof: string) => {
     api
@@ -123,10 +172,48 @@ export function GuildCrafters() {
       })
       .then(() => {
         fetchData();
-        setAddMemberChar(null);
+        setAddProfessionFor(null);
       })
       .catch(() => {});
   };
+
+  const addSelectedAsCrafters = async () => {
+    const toAdd = displayGuildMembers.filter(
+      (m) => !crafterMap.has(m.name.toLowerCase()) && selectedGuildMembers.has(m.name.toLowerCase())
+    );
+    if (toAdd.length === 0) return;
+    for (const m of toAdd) {
+      await api.post("/auth/me/guild-member-profession", {
+        realm: realmSlug,
+        guild_name: guildName,
+        server_type: serverType,
+        character_name: m.name,
+        profession_type: PROFESSION_TYPES[0],
+      }).catch(() => {});
+    }
+    setSelectedGuildMembers(new Set());
+    fetchData();
+  };
+
+  const toggleGuildMemberSelection = (name: string) => {
+    const key = name.toLowerCase();
+    if (crafterMap.has(key)) return;
+    setSelectedGuildMembers((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const selectAllNonCrafters = () => {
+    const nonCrafters = displayGuildMembers
+      .filter((m) => !crafterMap.has(m.name.toLowerCase()))
+      .map((m) => m.name.toLowerCase());
+    setSelectedGuildMembers(new Set(nonCrafters));
+  };
+
+  const clearGuildMemberSelection = () => setSelectedGuildMembers(new Set());
 
   const updateProfession = (charName: string, prof: string, updates: { notes?: string; is_guild_crafter?: boolean }) => {
     api
@@ -158,20 +245,10 @@ export function GuildCrafters() {
       .catch(() => {});
   };
 
-  const rosterNotInMembers = useMemo(() => {
-    const memberSet = new Set(members.map((m) => m.name.toLowerCase()));
-    return guildRoster.filter((r) => !memberSet.has(r.name.toLowerCase()));
-  }, [guildRoster, members]);
-
-  const myCharsNotInMembers = useMemo(() => {
-    const memberSet = new Set(members.map((m) => m.name.toLowerCase()));
-    return myCharacters.filter((r) => !memberSet.has(r.name.toLowerCase()));
-  }, [myCharacters, members]);
-
   if (error) {
     return (
       <div className="min-h-screen bg-slate-900 text-slate-100">
-        <main className="max-w-4xl mx-auto px-4 py-8">
+        <main className="max-w-6xl mx-auto px-4 py-8">
           <p className="text-amber-500">{error}</p>
         </main>
       </div>
@@ -180,170 +257,300 @@ export function GuildCrafters() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100">
-      <main className="max-w-4xl mx-auto px-4 py-8">
-        <GuildBreadcrumbs
-          guildName={guildName}
-          realm={realm}
-          serverType={serverType}
-          currentPage="Guild Crafters"
-        />
+      <main className="max-w-6xl mx-auto px-4 py-8">
+        <GuildBreadcrumbs guildName={guildName} realm={realm} serverType={serverType} currentPage="Guild Crafters" />
 
         <header className="mb-8">
-          <h1 className="text-2xl font-semibold text-sky-400">Guild Crafters</h1>
+          <h1 className="text-lg font-semibold text-slate-200">Guild Crafters</h1>
           <p className="text-slate-400 text-sm mt-1">
-            {canManage
-              ? "Add guild members as crafters, set professions and notes. Officers star crafters; members edit their own."
-              : "View guild crafters by profession. Add or edit your own character's professions."}
-            {" · "}
-            {capitalizeRealm(realm)} · {serverType}
+            {capitalizeRealm(realm)} / {guildName} / {serverType}
           </p>
+          <div className="mt-4 h-px bg-slate-700/60" />
         </header>
 
         {loading ? (
           <p className="text-slate-500">Loading...</p>
         ) : (
-          <div
-            className="rounded-xl border border-slate-700 overflow-hidden"
-            style={{
-              background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-            }}
-          >
-            <div className="p-4 border-b border-slate-700/60">
-              <div className="flex flex-wrap gap-3">
-                <input
-                  type="text"
-                  placeholder="Search by name..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 placeholder-slate-500 text-sm min-w-[180px] focus:ring-2 focus:ring-sky-500"
-                />
-                <select
-                  value={professionFilter}
-                  onChange={(e) => setProfessionFilter(e.target.value)}
-                  className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 text-sm focus:ring-2 focus:ring-sky-500 [color-scheme:dark]"
-                >
-                  <option value="">All professions</option>
-                  {PROFESSION_TYPES.map((p) => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
-                {(canManage ? rosterNotInMembers.length > 0 : myCharsNotInMembers.length > 0) && (
-                  <select
-                    value={addMemberChar ?? ""}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setAddMemberChar(v || null);
-                    }}
-                    className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 text-sm"
-                  >
-                    <option value="">
-                      {canManage ? "+ Add guild member..." : "+ Add my character..."}
-                    </option>
-                    {(canManage ? rosterNotInMembers : myCharsNotInMembers).map((r) => (
-                      <option key={r.name} value={r.name}>
-                        {r.name} ({r.class} {r.level ? `Lv${r.level}` : ""})
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-              {addMemberChar && (
-                <div className="mt-3 flex flex-wrap gap-2 items-center">
-                  <span className="text-slate-400 text-sm">Add profession for {addMemberChar}:</span>
-                  {PROFESSION_TYPES.filter((p) => {
-                    const m = members.find((x) => x.name.toLowerCase() === addMemberChar!.toLowerCase());
-                    return !m || !m.professions.some((pr) => pr.profession_type === p);
-                  }).map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => addProfession(addMemberChar!, p)}
-                      className="px-2 py-1 rounded bg-sky-600/80 hover:bg-sky-500 text-white text-xs"
-                    >
-                      {p}
-                    </button>
-                  ))}
+          <Card>
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <nav className="flex rounded-lg bg-slate-800/60 p-1 border border-slate-700/50">
                   <button
                     type="button"
-                    onClick={() => setAddMemberChar(null)}
-                    className="text-slate-400 hover:text-slate-200 text-xs"
+                    onClick={() => setActiveTab("crafters")}
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
+                      activeTab === "crafters" ? "text-slate-200 bg-[#223657] border-b-2 border-sky-500" : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
+                    }`}
                   >
-                    Cancel
+                    Crafters
                   </button>
-                </div>
-              )}
-            </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("guild")}
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
+                      activeTab === "guild" ? "text-slate-200 bg-[#223657] border-b-2 border-sky-500" : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
+                    }`}
+                  >
+                    Guild Members
+                  </button>
+                </nav>
+              </div>
 
-            <div className="divide-y divide-slate-700/50">
-              {filteredMembers.length === 0 ? (
-                <div className="p-8 text-slate-500 text-center">
-                  {members.length === 0
-                    ? "No guild crafters yet. Officers can add guild members and set professions. Members can add their own characters."
-                    : "No members match the current filters."}
-                </div>
-              ) : (
-                filteredMembers.map((m) => (
-                  <div key={m.name} className="p-4">
-                    <div className="font-semibold text-slate-200 mb-2">
-                      {m.name}
-                      {(m.class || m.level) && (
-                        <span className="text-slate-500 font-normal text-sm ml-2">
-                          {m.class} {m.level ? `· Lv${m.level}` : ""}
-                        </span>
-                      )}
+              {activeTab === "guild" && (
+                <>
+                  <p className="text-slate-500 text-sm mb-3">
+                    Add members as guild crafters. Select multiple and add at once, or add individually. Crafters are marked with ✓ Crafter.
+                  </p>
+                  <div className="flex flex-wrap gap-3 mb-3">
+                    <input
+                      type="text"
+                      placeholder="Search by name..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-500 text-sm w-full min-w-0 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                    />
+                    <select
+                      value={classFilter}
+                      onChange={(e) => setClassFilter(e.target.value)}
+                      className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 text-sm w-full focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                    >
+                      <option value="">All classes</option>
+                      {classList.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                    <div className="flex items-center gap-2">
+                      <label className="text-slate-400 text-sm shrink-0">Level</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={maxLevelInRoster}
+                        value={effectiveLevelMin}
+                        onChange={(e) => setLevelMin(e.target.value === "" ? null : Math.max(1, Math.min(maxLevelInRoster, +e.target.value)))}
+                        className="w-14 px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm"
+                      />
+                      <span className="text-slate-500">–</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={maxLevelInRoster}
+                        value={effectiveLevelMax}
+                        onChange={(e) => setLevelMax(e.target.value === "" ? null : Math.max(1, Math.min(maxLevelInRoster, +e.target.value)))}
+                        className="w-14 px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm"
+                      />
                     </div>
-                    <div className="pl-4 space-y-1">
-                      {m.professions.length === 0 ? (
-                        <p className="text-slate-500 text-sm py-1">No professions assigned.</p>
-                      ) : (
-                        m.professions.map((p) => (
-                          <div
-                            key={p.profession_type}
-                            className="flex items-center justify-between py-1.5 px-2 rounded bg-slate-800/40 border border-slate-700/40 group"
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-500 text-sm shrink-0">Show:</span>
+                      <div className="flex rounded-lg bg-slate-800/60 p-0.5 border border-slate-700/50">
+                        {(["all", "crafter", "non-crafter"] as const).map((f) => (
+                          <button
+                            key={f}
+                            type="button"
+                            onClick={() => setGuildMemberFilter(f)}
+                            className={`px-2 py-0.5 rounded text-xs font-medium transition ${
+                              guildMemberFilter === f ? "text-slate-200 bg-[#223657] border-b-2 border-sky-500" : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
+                            }`}
                           >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="text-slate-200 font-medium shrink-0">{p.profession_type}</span>
-                              {p.is_guild_crafter && (
-                                <span className="text-amber-400 shrink-0" title="Guild Crafter">⭐</span>
-                              )}
-                              <span className="text-slate-500 text-sm truncate">
-                                {p.notes || "—"}
+                            {f === "all" ? "All" : f === "crafter" ? "Crafters" : "Non-crafters"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {(canManage || myCharacters.length > 0) && rosterNotInCrafterMap.length > 0 && (
+                      <div className="flex items-center gap-2 ml-auto flex-wrap">
+                        <button
+                          type="button"
+                          onClick={selectAllNonCrafters}
+                          className="px-2 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 border border-slate-600"
+                        >
+                          Select all non-crafters
+                        </button>
+                        <button
+                          type="button"
+                          onClick={clearGuildMemberSelection}
+                          className="px-2 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 border border-slate-600"
+                        >
+                          Clear selection
+                        </button>
+                        <button
+                          type="button"
+                          onClick={addSelectedAsCrafters}
+                          disabled={selectedNonCrafterCount === 0}
+                          className="px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium border border-sky-500/50"
+                        >
+                          Add selected {selectedNonCrafterCount > 0 ? `(${selectedNonCrafterCount})` : ""}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="max-h-[420px] overflow-y-auto space-y-1.5">
+                    {displayGuildMembers.length === 0 ? (
+                      <p className="text-slate-500 text-sm py-4 text-center">
+                        No guild members match the current filters.
+                      </p>
+                    ) : (
+                      displayGuildMembers.map((m) => {
+                        const classColor = getClassColor(m.class);
+                        const isCrafter = crafterMap.has(m.name.toLowerCase());
+                        const isSelected = selectedGuildMembers.has(m.name.toLowerCase());
+                        const canAdd = (canManage || isOwnChar(m.name)) && !isCrafter;
+                        return (
+                          <div
+                            key={m.name}
+                            className="flex items-center gap-2 rounded-lg border border-slate-600 p-2 hover:bg-slate-800/50"
+                            style={{ borderLeftWidth: 4, borderLeftColor: classColor }}
+                          >
+                            {canAdd ? (
+                              <label className="shrink-0 flex items-center cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => toggleGuildMemberSelection(m.name)}
+                                  className="rounded border-slate-600 bg-slate-700 text-sky-500 focus:ring-sky-500/50"
+                                />
+                              </label>
+                            ) : (
+                              <span className="w-4 shrink-0" />
+                            )}
+                            <span className="truncate flex-1 min-w-0 text-sm">
+                              <span className="font-medium text-sm" style={{ color: classColor }}>{m.name}</span>
+                              <span className="text-slate-500"> – {m.level} – {m.class}</span>
+                            </span>
+                            {isCrafter ? (
+                              <span className="shrink-0 h-7 flex items-center gap-1 text-emerald-400 text-sm font-medium">
+                                <span>✓</span>
+                                Crafter
                               </span>
-                            </div>
-                            {canEditMember(m.name) && (
+                            ) : canAdd ? (
                               <button
                                 type="button"
-                                onClick={() =>
-                                  setEditProfession({
-                                    member: m.name,
-                                    profession: p.profession_type,
-                                    notes: p.notes,
-                                    is_guild_crafter: p.is_guild_crafter,
-                                  })
-                                }
-                                className="text-sky-400 hover:text-sky-300 text-xs shrink-0 opacity-0 group-hover:opacity-100 transition"
+                                onClick={() => setAddProfessionFor(m.name)}
+                                className="shrink-0 h-7 px-2 flex items-center justify-center rounded bg-sky-600/90 hover:bg-sky-500 text-white text-sm font-medium border border-sky-500/50"
+                                title="Add as crafter"
                               >
-                                Edit
+                                Add
                               </button>
-                            )}
+                            ) : null}
                           </div>
-                        ))
-                      )}
-                      {canEditMember(m.name) && (
-                        <AddProfessionRow
-                          existingProfs={m.professions.map((p) => p.profession_type)}
-                          onAdd={(prof) => addProfession(m.name, prof)}
-                        />
-                      )}
-                    </div>
+                        );
+                      })
+                    )}
                   </div>
-                ))
+                </>
+              )}
+
+              {activeTab === "crafters" && (
+                <>
+                  <p className="text-slate-500 text-sm mb-3">
+                    View guild crafters and their professions. Officers can star crafters and set notes. Members can edit their own.
+                  </p>
+                  {members.length > 0 && (
+                    <div className="flex flex-wrap gap-3 mb-3">
+                      <input
+                        type="text"
+                        placeholder="Search by name..."
+                        value={crafterSearchQuery}
+                        onChange={(e) => setCrafterSearchQuery(e.target.value)}
+                        className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-500 text-sm flex-1 min-w-[120px] focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                      />
+                      <select
+                        value={crafterClassFilter}
+                        onChange={(e) => setCrafterClassFilter(e.target.value)}
+                        className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                      >
+                        <option value="">All classes</option>
+                        {crafterClassList.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={professionFilter}
+                        onChange={(e) => setProfessionFilter(e.target.value)}
+                        className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                        title="Filter by profession"
+                      >
+                        <option value="">All professions</option>
+                        {PROFESSION_TYPES.map((p) => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <div className="max-h-[420px] overflow-y-auto space-y-2">
+                    {members.length === 0 ? (
+                      <p className="text-slate-500 text-sm py-8 text-center">
+                        No crafters yet. Switch to the Guild Members tab to add them.
+                      </p>
+                    ) : filteredCrafters.length === 0 ? (
+                      <p className="text-slate-500 text-sm py-8 text-center">
+                        No crafters match the current filters.
+                      </p>
+                    ) : (
+                      filteredCrafters.map((m) => {
+                        const classColor = getClassColor(m.class);
+                        return (
+                          <div
+                            key={m.name}
+                            className="rounded-lg border border-slate-600 overflow-hidden"
+                          >
+                            <div
+                              className="flex items-center gap-2 p-2"
+                              style={{ borderLeftWidth: 4, borderLeftColor: classColor }}
+                            >
+                              <span className="font-medium text-sm" style={{ color: classColor }}>{m.name}</span>
+                              <span className="text-slate-500 text-sm">– {m.level} – {m.class}</span>
+                            </div>
+                            <div className="border-t border-slate-600 p-2 space-y-1">
+                              {m.professions.length === 0 ? (
+                                <p className="text-slate-500 text-sm py-1">No professions.</p>
+                              ) : (
+                                m.professions.map((p) => (
+                                  <div
+                                    key={p.profession_type}
+                                    className="flex items-center justify-between py-1.5 px-2 rounded bg-slate-800/40 border border-slate-700/40 group"
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <span className="text-slate-200 font-medium">{p.profession_type}</span>
+                                      {p.is_guild_crafter && <span className="text-amber-400" title="Guild Crafter">⭐</span>}
+                                      <span className="text-slate-500 text-sm truncate">{p.notes || "—"}</span>
+                                    </div>
+                                    {canEditMember(m.name) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditProfession({ member: m.name, profession: p.profession_type, notes: p.notes, is_guild_crafter: p.is_guild_crafter })}
+                                        className="text-sky-400 hover:text-sky-300 text-xs shrink-0 opacity-0 group-hover:opacity-100"
+                                      >
+                                        Edit
+                                      </button>
+                                    )}
+                                  </div>
+                                ))
+                              )}
+                              {canEditMember(m.name) && (
+                                <AddProfessionRow
+                                  existingProfs={m.professions.map((p) => p.profession_type)}
+                                  onAdd={(prof) => addProfession(m.name, prof)}
+                                />
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </>
               )}
             </div>
-          </div>
+          </Card>
         )}
 
+        {addProfessionFor && (
+          <AddProfessionModal
+            characterName={addProfessionFor}
+            onAdd={(prof) => addProfession(addProfessionFor, prof)}
+            onClose={() => setAddProfessionFor(null)}
+          />
+        )}
         {editProfession && (
           <EditProfessionModal
             member={editProfession.member}
@@ -351,8 +558,8 @@ export function GuildCrafters() {
             notes={editProfession.notes}
             isGuildCrafter={editProfession.is_guild_crafter}
             canSetGuildCrafter={canManage}
-            onSave={(updates) => updateProfession(editProfession.member, editProfession.profession, updates)}
-            onDelete={() => deleteProfession(editProfession.member, editProfession.profession)}
+            onSave={(updates) => updateProfession(editProfession!.member, editProfession!.profession, updates)}
+            onDelete={() => deleteProfession(editProfession!.member, editProfession!.profession)}
             onClose={() => setEditProfession(null)}
           />
         )}
@@ -361,24 +568,14 @@ export function GuildCrafters() {
   );
 }
 
-function AddProfessionRow({
-  existingProfs,
-  onAdd,
-}: {
-  existingProfs: string[];
-  onAdd: (prof: string) => void;
-}) {
+function AddProfessionRow({ existingProfs, onAdd }: { existingProfs: string[]; onAdd: (prof: string) => void }) {
   const [open, setOpen] = useState(false);
   const available = PROFESSION_TYPES.filter((p) => !existingProfs.includes(p));
   if (available.length === 0) return null;
   return (
     <div className="py-1">
       {!open ? (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="text-sky-400 hover:text-sky-300 text-sm"
-        >
+        <button type="button" onClick={() => setOpen(true)} className="text-sky-400 hover:text-sky-300 text-sm">
           + Add profession
         </button>
       ) : (
@@ -398,6 +595,51 @@ function AddProfessionRow({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+function AddProfessionModal({
+  characterName,
+  onAdd,
+  onClose,
+}: {
+  characterName: string;
+  onAdd: (prof: string) => void;
+  onClose: () => void;
+}) {
+  const [prof, setProf] = useState(PROFESSION_TYPES[0]);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div
+        className="rounded-xl border border-slate-600 p-6 w-full max-w-sm bg-slate-800 shadow-xl"
+        style={{ background: "linear-gradient(180deg, #1e293b 0%, #0f172a 100%)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-lg font-semibold text-slate-200 mb-4">Add {characterName} as crafter</h3>
+        <div className="space-y-3">
+          <label className="block">
+            <span className="text-slate-400 text-sm block mb-1">Profession</span>
+            <select
+              value={prof}
+              onChange={(e) => setProf(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 text-sm"
+            >
+              {PROFESSION_TYPES.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="flex justify-end gap-2 mt-6">
+          <button type="button" onClick={onClose} className="px-3 py-1.5 rounded bg-slate-600 text-slate-300 text-sm hover:bg-slate-500">
+            Cancel
+          </button>
+          <button type="button" onClick={() => onAdd(prof)} className="px-3 py-1.5 rounded bg-sky-600 text-white text-sm hover:bg-sky-500">
+            Add
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -430,18 +672,11 @@ function EditProfessionModal({
         style={{ background: "linear-gradient(180deg, #1e293b 0%, #0f172a 100%)" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-lg font-semibold text-slate-200 mb-4">
-          Edit {profession} · {member}
-        </h3>
+        <h3 className="text-lg font-semibold text-slate-200 mb-4">Edit {profession} · {member}</h3>
         <div className="space-y-4">
           {canSetGuildCrafter && (
             <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={starVal}
-                onChange={(e) => setStarVal(e.target.checked)}
-                className="rounded"
-              />
+              <input type="checkbox" checked={starVal} onChange={(e) => setStarVal(e.target.checked)} className="rounded" />
               <span className="text-slate-300">Guild Crafter (starred)</span>
             </label>
           )}
@@ -452,26 +687,16 @@ function EditProfessionModal({
               onChange={(e) => setNotesVal(e.target.value)}
               rows={3}
               className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 text-sm"
-              placeholder="e.g. Ring enchants, bag crafting"
+              placeholder="e.g. Ring enchants"
             />
           </div>
         </div>
         <div className="flex justify-between mt-6">
-          <button
-            type="button"
-            onClick={onDelete}
-            className="text-red-400 hover:text-red-300 text-sm"
-          >
+          <button type="button" onClick={onDelete} className="text-red-400 hover:text-red-300 text-sm">
             Delete
           </button>
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-3 py-1.5 rounded bg-slate-600 text-slate-300 text-sm hover:bg-slate-500"
-            >
-              Cancel
-            </button>
+            <button type="button" onClick={onClose} className="px-3 py-1.5 rounded bg-slate-600 text-slate-300 text-sm hover:bg-slate-500">Cancel</button>
             <button
               type="button"
               onClick={() => onSave({ notes: notesVal, ...(canSetGuildCrafter ? { is_guild_crafter: starVal } : {}) })}
