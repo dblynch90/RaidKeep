@@ -262,6 +262,7 @@ export function Dashboard() {
   };
 
   useEffect(() => {
+    let cancelled = false;
     let retries = 0;
     const maxRetries = 3;
     const retryDelay = 2000;
@@ -279,6 +280,7 @@ export function Dashboard() {
 
       try {
         const prefsRes = await fetchPreferences().catch(() => ({ preferences: {} }));
+        if (cancelled) return;
         const prefs = prefsRes.preferences ?? {};
         const gv = (prefs as Record<string, string>).game_version?.trim();
         const version = gv || DEFAULT_GAME_VERSION;
@@ -286,7 +288,9 @@ export function Dashboard() {
         const serverType = version;
 
         const [charsRes, raidsRes] = await Promise.all([
-          fetchCharacters(serverType).catch(() => ({ characters: [], syncStatus: { lastSyncAt: null } })),
+          api
+            .get<{ characters: MyCharacter[]; syncStatus?: { lastSyncAt: string | null } }>(`/auth/me/characters?server_type=${encodeURIComponent(serverType)}`)
+            .catch(() => ({ characters: [], syncStatus: { lastSyncAt: null } })),
           api
             .get<{ raids: SavedRaid[] }>(
               serverType
@@ -295,6 +299,9 @@ export function Dashboard() {
             )
             .catch(() => ({ raids: [] })),
         ]);
+        if (cancelled) return;
+        setAllCharacters(charsRes.characters ?? []);
+        setGuildsSynced(isSyncRecent(charsRes.syncStatus?.lastSyncAt ?? null));
         setMyAssignmentRaids(raidsRes.raids ?? []);
         if ((charsRes.characters?.length ?? 0) === 0 && retries < maxRetries) {
           retries++;
@@ -312,10 +319,11 @@ export function Dashboard() {
         if (needToPoll) {
           const syncStart = Date.now();
           const pollSync = async () => {
-            while (Date.now() - syncStart < syncPollMax) {
+            while (Date.now() - syncStart < syncPollMax && !cancelled) {
               const r = await api
                 .get<{ syncStatus?: { lastSyncAt: string | null } }>("/auth/me/characters")
                 .catch(() => ({ syncStatus: { lastSyncAt: null } }));
+              if (cancelled) return;
               const ls = r.syncStatus?.lastSyncAt ?? null;
               const done =
                 loginSyncStarted !== null
@@ -323,40 +331,51 @@ export function Dashboard() {
                   : isSyncRecent(ls);
               if (done) {
                 if (loginSyncStarted !== null) sessionStorage.removeItem(SYNC_PENDING_KEY);
-                setGuildsSynced(true);
+                if (!cancelled) setGuildsSynced(true);
                 return;
               }
               await new Promise((r) => setTimeout(r, syncPollInterval));
             }
-            sessionStorage.removeItem(SYNC_PENDING_KEY);
-            setGuildsSynced(true);
+            if (!cancelled) {
+              sessionStorage.removeItem(SYNC_PENDING_KEY);
+              setGuildsSynced(true);
+            }
           };
           await pollSync();
         } else {
           if (loginSyncStarted !== null) sessionStorage.removeItem(SYNC_PENDING_KEY);
         }
       } finally {
-        setLoading(false);
-        setInitialLoadDone(true);
+        if (!cancelled) {
+          setLoading(false);
+          setInitialLoadDone(true);
+        }
       }
     };
     load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Refetch when user returns to tab (e.g. after OAuth redirect) to avoid needing a manual refresh
+  // Refetch when user returns to tab (e.g. after OAuth redirect) using current game version
   useEffect(() => {
     const onVisibilityChange = () => {
       if (document.visibilityState !== "visible") return;
+      const ver = gameVersionRef.current || DEFAULT_GAME_VERSION;
       fetchPreferences().catch(() => {});
-      fetchCharacters().then(() => {}).catch(() => {});
-      api.get<{ raids: SavedRaid[] }>("/auth/me/saved-raids/my-assignments").then((r) => setMyAssignmentRaids(r.raids ?? [])).catch(() => {});
+      fetchCharacters(ver).then(() => {}).catch(() => {});
+      api
+        .get<{ raids: SavedRaid[] }>(`/auth/me/saved-raids/my-assignments?server_type=${encodeURIComponent(ver)}`)
+        .then((r) => setMyAssignmentRaids(r.raids ?? []))
+        .catch(() => {});
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => document.removeEventListener("visibilitychange", onVisibilityChange);
   }, []);
 
   useEffect(() => {
-    if (!initialLoadDone || !gameVersion || gameVersion === "Please Select") return;
+    if (!initialLoadDone || !gameVersion) return;
     const hasDataForVersion = allCharacters.some((c) => (c.server_type ?? "TBC Anniversary") === gameVersion);
     if (hasDataForVersion) return;
     const v = gameVersion;

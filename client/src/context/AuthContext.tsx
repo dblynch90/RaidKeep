@@ -35,7 +35,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    refresh();
+    let cancelled = false;
+    api.get<{ user: User | null }>("/auth/me")
+      .then(({ user }) => {
+        if (!cancelled) setUser(user);
+      })
+      .catch(() => {
+        if (!cancelled) setUser(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const login = async (username: string, password: string) => {

@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ToastProvider } from "./context/ToastContext";
@@ -8,7 +9,6 @@ import { Register } from "./pages/Register";
 import { BattleNetCallback } from "./pages/BattleNetCallback";
 import { Dashboard } from "./pages/Dashboard";
 import { GuildRoster } from "./pages/GuildRoster";
-import { PlanRaid } from "./pages/PlanRaid";
 import { RaidView } from "./pages/RaidView";
 import { ManageRaids } from "./pages/ManageRaids";
 import { RaidRoster } from "./pages/RaidRoster";
@@ -19,9 +19,11 @@ import { GuildDashboard } from "./pages/GuildDashboard";
 import { GuildCrafters } from "./pages/GuildCrafters";
 import { RaidSchedule } from "./pages/RaidSchedule";
 import { GuildPermissions } from "./pages/GuildPermissions";
-import { AdminLogin } from "./pages/AdminLogin";
-import { AdminDashboard } from "./pages/AdminDashboard";
-import { AdminGuildDetail } from "./pages/AdminGuildDetail";
+
+const PlanRaid = lazy(() => import("./pages/PlanRaid").then((m) => ({ default: m.PlanRaid })));
+const AdminLogin = lazy(() => import("./pages/AdminLogin").then((m) => ({ default: m.AdminLogin })));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard").then((m) => ({ default: m.AdminDashboard })));
+const AdminGuildDetail = lazy(() => import("./pages/AdminGuildDetail").then((m) => ({ default: m.AdminGuildDetail })));
 
 function ProtectedRoute({ children, bare }: { children: React.ReactNode; bare?: boolean }) {
   const { user, loading } = useAuth();
@@ -45,8 +47,17 @@ function ProtectedRoute({ children, bare }: { children: React.ReactNode; bare?: 
   );
 }
 
+function PageFallback() {
+  return (
+    <div className="min-h-[200px] flex items-center justify-center text-slate-400">
+      <div className="h-8 w-8 rounded-full border-2 border-slate-600 border-t-sky-500 animate-spin" aria-hidden />
+    </div>
+  );
+}
+
 function AppRoutes() {
   return (
+    <Suspense fallback={<PageFallback />}>
     <Routes>
       <Route path="/admin/login" element={<AdminLogin />} />
       <Route path="/admin" element={<AdminDashboard />} />
@@ -168,6 +179,7 @@ function AppRoutes() {
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   );
 }
 
