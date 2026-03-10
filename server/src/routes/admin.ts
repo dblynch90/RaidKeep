@@ -431,6 +431,7 @@ const PROFESSION_TYPES = [
   "Enchanting",
   "Engineering",
   "First Aid",
+  "Fishing",
   "Herbalism",
   "Inscription",
   "Jewelcrafting",

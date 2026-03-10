@@ -275,7 +275,7 @@ export function RaiderRoster() {
   const effectiveRaiderLevelMin = raiderLevelMin ?? maxLevelInRoster;
   const effectiveRaiderLevelMax = raiderLevelMax ?? maxLevelInRoster;
 
-  const PROFESSION_OPTIONS = ["Alchemy", "Blacksmithing", "Cooking", "Enchanting", "Engineering", "First Aid", "Herbalism", "Inscription", "Jewelcrafting", "Leatherworking", "Mining", "Skinning", "Tailoring"];
+  const PROFESSION_OPTIONS = ["Alchemy", "Blacksmithing", "Cooking", "Enchanting", "Engineering", "First Aid", "Fishing", "Herbalism", "Inscription", "Jewelcrafting", "Leatherworking", "Mining", "Skinning", "Tailoring"];
 
   const filteredRaiders = useMemo(() => {
     const q = raiderSearchQuery.trim().toLowerCase();

@@ -1205,7 +1205,7 @@ authRoutes.delete("/me/guild-character-overrides", requireAuth, (req, res) => {
 
 const PROFESSION_TYPES = [
   "Alchemy", "Blacksmithing", "Cooking", "Enchanting", "Engineering", "First Aid",
-  "Herbalism", "Inscription", "Jewelcrafting", "Leatherworking", "Mining", "Skinning", "Tailoring",
+  "Fishing", "Herbalism", "Inscription", "Jewelcrafting", "Leatherworking", "Mining", "Skinning", "Tailoring",
 ] as const;
 
 authRoutes.get("/me/guild-crafters-management", requireAuth, async (req, res) => {

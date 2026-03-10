@@ -7,7 +7,7 @@ import type { GuildPermissions } from "./GuildPermissions";
 
 const PROFESSION_TYPES = [
   "Alchemy", "Blacksmithing", "Cooking", "Enchanting", "Engineering", "First Aid",
-  "Herbalism", "Inscription", "Jewelcrafting", "Leatherworking", "Mining", "Skinning", "Tailoring",
+  "Fishing", "Herbalism", "Inscription", "Jewelcrafting", "Leatherworking", "Mining", "Skinning", "Tailoring",
 ];
 
 const CLASS_COLORS: Record<string, string> = {
@@ -489,7 +489,7 @@ export function GuildCrafters() {
                       <table className="w-full border-collapse text-sm">
                         <thead>
                           <tr className="text-left text-slate-400 text-xs font-medium uppercase tracking-wider border-b border-slate-600">
-                            <th className="py-2 pr-4">Player</th>
+                            <th className="py-2 pr-4">Character</th>
                             <th className="py-2">Professions</th>
                           </tr>
                         </thead>
@@ -501,10 +501,10 @@ export function GuildCrafters() {
                                 key={m.name}
                                 className="border-b border-slate-700/60 hover:bg-slate-800/50"
                               >
-                                <td className="py-2 pr-4 pl-3 align-top border-l-4" style={{ borderLeftColor: classColor }}>
+                                <td className="py-2 pr-4 pl-3 align-middle border-l-4" style={{ borderLeftColor: classColor }}>
                                   <span className="font-medium" style={{ color: classColor }}>{m.name}</span>
                                 </td>
-                                <td className="py-2 align-top">
+                                <td className="py-2 align-middle">
                                   <div className="flex flex-wrap gap-1.5 items-center">
                                     {m.professions.length === 0 ? (
                                       <span className="text-slate-500">—</span>
