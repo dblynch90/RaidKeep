@@ -161,20 +161,21 @@ export function GuildCrafters() {
     [displayGuildMembers, crafterMap, selectedGuildMembers]
   );
 
-  const addProfession = (charName: string, prof: string) => {
-    api
-      .post("/auth/me/guild-member-profession", {
-        realm: realmSlug,
-        guild_name: guildName,
-        server_type: serverType,
-        character_name: charName,
-        profession_type: prof,
-      })
-      .then(() => {
-        fetchData();
-        setAddProfessionFor(null);
-      })
-      .catch(() => {});
+  const addProfessions = async (charName: string, profs: string[]) => {
+    if (profs.length === 0) return;
+    await Promise.all(
+      profs.map((prof) =>
+        api.post("/auth/me/guild-member-profession", {
+          realm: realmSlug,
+          guild_name: guildName,
+          server_type: serverType,
+          character_name: charName,
+          profession_type: prof,
+        })
+      )
+    );
+    fetchData();
+    setAddProfessionFor(null);
   };
 
   const addSelectedAsCrafters = async () => {
@@ -271,10 +272,10 @@ export function GuildCrafters() {
   return (
     <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
       <main className="max-w-6xl mx-auto px-4 py-8">
-        <GuildBreadcrumbs guildName={guildName} realm={realm} serverType={serverType} currentPage="Guild Crafters" />
+        <GuildBreadcrumbs guildName={guildName} realm={realm} serverType={serverType} currentPage="Guild Professions" />
 
         <header className="mb-8">
-          <h1 className="text-lg font-semibold text-slate-200">Guild Crafters</h1>
+          <h1 className="text-lg font-semibold text-slate-200">Guild Professions</h1>
           <p className="text-slate-400 text-sm mt-1">
             {capitalizeRealm(realm)} / {guildName} / {serverType}
           </p>
@@ -295,7 +296,7 @@ export function GuildCrafters() {
                       activeTab === "crafters" ? "text-slate-200 bg-[#223657] border-b-2 border-sky-500" : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
                     }`}
                   >
-                    Crafters
+                    Professions
                   </button>
                   <button
                     type="button"
@@ -312,7 +313,7 @@ export function GuildCrafters() {
               {activeTab === "guild" && (
                 <>
                   <p className="text-slate-500 text-sm mb-3">
-                    Add members as guild crafters. Select multiple and add at once, or add individually. Crafters are marked with ✓ Crafter.
+                    Add members with professions. Select multiple and add at once, or add individually. Members with professions are marked with ✓.
                   </p>
                   <div className="flex flex-wrap gap-3 mb-3">
                     <input
@@ -364,7 +365,7 @@ export function GuildCrafters() {
                               guildMemberFilter === f ? "text-slate-200 bg-[#223657] border-b-2 border-sky-500" : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
                             }`}
                           >
-                            {f === "all" ? "All" : f === "crafter" ? "Crafters" : "Non-crafters"}
+                            {f === "all" ? "All" : f === "crafter" ? "With professions" : "Without"}
                           </button>
                         ))}
                       </div>
@@ -432,14 +433,14 @@ export function GuildCrafters() {
                             {isCrafter ? (
                               <span className="shrink-0 h-7 flex items-center gap-1 text-emerald-400 text-sm font-medium">
                                 <span>✓</span>
-                                Crafter
+                                ✓
                               </span>
                             ) : canAdd ? (
                               <button
                                 type="button"
                                 onClick={() => setAddProfessionFor(m.name)}
                                 className="shrink-0 h-7 px-2 flex items-center justify-center rounded bg-sky-600/90 hover:bg-sky-500 text-white text-sm font-medium border border-sky-500/50"
-                                title="Add as crafter"
+                                title="Add professions"
                               >
                                 Add
                               </button>
@@ -492,11 +493,11 @@ export function GuildCrafters() {
                   <div className="max-h-[420px] overflow-y-auto">
                     {members.length === 0 ? (
                       <p className="text-slate-500 text-sm py-8 text-center">
-                        No crafters yet. Switch to the Guild Members tab to add them.
+                        No members with professions yet. Switch to the Guild Members tab to add them.
                       </p>
                     ) : filteredCrafters.length === 0 ? (
                       <p className="text-slate-500 text-sm py-8 text-center">
-                        No crafters match the current filters.
+                        No members match the current filters.
                       </p>
                     ) : (
                       <table className="w-full border-collapse text-sm">
@@ -553,7 +554,7 @@ export function GuildCrafters() {
                                     {canEditMember(m.name) && (
                                       <AddProfessionRow
                                         existingProfs={m.professions.map((p) => p.profession_type)}
-                                        onAdd={(prof) => addProfession(m.name, prof)}
+                                        onAdd={(profs) => addProfessions(m.name, profs)}
                                       />
                                     )}
                                   </div>
@@ -574,7 +575,7 @@ export function GuildCrafters() {
         {addProfessionFor && (
           <AddProfessionModal
             characterName={addProfessionFor}
-            onAdd={(prof) => addProfession(addProfessionFor, prof)}
+            onAdd={(profs) => addProfessions(addProfessionFor, profs)}
             onClose={() => setAddProfessionFor(null)}
           />
         )}
@@ -594,10 +595,26 @@ export function GuildCrafters() {
   );
 }
 
-function AddProfessionRow({ existingProfs, onAdd }: { existingProfs: string[]; onAdd: (prof: string) => void }) {
+function AddProfessionRow({ existingProfs, onAdd }: { existingProfs: string[]; onAdd: (profs: string[]) => void }) {
   const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const available = PROFESSION_TYPES.filter((p) => !existingProfs.includes(p));
   if (available.length === 0) return null;
+  const toggle = (p: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(p)) next.delete(p);
+      else next.add(p);
+      return next;
+    });
+  };
+  const handleAdd = () => {
+    if (selected.size > 0) {
+      onAdd([...selected]);
+      setSelected(new Set());
+      setOpen(false);
+    }
+  };
   return (
     <span className="inline-flex flex-wrap gap-1 items-center">
       {!open ? (
@@ -607,16 +624,20 @@ function AddProfessionRow({ existingProfs, onAdd }: { existingProfs: string[]; o
       ) : (
         <>
           {available.map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => { onAdd(p); setOpen(false); }}
-              className="px-2 py-0.5 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs"
-            >
-              {p}
-            </button>
+            <label key={p} className="inline-flex items-center gap-1 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selected.has(p)}
+                onChange={() => toggle(p)}
+                className="rounded border-slate-600 bg-slate-700 text-sky-500"
+              />
+              <span className="text-slate-200 text-xs">{p}</span>
+            </label>
           ))}
-          <button type="button" onClick={() => setOpen(false)} className="text-slate-500 hover:text-slate-300 text-xs">
+          <button type="button" onClick={handleAdd} disabled={selected.size === 0} className="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs">
+            Add ({selected.size})
+          </button>
+          <button type="button" onClick={() => { setOpen(false); setSelected(new Set()); }} className="text-slate-500 hover:text-slate-300 text-xs">
             Cancel
           </button>
         </>
@@ -631,10 +652,18 @@ function AddProfessionModal({
   onClose,
 }: {
   characterName: string;
-  onAdd: (prof: string) => void;
+  onAdd: (profs: string[]) => void;
   onClose: () => void;
 }) {
-  const [prof, setProf] = useState(PROFESSION_TYPES[0]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toggle = (p: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(p)) next.delete(p);
+      else next.add(p);
+      return next;
+    });
+  };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
       <div
@@ -642,27 +671,31 @@ function AddProfessionModal({
         style={{ background: "linear-gradient(180deg, #1e293b 0%, #0f172a 100%)" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-lg font-semibold text-slate-200 mb-4">Add {characterName} as crafter</h3>
-        <div className="space-y-3">
-          <label className="block">
-            <span className="text-slate-400 text-sm block mb-1">Profession</span>
-            <select
-              value={prof}
-              onChange={(e) => setProf(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 text-sm"
-            >
-              {PROFESSION_TYPES.map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-          </label>
+        <h3 className="text-lg font-semibold text-slate-200 mb-4">Add professions for {characterName}</h3>
+        <div className="space-y-2 max-h-60 overflow-y-auto">
+          {PROFESSION_TYPES.map((p) => (
+            <label key={p} className="flex items-center gap-2 cursor-pointer py-1">
+              <input
+                type="checkbox"
+                checked={selected.has(p)}
+                onChange={() => toggle(p)}
+                className="rounded border-slate-600 bg-slate-700 text-sky-500"
+              />
+              <span className="text-slate-200 text-sm">{p}</span>
+            </label>
+          ))}
         </div>
         <div className="flex justify-end gap-2 mt-6">
           <button type="button" onClick={onClose} className="px-3 py-1.5 rounded bg-slate-600 text-slate-300 text-sm hover:bg-slate-500">
             Cancel
           </button>
-          <button type="button" onClick={() => onAdd(prof)} className="px-3 py-1.5 rounded bg-sky-600 text-white text-sm hover:bg-sky-500">
-            Add
+          <button
+            type="button"
+            onClick={() => onAdd([...selected])}
+            disabled={selected.size === 0}
+            className="px-3 py-1.5 rounded bg-sky-600 text-white text-sm hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Add ({selected.size})
           </button>
         </div>
       </div>

@@ -71,7 +71,7 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/guild-crafters"
+        path="/guild-professions"
         element={
           <ProtectedRoute>
             <GuildCrafters />

@@ -21,7 +21,7 @@ const GUILD_PERMISSION_LABELS: Record<GuildPermissionKey, string> = {
   manage_raids: "Manage Raids",
   manage_raid_roster: "Manage Raid Roster",
   manage_permissions: "Manage Permissions",
-  manage_guild_crafters: "Manage Guild Crafters",
+  manage_guild_crafters: "Manage Guild Professions",
 };
 
 const RANK_LABELS: Record<string, string> = {
