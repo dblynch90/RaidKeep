@@ -64,6 +64,7 @@ export function GuildDashboard() {
   const serverType = searchParams.get("server_type") ?? "Retail";
 
   const [permissions, setPermissions] = useState<GuildPermissions | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
   const rosterUrl = `/guild-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
@@ -75,18 +76,38 @@ export function GuildDashboard() {
   const crafterManagementUrl = `/crafter-management?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
 
   useEffect(() => {
-    if (!realm || !guildName) return;
+    if (!realm || !guildName) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     api
       .get<{ permissions: GuildPermissions }>(
         `/auth/me/guild-permissions?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
       )
-      .then((r) => setPermissions(r.permissions))
-      .catch(() => setPermissions(DEFAULT_PERMISSIONS));
+      .then((r) => {
+        setPermissions(r.permissions ?? DEFAULT_PERMISSIONS);
+        setLoading(false);
+      })
+      .catch(() => {
+        setPermissions(DEFAULT_PERMISSIONS);
+        setLoading(false);
+      });
   }, [realm, realmSlug, guildName, serverType]);
 
   const perms = permissions ?? LOADING_PERMISSIONS;
 
-  if (!perms.view_guild_dashboard) {
+  if (loading) {
+    return (
+      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
+        <main className="max-w-6xl mx-auto px-4 py-8">
+          <p className="text-slate-500">Loading guild dashboard...</p>
+        </main>
+      </div>
+    );
+  }
+
+  if (permissions && permissions.view_guild_dashboard === false) {
     return (
       <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
         <main className="max-w-6xl mx-auto px-4 py-8">
