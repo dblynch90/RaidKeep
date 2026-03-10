@@ -7,7 +7,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { paramStr } from "../utils.js";
 import { getAuthorizeUrl, exchangeCodeForToken, decodeIdToken, fetchBattleNetUserInfo } from "../services/battlenet-oauth.js";
 import { syncGuildsFromBattleNet, syncCharacterGuild } from "../services/battlenet-sync.js";
-import { fetchCharacterProfessions, fetchGuildRoster } from "../services/blizzard.js";
+import { fetchCharacterProfessions, fetchCharacterProfileSummary, fetchGuildRoster } from "../services/blizzard.js";
 import { getRaidStatus, type RaidStatus } from "../utils/raidStatus.js";
 
 export const authRoutes = Router();
@@ -1968,6 +1968,71 @@ authRoutes.put("/me/raider-roster", requireAuth, (req, res) => {
     `SELECT * FROM raider_roster WHERE user_id = ? AND guild_realm_slug = ? AND guild_name = ? AND server_type = ? ORDER BY character_name`
   ).all(userId, realmSlug, guild_name, server_type || "Retail");
   res.json({ raiders: saved });
+});
+
+authRoutes.get("/me/character-search", requireAuth, async (req, res) => {
+  const realm = (req.query.realm as string)?.trim();
+  const characterName = (req.query.character_name as string)?.trim();
+  const serverType = (req.query.server_type as string) || "Retail";
+  if (!realm || !characterName) {
+    res.status(400).json({ error: "realm and character_name required" });
+    return;
+  }
+  const db = getDb();
+  const userId = req.session!.user!.id;
+  const userRow = db.prepare("SELECT battlenet_region FROM users WHERE id = ?").get(userId) as { battlenet_region: string | null } | undefined;
+  const region = userRow?.battlenet_region ?? "us";
+  try {
+    const summary = await fetchCharacterProfileSummary(realm, characterName, region, serverType);
+    if (!summary) {
+      res.status(404).json({ error: "Character not found" });
+      return;
+    }
+    res.json(summary);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Search failed";
+    res.status(502).json({ error: msg });
+  }
+});
+
+authRoutes.post("/me/raider-roster-add-character", requireAuth, async (req, res) => {
+  const { guild_name, guild_realm, guild_realm_slug, server_type, character_name } = req.body;
+  if (!guild_name || !character_name || typeof character_name !== "string") {
+    res.status(400).json({ error: "guild_name and character_name required" });
+    return;
+  }
+  const db = getDb();
+  const userId = req.session!.user!.id;
+  const realmSlug = guild_realm_slug ?? String(guild_realm || "").toLowerCase().replace(/\s+/g, "-");
+  const serverType = server_type || "Retail";
+  const perms = getEffectiveGuildPermissions(db, userId, realmSlug, guild_name, serverType);
+  if (!perms?.manage_raid_roster) {
+    res.status(403).json({ error: "You do not have permission to manage the raid roster" });
+    return;
+  }
+  const userRow = db.prepare("SELECT battlenet_region FROM users WHERE id = ?").get(userId) as { battlenet_region: string | null } | undefined;
+  const region = userRow?.battlenet_region ?? "us";
+  const charName = String(character_name).trim();
+  const existing = db.prepare(
+    `SELECT 1 FROM raider_roster WHERE user_id = ? AND guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)`
+  ).get(userId, realmSlug, guild_name, serverType, charName);
+  if (existing) {
+    res.status(400).json({ error: "Character is already on the raid roster" });
+    return;
+  }
+  const summary = await fetchCharacterProfileSummary(realmSlug, charName, region, serverType);
+  if (!summary) {
+    res.status(404).json({ error: "Character not found on this realm" });
+    return;
+  }
+  db.prepare(
+    `INSERT INTO raider_roster (user_id, guild_name, guild_realm_slug, server_type, character_name, character_class, primary_spec, off_spec, secondary_spec, notes, officer_notes, raid_role, raid_lead, raid_assist, availability, notes_public)
+     VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, 0, 0, '0000000', 0)`
+  ).run(userId, guild_name, realmSlug, serverType, summary.name, summary.class);
+  const row = db.prepare(
+    `SELECT * FROM raider_roster WHERE user_id = ? AND guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)`
+  ).get(userId, realmSlug, guild_name, serverType, summary.name) as Record<string, unknown>;
+  res.status(201).json({ raider: row });
 });
 
 // View-only users can update their own availability and notes only

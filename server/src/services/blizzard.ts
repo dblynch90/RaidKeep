@@ -668,6 +668,83 @@ async function fetchCharacterProfileWithNamespace(
   return data;
 }
 
+export interface CharacterProfileSummary {
+  name: string;
+  class: string;
+  level: number;
+}
+
+/**
+ * Fetch character profile summary (name, class, level) for a character on a realm.
+ * Uses app token. Returns null if character not found.
+ */
+export async function fetchCharacterProfileSummary(
+  realmSlug: string,
+  characterName: string,
+  region: string,
+  serverType: string = "Retail"
+): Promise<CharacterProfileSummary | null> {
+  const origin = region.toLowerCase() as "us" | "eu" | "kr" | "tw";
+  const realmLower = realmSlug.toLowerCase().replace(/\s+/g, "-");
+  const nameLower = characterName.toLowerCase().replace(/\s+/g, "-");
+
+  const parseProfile = (data: Record<string, unknown>): CharacterProfileSummary | null => {
+    const name = data.name;
+    const level = data.level;
+    const playableClass = data.playable_class as { id?: number; name?: { en_US?: string } } | undefined;
+    const className =
+      playableClass?.name && typeof playableClass.name === "object" && playableClass.name.en_US
+        ? String(playableClass.name.en_US)
+        : playableClass?.id != null
+          ? CLASS_IDS[playableClass.id] ?? "Unknown"
+          : "Unknown";
+    if (typeof name !== "string" || typeof level !== "number") return null;
+    return { name: String(name), class: className, level: Number(level) };
+  };
+
+  if (serverType === "TBC Anniversary") {
+    for (const ns of ["profile-classicann", "profile-classic-tbc", "profile-classic"]) {
+      try {
+        const client = await getWowClassicClient();
+        const tokenRes = await client.getApplicationToken({ origin });
+        const token = tokenRes.data.access_token as string;
+        const host = API_HOSTS[origin] ?? API_HOSTS.us;
+        const fullNs = `${ns}-${origin}`;
+        const url = `${host}/profile/wow/character/${realmLower}/${nameLower}`;
+        const res = await fetch(`${url}?namespace=${fullNs}&locale=en_US`, {
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        });
+        if (!res.ok) continue;
+        const data = (await res.json()) as Record<string, unknown>;
+        return parseProfile(data);
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  }
+
+  let client: Awaited<ReturnType<typeof getWowClient>> | Awaited<ReturnType<typeof getWowClassicClient>> | Awaited<ReturnType<typeof getWowClassicEraClient>>;
+  if (serverType === "Classic Era" || serverType === "Classic Hardcore") {
+    client = await getWowClassicEraClient();
+  } else if (["MOP Classic", "Seasons of Discovery"].includes(serverType)) {
+    client = await getWowClassicClient();
+  } else {
+    client = await getWowClient();
+  }
+  try {
+    const response = await client.characterProfile({
+      realm: realmLower,
+      name: nameLower,
+      origin,
+    });
+    const data = response.data as Record<string, unknown>;
+    return parseProfile(data);
+  } catch {
+    return null;
+  }
+}
+
 // Cache for character guild lookups (5 min TTL, max 500 entries) - avoids redundant API calls on repeat syncs
 const characterGuildCache = new Map<
   string,

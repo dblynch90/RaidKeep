@@ -136,6 +136,10 @@ export function RaiderRoster() {
   const [teamNameDrafts, setTeamNameDrafts] = useState<Record<number, string>>({});
   const [selectedGuildMembers, setSelectedGuildMembers] = useState<Set<string>>(new Set());
   const [permissions, setPermissions] = useState<GuildPermissions | null>(null);
+  const [characterSearchName, setCharacterSearchName] = useState("");
+  const [characterSearchResult, setCharacterSearchResult] = useState<{ name: string; class: string; level: number } | null>(null);
+  const [characterSearching, setCharacterSearching] = useState(false);
+  const [characterSearchError, setCharacterSearchError] = useState<string | null>(null);
   const [myCharacters, setMyCharacters] = useState<MyCharacter[]>([]);
 
   const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
@@ -384,6 +388,66 @@ export function RaiderRoster() {
   };
 
   const clearGuildMemberSelection = () => setSelectedGuildMembers(new Set());
+
+  const searchCharacter = async () => {
+    const name = characterSearchName.trim();
+    if (!name) return;
+    setCharacterSearchError(null);
+    setCharacterSearchResult(null);
+    setCharacterSearching(true);
+    try {
+      const result = await api.get<{ name: string; class: string; level: number }>(
+        `/auth/me/character-search?realm=${encodeURIComponent(realmSlug)}&character_name=${encodeURIComponent(name)}&server_type=${encodeURIComponent(serverType)}`
+      );
+      setCharacterSearchResult(result);
+    } catch (err: unknown) {
+      setCharacterSearchError(err instanceof Error ? err.message : "Character not found");
+    } finally {
+      setCharacterSearching(false);
+    }
+  };
+
+  const addSearchedCharacter = async () => {
+    if (!characterSearchResult || !canEdit) return;
+    setCharacterSearching(true);
+    setCharacterSearchError(null);
+    try {
+      const { raider } = await api.post<{ raider: RaiderEntry & { notes_public?: number; raid_lead?: number; raid_assist?: number } }>(
+        "/auth/me/raider-roster-add-character",
+        {
+          guild_name: guildName,
+          guild_realm_slug: realmSlug,
+          server_type: serverType,
+          character_name: characterSearchResult.name,
+        }
+      );
+      setRaiders((prev) => [
+        ...prev,
+        {
+          character_name: raider.character_name,
+          character_class: raider.character_class,
+          primary_spec: raider.primary_spec ?? "",
+          off_spec: raider.off_spec ?? "",
+          secondary_spec: raider.secondary_spec ?? "",
+          notes: raider.notes ?? "",
+          officer_notes: raider.officer_notes ?? "",
+          raid_role: raider.raid_role ?? "",
+          raid_lead: Boolean(raider.raid_lead),
+          raid_assist: Boolean(raider.raid_assist),
+          availability: (raider.availability as string) ?? DEFAULT_AVAILABILITY,
+          notes_public: raider.notes_public === 1,
+          professions: raider.professions ?? [],
+          guild_profession_stars: raider.guild_profession_stars ?? [],
+        },
+      ]);
+      setCharacterSearchResult(null);
+      setCharacterSearchName("");
+    } catch (err: unknown) {
+      setCharacterSearchError(err instanceof Error ? err.message : "Failed to add");
+    } finally {
+      setCharacterSearching(false);
+    }
+  };
 
   const selectedNonRaiderCount = useMemo(() => {
     return displayGuildMembers.filter(
@@ -656,6 +720,47 @@ export function RaiderRoster() {
                   <p className="text-slate-500 text-sm mb-3">
                     Add members to your raid roster. Select multiple and add at once, or add individually. Raiders are marked with ✓ Raider.
                   </p>
+                  {canEdit && (
+                    <div className="mb-4 p-3 rounded-lg bg-slate-800/60 border border-slate-700/50">
+                      <p className="text-slate-400 text-sm font-medium mb-2">Search character on realm</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder="Character name..."
+                          value={characterSearchName}
+                          onChange={(e) => { setCharacterSearchName(e.target.value); setCharacterSearchError(null); }}
+                          onKeyDown={(e) => e.key === "Enter" && searchCharacter()}
+                          className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-500 text-sm w-48 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                        />
+                        <button
+                          type="button"
+                          onClick={searchCharacter}
+                          disabled={characterSearching || !characterSearchName.trim()}
+                          className="px-3 py-2 rounded bg-slate-600 hover:bg-slate-500 disabled:opacity-50 text-slate-200 text-sm font-medium"
+                        >
+                          {characterSearching ? "Searching..." : "Search"}
+                        </button>
+                        {characterSearchResult && (
+                          <>
+                            <span className="text-sm" style={{ color: getClassColor(characterSearchResult.class) }}>
+                              {characterSearchResult.name} – {characterSearchResult.level} – {characterSearchResult.class}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={addSearchedCharacter}
+                              disabled={characterSearching || raiderMap.has(characterSearchResult.name.toLowerCase())}
+                              className="px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-sm font-medium"
+                            >
+                              Add
+                            </button>
+                          </>
+                        )}
+                      </div>
+                      {characterSearchError && (
+                        <p className="text-amber-500 text-sm mt-2">{characterSearchError}</p>
+                      )}
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-3 mb-3">
                     <input
                       type="text"
