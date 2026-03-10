@@ -806,7 +806,10 @@ async function fetchCharacterProfessionsWithNamespace(
   origin: "us" | "eu" | "kr" | "tw",
   namespace: string
 ): Promise<CharacterProfession[]> {
-  const client = await getWowClassicClient();
+  const client =
+    namespace === "profile"
+      ? await getWowClient()
+      : await getWowClassicClient();
   const tokenRes = await client.getApplicationToken({ origin });
   const token = tokenRes.data.access_token as string;
   const host = API_HOSTS[origin] ?? API_HOSTS.us;

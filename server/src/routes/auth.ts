@@ -1236,30 +1236,8 @@ authRoutes.get("/me/guild-crafters-management", requireAuth, async (req, res) =>
     return;
   }
   const professionsByChar = new Map<string, string[]>();
-  const BATCH_SIZE = 5;
-  const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
-  for (let i = 0; i < roster.members.length; i += BATCH_SIZE) {
-    const batch = roster.members.slice(i, i + BATCH_SIZE);
-    await Promise.all(
-      batch.map(async (m) => {
-        const profs = await fetchCharacterProfessions(
-          roster.realm ?? realmSlug,
-          m.name,
-          region,
-          serverType
-        );
-        if (profs.length > 0) {
-          const formatted = profs.map((p) =>
-            p.skill_points != null && p.max_skill_points != null
-              ? `${p.name} (${p.skill_points}/${p.max_skill_points})`
-              : p.name
-          );
-          professionsByChar.set(m.name.toLowerCase(), formatted);
-        }
-      })
-    );
-    if (i + BATCH_SIZE < roster.members.length) await delay(80);
-  }
+
+  // Load DB fallback first (raider_roster + character_recipes) for fast display
   const rrRows = db
     .prepare(
       `SELECT character_name, professions FROM raider_roster
@@ -1267,15 +1245,13 @@ authRoutes.get("/me/guild-crafters-management", requireAuth, async (req, res) =>
     )
     .all(realmSlug, guildName, serverType) as Array<{ character_name: string; professions: string | null }>;
   for (const r of rrRows) {
-    const key = r.character_name.toLowerCase();
-    if (professionsByChar.has(key)) continue;
     let list: string[] = [];
     try {
       if (r.professions) list = JSON.parse(r.professions) as string[];
     } catch {
       /* ignore */
     }
-    if (list.length > 0) professionsByChar.set(key, list);
+    if (list.length > 0) professionsByChar.set(r.character_name.toLowerCase(), list);
   }
   const recipeProfs = db
     .prepare(
@@ -1289,6 +1265,34 @@ authRoutes.get("/me/guild-crafters-management", requireAuth, async (req, res) =>
     const existing = professionsByChar.get(key) ?? [];
     if (!existing.includes(r.profession)) {
       professionsByChar.set(key, [...existing, r.profession]);
+    }
+  }
+
+  // Enhance with Blizzard API (8s timeout so response stays fast)
+  const realmForProf = roster.realm ?? realmSlug;
+  const BATCH = 8;
+  const PROF_TIMEOUT_MS = 8000;
+  const startProf = Date.now();
+  for (let i = 0; i < roster.members.length && Date.now() - startProf < PROF_TIMEOUT_MS - 500; i += BATCH) {
+    const batch = roster.members.slice(i, i + BATCH);
+    const results = await Promise.allSettled(
+      batch.map((m) =>
+        fetchCharacterProfessions(realmForProf, m.name, region, serverType)
+      )
+    );
+    for (let j = 0; j < batch.length; j++) {
+      const r = results[j];
+      if (r?.status === "fulfilled" && r.value.length > 0) {
+        const formatted = r.value.map((p) =>
+          p.skill_points != null && p.max_skill_points != null
+            ? `${p.name} (${p.skill_points}/${p.max_skill_points})`
+            : p.name
+        );
+        professionsByChar.set(batch[j].name.toLowerCase(), formatted);
+      }
+    }
+    if (i + BATCH < roster.members.length) {
+      await new Promise((resolve) => setTimeout(resolve, 60));
     }
   }
   const stars = db
