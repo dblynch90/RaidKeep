@@ -305,10 +305,10 @@ export function RaidView() {
                               {(s.role || "").toLowerCase() === "dps" ? "DPS" : s.role || "—"}
                             </span>
                           )}
-                          {s.is_raid_lead && (
+                          {s.is_raid_lead === 1 && (
                             <span className="text-sky-400 text-xs" title="Raid Lead">★ RL</span>
                           )}
-                          {s.is_raid_assist && (
+                          {s.is_raid_assist === 1 && (
                             <span className="text-sky-400 text-xs ml-0.5" title="Raid Assist">🛡 RA</span>
                           )}
                           {(isMySlot || canEditAvailabilityForOthers) && (
@@ -466,8 +466,8 @@ export function RaidView() {
                     <span className="text-slate-500 text-xs">
                       {(s.role || "").toLowerCase() === "dps" ? "DPS" : s.role || "—"}
                     </span>
-                    {s.is_raid_lead && <span className="text-sky-400 text-xs" title="Raid Lead">★ RL</span>}
-                    {s.is_raid_assist && <span className="text-sky-400 text-xs" title="Raid Assist">🛡 RA</span>}
+                    {s.is_raid_lead === 1 && <span className="text-sky-400 text-xs" title="Raid Lead">★ RL</span>}
+                    {s.is_raid_assist === 1 && <span className="text-sky-400 text-xs" title="Raid Assist">🛡 RA</span>}
                     <span className="text-red-400 text-xs">Party {s.party_index + 1}</span>
                   </div>
                 );

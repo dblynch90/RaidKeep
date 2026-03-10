@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 import type { MyCharacter } from "../api";
-import type { GuildPermissions } from "./GuildPermissions";
 import { LoadingOverlay } from "../components/LoadingOverlay";
 import { RaidCard } from "../components/RaidCard";
 
@@ -100,7 +99,6 @@ function GuildCard({
   isFavorite,
   onToggleFavorite,
   onCardClick,
-  permissionsLoaded,
 }: {
   guildName: string;
   realm: string;
@@ -110,7 +108,6 @@ function GuildCard({
   isFavorite: boolean;
   onToggleFavorite: () => void;
   onCardClick: () => void;
-  permissionsLoaded: boolean;
 }) {
   return (
     <div
@@ -130,22 +127,6 @@ function GuildCard({
       }}
       aria-label={`Open ${guildName} dashboard`}
     >
-      {!permissionsLoaded && (
-        <div
-          className="absolute inset-0 z-20 flex items-center justify-center rounded-xl bg-slate-900/70 cursor-wait"
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
-          aria-busy="true"
-          aria-label="Syncing guild data"
-          role="presentation"
-        >
-          <div
-            className="h-10 w-10 rounded-full border-4 border-slate-600 border-t-sky-500 animate-spin"
-            role="status"
-            aria-hidden="true"
-          />
-        </div>
-      )}
       <div className="p-4 relative">
         <button
           type="button"
@@ -196,13 +177,11 @@ export function Dashboard() {
   const [favoriteGuilds, setFavoriteGuilds] = useState<FavoriteGuild[]>([]);
   const [allCharacters, setAllCharacters] = useState<MyCharacter[]>([]);
   const [myAssignmentRaids, setMyAssignmentRaids] = useState<SavedRaid[]>([]);
-  const [guildPermissions, setGuildPermissions] = useState<Record<string, GuildPermissions>>({});
   const [loading, setLoading] = useState(true);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   const [, setGuildsSynced] = useState(false);
   const [characterFactionFilter, setCharacterFactionFilter] = useState<string>("");
   const [characterRealmFilter, setCharacterRealmFilter] = useState<string>("");
-  const [pendingGuildClick, setPendingGuildClick] = useState<FavoriteGuild | null>(null);
   const syncedVersionsRef = useRef<Set<string>>(new Set());
   const gameVersionRef = useRef("");
   const navigate = useNavigate();
@@ -463,77 +442,10 @@ export function Dashboard() {
     return [...favoritedGuildsInView, ...otherGuilds];
   }, [favoritedGuildsInView, guildsByRealm]);
 
-  useEffect(() => {
-    if (allGuildCards.length === 0) return;
-    const fetchPerms = async () => {
-      const results = await Promise.allSettled(
-        allGuildCards.map((g) =>
-          api.get<{ permissions: GuildPermissions }>(
-            `/auth/me/guild-permissions?realm=${encodeURIComponent(g.realmSlug)}&guild_name=${encodeURIComponent(g.guildName)}&server_type=${encodeURIComponent(g.serverType)}`
-          )
-        )
-      );
-      const next: Record<string, GuildPermissions> = {};
-      allGuildCards.forEach((g, i) => {
-        const r = results[i];
-        // Only set permissions when API succeeds - on failure, leave undefined so we keep showing "Syncing Data"
-        if (r?.status === "fulfilled") {
-          next[favKey(g)] = r.value.permissions;
-        }
-      });
-      setGuildPermissions((prev) => ({ ...prev, ...next }));
-    };
-    fetchPerms();
-  }, [allGuildCards]);
-
-  useEffect(() => {
-    if (!pendingGuildClick) return;
-    const key = favKey(pendingGuildClick);
-    const perms = guildPermissions[key];
-    if (perms !== undefined) {
-      if (perms.view_guild_dashboard) {
-        navigate(
-          `/guild-dashboard?realm=${encodeURIComponent(pendingGuildClick.realmSlug)}&guild_name=${encodeURIComponent(pendingGuildClick.guildName)}&server_type=${encodeURIComponent(pendingGuildClick.serverType)}`
-        );
-      }
-      setPendingGuildClick(null);
-    }
-  }, [pendingGuildClick, guildPermissions, navigate]);
-
-  useEffect(() => {
-    if (!pendingGuildClick) return;
-    const t = setTimeout(() => setPendingGuildClick(null), 30000);
-    return () => clearTimeout(t);
-  }, [pendingGuildClick]);
-
   const handleGuildCardClick = (g: FavoriteGuild) => {
-    const key = favKey(g);
-    const perms = guildPermissions[key];
-    const loaded = perms !== undefined;
-    if (loaded && perms?.view_guild_dashboard) {
-      navigate(
-        `/guild-dashboard?realm=${encodeURIComponent(g.realmSlug)}&guild_name=${encodeURIComponent(g.guildName)}&server_type=${encodeURIComponent(g.serverType)}`
-      );
-      return;
-    }
-    setPendingGuildClick(g);
-    if (!loaded) {
-      const url = `/auth/me/guild-permissions?realm=${encodeURIComponent(g.realmSlug)}&guild_name=${encodeURIComponent(g.guildName)}&server_type=${encodeURIComponent(g.serverType)}`;
-      api.get<{ permissions: GuildPermissions }>(url).then((r) => {
-        const fetched = r.permissions;
-        setGuildPermissions((prev) => ({ ...prev, [key]: fetched }));
-        if (fetched.view_guild_dashboard) {
-          setPendingGuildClick(null);
-          navigate(
-            `/guild-dashboard?realm=${encodeURIComponent(g.realmSlug)}&guild_name=${encodeURIComponent(g.guildName)}&server_type=${encodeURIComponent(g.serverType)}`
-          );
-        } else {
-          setPendingGuildClick(null);
-        }
-      }).catch(() => {
-        setPendingGuildClick(null);
-      });
-    }
+    navigate(
+      `/guild-loading?realm=${encodeURIComponent(g.realmSlug)}&guild_name=${encodeURIComponent(g.guildName)}&server_type=${encodeURIComponent(g.serverType)}`
+    );
   };
 
   const today = new Date().toISOString().slice(0, 10);
@@ -571,10 +483,6 @@ export function Dashboard() {
     return <LoadingOverlay message="Loading Data from Battle.net" />;
   }
 
-  if (pendingGuildClick) {
-    return <LoadingOverlay message="Loading Data from Battle.net" />;
-  }
-
   return (
     <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
       <main className="max-w-6xl mx-auto px-4 py-8">
@@ -602,7 +510,6 @@ export function Dashboard() {
                   isFavorite={isFavorite(g)}
                   onToggleFavorite={() => toggleFavorite(g)}
                   onCardClick={() => handleGuildCardClick(g)}
-                  permissionsLoaded={guildPermissions[favKey(g)] !== undefined}
                 />
               ))}
             </div>

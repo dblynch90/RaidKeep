@@ -16,6 +16,7 @@ import { RaiderRoster } from "./pages/RaiderRoster";
 import { RaidRosterPopout } from "./pages/RaidRosterPopout";
 import { RaidOfficerNotesPopout } from "./pages/RaidOfficerNotesPopout";
 import { GuildDashboard } from "./pages/GuildDashboard";
+import { GuildLoading } from "./pages/GuildLoading";
 import { GuildCrafters } from "./pages/GuildCrafters";
 import { RaidSchedule } from "./pages/RaidSchedule";
 import { GuildPermissions } from "./pages/GuildPermissions";
@@ -65,6 +66,14 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/auth/battlenet/callback" element={<BattleNetCallback />} />
+      <Route
+        path="/guild-loading"
+        element={
+          <ProtectedRoute>
+            <GuildLoading />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/guild-dashboard"
         element={
