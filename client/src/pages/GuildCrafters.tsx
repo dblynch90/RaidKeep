@@ -245,6 +245,19 @@ export function GuildCrafters() {
       .catch(() => {});
   };
 
+  const deleteCrafter = async (charName: string, professions: string[]) => {
+    if (!confirm(`Remove ${charName} from crafters? This will delete all ${professions.length} profession(s).`)) return;
+    await Promise.all(
+      professions.map((prof) =>
+        api.delete(
+          `/auth/me/guild-member-profession?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}&character_name=${encodeURIComponent(charName)}&profession_type=${encodeURIComponent(prof)}`
+        )
+      )
+    );
+    fetchData();
+    setEditProfession(null);
+  };
+
   if (error) {
     return (
       <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
@@ -502,7 +515,19 @@ export function GuildCrafters() {
                                 className="border-b border-slate-700/60 hover:bg-slate-800/50"
                               >
                                 <td className="py-2 pr-4 pl-3 align-middle border-l-4" style={{ borderLeftColor: classColor }}>
-                                  <span className="font-medium" style={{ color: classColor }}>{m.name}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium" style={{ color: classColor }}>{m.name}</span>
+                                    {canEditMember(m.name) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => deleteCrafter(m.name, m.professions.map((p) => p.profession_type))}
+                                        className="text-red-400 hover:text-red-300 text-xs shrink-0"
+                                        title="Remove crafter"
+                                      >
+                                        Remove
+                                      </button>
+                                    )}
+                                  </div>
                                 </td>
                                 <td className="py-2 align-middle">
                                   <div className="flex flex-wrap gap-1.5 items-center">
