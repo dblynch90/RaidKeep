@@ -30,6 +30,7 @@ export function GuildCrafters() {
 
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [crafters, setCrafters] = useState<Crafter[]>([]);
+  const [crafterNotes, setCrafterNotes] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,12 +48,13 @@ export function GuildCrafters() {
     setLoading(true);
     setError(null);
     api
-      .get<{ recipes: Recipe[]; crafters: Crafter[] }>(
+      .get<{ recipes: Recipe[]; crafters: Crafter[]; crafter_notes?: Record<string, string> }>(
         `/auth/me/guild-recipes?guild_realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
       )
       .then((r) => {
         setRecipes(r.recipes ?? []);
         setCrafters(r.crafters ?? []);
+        setCrafterNotes(r.crafter_notes ?? {});
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
       .finally(() => setLoading(false));
@@ -143,6 +145,19 @@ export function GuildCrafters() {
                   </span>
                 ))}
               </div>
+              {Object.keys(crafterNotes).length > 0 && (
+                <div className="mt-3 pt-3 border-t border-slate-600/50 space-y-1">
+                  <h3 className="text-slate-400 font-medium text-xs mb-2">Crafter notes</h3>
+                  {Object.entries(crafterNotes).map(([key, note]) => {
+                    const orig = crafters.find((c) => c.character_name.toLowerCase() === key)?.character_name ?? key;
+                    return (
+                      <div key={key} className="text-slate-400 text-sm">
+                        <span className="text-slate-300 font-medium">{orig}:</span> {note}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div className="rounded-xl border border-slate-700 p-4 mb-6" style={{ background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)" }}>

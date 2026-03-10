@@ -1224,6 +1224,53 @@ authRoutes.get("/me/guild-crafters-management", requireAuth, async (req, res) =>
     res.status(403).json({ error: "You do not have permission to manage guild crafters" });
     return;
   }
+
+  const stars = db
+    .prepare(
+      `SELECT character_name, profession_type FROM guild_profession_stars
+       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?`
+    )
+    .all(realmSlug, guildName, serverType) as Array<{ character_name: string; profession_type: string }>;
+  const starsByChar = new Map<string, string[]>();
+  for (const s of stars) {
+    const key = s.character_name.toLowerCase();
+    if (!starsByChar.has(key)) starsByChar.set(key, []);
+    starsByChar.get(key)!.push(s.profession_type);
+  }
+
+  // TBC Anniversary: manual crafter roster (no Blizzard professions API)
+  if (serverType === "TBC Anniversary") {
+    const crafters = db
+      .prepare(
+        `SELECT character_name, professions, profession_notes FROM guild_crafter_roster
+         WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?
+         ORDER BY character_name`
+      )
+      .all(realmSlug, guildName, serverType) as Array<{
+        character_name: string;
+        professions: string | null;
+        profession_notes: string | null;
+      }>;
+    const members = crafters.map((c) => {
+      let profs: string[] = [];
+      try {
+        if (c.professions) profs = JSON.parse(c.professions) as string[];
+      } catch {
+        /* ignore */
+      }
+      return {
+        name: c.character_name,
+        class: "",
+        level: 0,
+        professions: profs,
+        profession_notes: c.profession_notes || "",
+        guild_profession_stars: starsByChar.get(c.character_name.toLowerCase()) ?? [],
+      };
+    });
+    res.json({ members, tbc_manual: true });
+    return;
+  }
+
   const userRow = db.prepare("SELECT battlenet_region FROM users WHERE id = ?").get(userId) as { battlenet_region: string | null } | undefined;
   const region = userRow?.battlenet_region ?? "us";
   let roster: { name: string; realm: string; members: Array<{ name: string; class: string; level: number }> };
@@ -1295,18 +1342,6 @@ authRoutes.get("/me/guild-crafters-management", requireAuth, async (req, res) =>
       await new Promise((resolve) => setTimeout(resolve, 60));
     }
   }
-  const stars = db
-    .prepare(
-      `SELECT character_name, profession_type FROM guild_profession_stars
-       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?`
-    )
-    .all(realmSlug, guildName, serverType) as Array<{ character_name: string; profession_type: string }>;
-  const starsByChar = new Map<string, string[]>();
-  for (const s of stars) {
-    const key = s.character_name.toLowerCase();
-    if (!starsByChar.has(key)) starsByChar.set(key, []);
-    starsByChar.get(key)!.push(s.profession_type);
-  }
   const members = roster.members.map((m) => {
     const profs = professionsByChar.get(m.name.toLowerCase()) ?? [];
     const starList = starsByChar.get(m.name.toLowerCase()) ?? [];
@@ -1341,18 +1376,29 @@ authRoutes.put("/me/guild-profession-star", requireAuth, async (req, res) => {
     res.status(403).json({ error: "You do not have permission to manage guild crafters" });
     return;
   }
-  const userRow = db.prepare("SELECT battlenet_region FROM users WHERE id = ?").get(userId) as { battlenet_region: string | null } | undefined;
-  const region = userRow?.battlenet_region ?? "us";
-  try {
-    const roster = await fetchGuildRoster(region, realmSlug, guild_name, serverType);
-    const isInGuild = roster.members.some((m) => m.name.toLowerCase() === charName.toLowerCase());
-    if (!isInGuild) {
-      res.status(400).json({ error: "Character is not in this guild" });
+  if (serverType === "TBC Anniversary") {
+    const exists = db.prepare(
+      `SELECT 1 FROM guild_crafter_roster
+       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)`
+    ).get(realmSlug, guild_name, serverType, charName);
+    if (!exists) {
+      res.status(400).json({ error: "Character must be added to the crafter roster before starring" });
       return;
     }
-  } catch {
-    res.status(400).json({ error: "Could not verify guild roster. Ensure the guild exists and try again." });
-    return;
+  } else {
+    const userRow = db.prepare("SELECT battlenet_region FROM users WHERE id = ?").get(userId) as { battlenet_region: string | null } | undefined;
+    const region = userRow?.battlenet_region ?? "us";
+    try {
+      const roster = await fetchGuildRoster(region, realmSlug, guild_name, serverType);
+      const isInGuild = roster.members.some((m) => m.name.toLowerCase() === charName.toLowerCase());
+      if (!isInGuild) {
+        res.status(400).json({ error: "Character is not in this guild" });
+        return;
+      }
+    } catch {
+      res.status(400).json({ error: "Could not verify guild roster. Ensure the guild exists and try again." });
+      return;
+    }
   }
   if (starred) {
     db.prepare(
@@ -1365,6 +1411,122 @@ authRoutes.put("/me/guild-profession-star", requireAuth, async (req, res) => {
        WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?) AND profession_type = ?`
     ).run(realmSlug, guild_name, serverType, charName, profession_type);
   }
+  res.json({ ok: true });
+});
+
+// TBC Anniversary: add/update/remove manual crafter
+authRoutes.post("/me/guild-crafter", requireAuth, (req, res) => {
+  const { realm, guild_name, server_type, character_name, professions, profession_notes } = req.body;
+  if (!realm || !guild_name || !character_name || typeof character_name !== "string") {
+    res.status(400).json({ error: "realm, guild_name, and character_name required" });
+    return;
+  }
+  const serverType = server_type || "Retail";
+  if (serverType !== "TBC Anniversary") {
+    res.status(400).json({ error: "Manual crafter add is only for TBC Anniversary" });
+    return;
+  }
+  const db = getDb();
+  const userId = req.session!.user!.id;
+  const realmSlug = String(realm).toLowerCase().replace(/\s+/g, "-");
+  const charName = String(character_name).trim();
+  const perms = getEffectiveGuildPermissions(db, userId, realmSlug, guild_name, serverType);
+  if (!perms?.manage_guild_crafters) {
+    res.status(403).json({ error: "You do not have permission to manage guild crafters" });
+    return;
+  }
+  const profsJson = Array.isArray(professions)
+    ? JSON.stringify(professions.filter((p: unknown) => typeof p === "string"))
+    : "[]";
+  const notes = typeof profession_notes === "string" ? profession_notes.trim() : "";
+  db.prepare(
+    `INSERT OR REPLACE INTO guild_crafter_roster (guild_realm_slug, guild_name, server_type, character_name, professions, profession_notes)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(realmSlug, guild_name, serverType, charName, profsJson, notes || null);
+  res.json({ ok: true });
+});
+
+authRoutes.put("/me/guild-crafter", requireAuth, (req, res) => {
+  const { realm, guild_name, server_type, character_name, professions, profession_notes } = req.body;
+  if (!realm || !guild_name || !character_name || typeof character_name !== "string") {
+    res.status(400).json({ error: "realm, guild_name, and character_name required" });
+    return;
+  }
+  const serverType = server_type || "Retail";
+  if (serverType !== "TBC Anniversary") {
+    res.status(400).json({ error: "Manual crafter update is only for TBC Anniversary" });
+    return;
+  }
+  const db = getDb();
+  const userId = req.session!.user!.id;
+  const realmSlug = String(realm).toLowerCase().replace(/\s+/g, "-");
+  const charName = String(character_name).trim();
+  const perms = getEffectiveGuildPermissions(db, userId, realmSlug, guild_name, serverType);
+  if (!perms?.manage_guild_crafters) {
+    res.status(403).json({ error: "You do not have permission to manage guild crafters" });
+    return;
+  }
+  const exists = db.prepare(
+    `SELECT 1 FROM guild_crafter_roster
+     WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)`
+  ).get(realmSlug, guild_name, serverType, charName);
+  if (!exists) {
+    res.status(404).json({ error: "Crafter not found" });
+    return;
+  }
+  const profsJson = Array.isArray(professions)
+    ? JSON.stringify(professions.filter((p: unknown) => typeof p === "string"))
+    : null;
+  const notes = typeof profession_notes === "string" ? profession_notes.trim() : null;
+  const updates: string[] = [];
+  const values: unknown[] = [];
+  if (professions !== undefined) {
+    updates.push("professions = ?");
+    values.push(profsJson ?? "[]");
+  }
+  if (profession_notes !== undefined) {
+    updates.push("profession_notes = ?");
+    values.push(notes);
+  }
+  if (updates.length > 0) {
+    values.push(realmSlug, guild_name, serverType, charName);
+    db.prepare(
+      `UPDATE guild_crafter_roster SET ${updates.join(", ")}
+       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)`
+    ).run(...values);
+  }
+  res.json({ ok: true });
+});
+
+authRoutes.delete("/me/guild-crafter", requireAuth, (req, res) => {
+  const realm = (req.query.realm as string)?.trim();
+  const guildName = (req.query.guild_name as string)?.trim();
+  const serverType = (req.query.server_type as string) || "Retail";
+  const characterName = (req.query.character_name as string)?.trim();
+  if (!realm || !guildName || !characterName) {
+    res.status(400).json({ error: "realm, guild_name, and character_name required" });
+    return;
+  }
+  if (serverType !== "TBC Anniversary") {
+    res.status(400).json({ error: "Manual crafter delete is only for TBC Anniversary" });
+    return;
+  }
+  const db = getDb();
+  const userId = req.session!.user!.id;
+  const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
+  const perms = getEffectiveGuildPermissions(db, userId, realmSlug, guildName, serverType);
+  if (!perms?.manage_guild_crafters) {
+    res.status(403).json({ error: "You do not have permission to manage guild crafters" });
+    return;
+  }
+  db.prepare(
+    `DELETE FROM guild_crafter_roster
+     WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)`
+  ).run(realmSlug, guildName, serverType, characterName);
+  db.prepare(
+    `DELETE FROM guild_profession_stars
+     WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)`
+  ).run(realmSlug, guildName, serverType, characterName);
   res.json({ ok: true });
 });
 
@@ -1518,12 +1680,25 @@ authRoutes.get("/me/guild-recipes", requireAuth, (req, res) => {
   }
   const crafters = db
     .prepare(
-      `SELECT character_name, profession_type FROM guild_profession_stars
-       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?
-       ORDER BY profession_type, character_name`
+      `SELECT gps.character_name, gps.profession_type
+       FROM guild_profession_stars gps
+       WHERE gps.guild_realm_slug = ? AND gps.guild_name = ? AND gps.server_type = ?
+       ORDER BY gps.profession_type, gps.character_name`
     )
     .all(realmSlug, guildName, serverType) as Array<{ character_name: string; profession_type: string }>;
-  res.json({ recipes, crafters });
+  let crafterNotes: Record<string, string> = {};
+  if (serverType === "TBC Anniversary") {
+    const notesRows = db
+      .prepare(
+        `SELECT character_name, profession_notes FROM guild_crafter_roster
+         WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND profession_notes IS NOT NULL AND profession_notes != ''`
+      )
+      .all(realmSlug, guildName, serverType) as Array<{ character_name: string; profession_notes: string | null }>;
+    for (const r of notesRows) {
+      if (r.profession_notes) crafterNotes[r.character_name.toLowerCase()] = r.profession_notes;
+    }
+  }
+  res.json({ recipes, crafters, crafter_notes: crafterNotes });
 });
 
 authRoutes.put("/me/raider-roster", requireAuth, (req, res) => {

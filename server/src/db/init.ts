@@ -459,6 +459,21 @@ export function initDb() {
     )
   `);
 
+  // Guild crafter roster (TBC Anniversary): manual crafter list when Blizzard API has no professions
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS guild_crafter_roster (
+      guild_realm_slug TEXT NOT NULL,
+      guild_name TEXT NOT NULL,
+      server_type TEXT NOT NULL DEFAULT 'Retail',
+      character_name TEXT NOT NULL,
+      professions TEXT,
+      profession_notes TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      PRIMARY KEY (guild_realm_slug, guild_name, server_type, character_name)
+    )
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_guild_crafter_roster_lookup ON guild_crafter_roster(guild_realm_slug, guild_name, server_type)");
+
   // Character recipes: which raid-support recipes a character has (for search/filter)
   db.exec(`
     CREATE TABLE IF NOT EXISTS character_recipes (
