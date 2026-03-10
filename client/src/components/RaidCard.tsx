@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useToast } from "../context/ToastContext";
 import { formatRaidDateShort, formatTimeRange } from "../utils/raidDateTime";
 
 export type RaidStatus = "forming" | "formed" | "in-progress" | "complete";
@@ -71,11 +72,19 @@ export function RaidCard({
   isAssigned?: boolean;
   baseUrl?: string;
 }) {
+  const toast = useToast();
   const dateShort = formatRaidDateShort(raid.raid_date);
   const timeRange = formatTimeRange(raid.start_time, raid.finish_time);
   const instanceShort = raid.raid_instance || "Raid";
   const sc = raid.slot_counts;
   const status = raid.raid_status as RaidStatus | undefined;
+
+  const copyRaidLink = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const link = `${window.location.origin}${baseUrl}/${raid.id}`;
+    navigator.clipboard.writeText(link).then(() => toast.showSuccess("Raid link copied")).catch(() => toast.showError("Failed to copy link"));
+  };
 
   return (
     <div
@@ -126,6 +135,14 @@ export function RaidCard({
           )}
         </div>
         <div className="flex shrink-0 gap-2">
+          <button
+            type="button"
+            onClick={copyRaidLink}
+            className="h-9 px-3.5 rounded-lg bg-slate-700 hover:bg-slate-600 border border-slate-600 text-slate-300 text-sm font-medium flex items-center justify-center"
+            title="Copy raid link"
+          >
+            Copy Link
+          </button>
           <Link
             to={showSignUp && !isAssigned ? `${baseUrl}/${raid.id}#signup` : `${baseUrl}/${raid.id}`}
             className="h-9 px-3.5 rounded-lg bg-slate-600 hover:bg-slate-500 border border-slate-500 text-slate-100 text-sm font-medium flex items-center justify-center"

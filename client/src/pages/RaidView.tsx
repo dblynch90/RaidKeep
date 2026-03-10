@@ -238,13 +238,27 @@ export function RaidView() {
           currentPage={raid.raid_name}
         />
         <div className="mb-6">
-          <h1 className="text-xl font-bold text-sky-400">{raid.raid_name}</h1>
-          <p className="text-slate-400 text-sm mt-0.5">
-            {raid.raid_instance || "Raid"} · {raid.guild_name} · {capitalizeRealm(raid.guild_realm)} · {raid.server_type}
-          </p>
-          <p className="text-slate-500 text-sm mt-1">
-            {formatRaidDateTime(raid.raid_date, raid.start_time, raid.finish_time)}
-          </p>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h1 className="text-xl font-bold text-sky-400">{raid.raid_name}</h1>
+              <p className="text-slate-400 text-sm mt-0.5">
+                {raid.raid_instance || "Raid"} · {raid.guild_name} · {capitalizeRealm(raid.guild_realm)} · {raid.server_type}
+              </p>
+              <p className="text-slate-500 text-sm mt-1">
+                {formatRaidDateTime(raid.raid_date, raid.start_time, raid.finish_time)}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const link = `${window.location.origin}/raid/${raid.id}`;
+                navigator.clipboard.writeText(link).then(() => toast.showSuccess("Raid link copied")).catch(() => toast.showError("Failed to copy link"));
+              }}
+              className="shrink-0 px-3 py-1.5 rounded-lg bg-slate-600 hover:bg-slate-500 border border-slate-500 text-slate-200 text-sm font-medium"
+            >
+              Copy Raid Link
+            </button>
+          </div>
         </div>
 
         <div className="space-y-4">
