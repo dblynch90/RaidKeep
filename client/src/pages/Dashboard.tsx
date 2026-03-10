@@ -518,16 +518,21 @@ export function Dashboard() {
     }
     setPendingGuildClick(g);
     if (!loaded) {
-      api
-        .get<{ permissions: GuildPermissions }>(
-          `/auth/me/guild-permissions?realm=${encodeURIComponent(g.realmSlug)}&guild_name=${encodeURIComponent(g.guildName)}&server_type=${encodeURIComponent(g.serverType)}`
-        )
-        .then((r) => {
-          setGuildPermissions((prev) => ({ ...prev, [key]: r.permissions }));
-        })
-        .catch(() => {
+      const url = `/auth/me/guild-permissions?realm=${encodeURIComponent(g.realmSlug)}&guild_name=${encodeURIComponent(g.guildName)}&server_type=${encodeURIComponent(g.serverType)}`;
+      api.get<{ permissions: GuildPermissions }>(url).then((r) => {
+        const fetched = r.permissions;
+        setGuildPermissions((prev) => ({ ...prev, [key]: fetched }));
+        if (fetched.view_guild_dashboard) {
           setPendingGuildClick(null);
-        });
+          navigate(
+            `/guild-dashboard?realm=${encodeURIComponent(g.realmSlug)}&guild_name=${encodeURIComponent(g.guildName)}&server_type=${encodeURIComponent(g.serverType)}`
+          );
+        } else {
+          setPendingGuildClick(null);
+        }
+      }).catch(() => {
+        setPendingGuildClick(null);
+      });
     }
   };
 
