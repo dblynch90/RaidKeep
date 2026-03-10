@@ -850,5 +850,17 @@ adminRoutes.delete("/guild/:realmSlug/:guildName", requireAdmin, (req, res) => {
   db.prepare(
     "DELETE FROM guild_character_overrides WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?"
   ).run(realmSlug, guildName, serverType);
+  db.prepare(
+    "DELETE FROM guild_member_professions WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?"
+  ).run(realmSlug, guildName, serverType);
+  db.prepare(
+    "DELETE FROM guild_crafter_roster WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?"
+  ).run(realmSlug, guildName, serverType);
+  db.prepare(
+    "DELETE FROM guild_profession_stars WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?"
+  ).run(realmSlug, guildName, serverType);
+  db.prepare(
+    "DELETE FROM character_recipes WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?"
+  ).run(realmSlug, guildName, serverType);
   res.json({ ok: true });
 });

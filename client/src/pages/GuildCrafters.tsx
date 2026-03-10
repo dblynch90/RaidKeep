@@ -501,11 +501,10 @@ export function GuildCrafters() {
                                 key={m.name}
                                 className="border-b border-slate-700/60 hover:bg-slate-800/50"
                               >
-                                <td className="py-2 pr-4 align-top border-l-4" style={{ borderLeftColor: classColor }}>
+                                <td className="py-2 pr-4 pl-3 align-top border-l-4" style={{ borderLeftColor: classColor }}>
                                   <span className="font-medium" style={{ color: classColor }}>{m.name}</span>
-                                  <span className="text-slate-500"> – {m.level} – {m.class}</span>
                                 </td>
-                                <td className="py-2">
+                                <td className="py-2 align-top">
                                   <div className="flex flex-wrap gap-1.5 items-center">
                                     {m.professions.length === 0 ? (
                                       <span className="text-slate-500">—</span>
