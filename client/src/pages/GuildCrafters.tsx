@@ -84,6 +84,7 @@ export function GuildCrafters() {
   const canManage = permissions?.manage_guild_crafters ?? false;
   const isOwnChar = (charName: string) => myCharacterNames.has(charName.toLowerCase());
   const canEditMember = (charName: string) => canManage || isOwnChar(charName);
+  const canRemoveMember = (charName: string) => canManage || isOwnChar(charName);
 
   const crafterMap = useMemo(() => {
     const m = new Map<string, Member>();
@@ -227,6 +228,18 @@ export function GuildCrafters() {
     api
       .delete(
         `/auth/me/guild-member-profession?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}&character_name=${encodeURIComponent(charName)}&profession_type=${encodeURIComponent(prof)}`
+      )
+      .then(() => {
+        fetchData();
+        setEditProfession(null);
+      })
+      .catch(() => {});
+  };
+
+  const removeCrafterFromList = (charName: string) => {
+    api
+      .delete(
+        `/auth/me/guild-crafter-list?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}&character_name=${encodeURIComponent(charName)}`
       )
       .then(() => {
         fetchData();
@@ -400,8 +413,7 @@ export function GuildCrafters() {
                               <span className="text-slate-500"> – {m.level} – {m.class}</span>
                             </span>
                             {isCrafter ? (
-                              <span className="shrink-0 h-7 flex items-center gap-1 text-emerald-400 text-sm font-medium">
-                                <span>✓</span>
+                              <span className="shrink-0 h-7 flex items-center text-emerald-400 text-sm font-medium">
                                 ✓
                               </span>
                             ) : canAdd ? (
@@ -485,7 +497,20 @@ export function GuildCrafters() {
                                 className="border-b border-slate-700/60 hover:bg-slate-800/50"
                               >
                                 <td className="py-2 pr-4 pl-3 align-middle border-l-4" style={{ borderLeftColor: classColor }}>
-                                  <span className="font-medium" style={{ color: classColor }}>{m.name}</span>
+                                  <div className="flex items-center gap-2">
+                                    {canRemoveMember(m.name) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => removeCrafterFromList(m.name)}
+                                        className="w-6 h-6 flex items-center justify-center rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 shrink-0"
+                                        title="Remove from list"
+                                        aria-label="Remove from list"
+                                      >
+                                        ×
+                                      </button>
+                                    )}
+                                    <span className="font-medium" style={{ color: classColor }}>{m.name}</span>
+                                  </div>
                                 </td>
                                 <td className="py-2 align-middle">
                                   <div className="flex flex-wrap gap-1.5 items-center">

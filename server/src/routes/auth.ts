@@ -1727,6 +1727,46 @@ authRoutes.get("/me/guild-crafters-full", requireAuth, async (req, res) => {
   });
 });
 
+authRoutes.delete("/me/guild-crafter-list", requireAuth, (req, res) => {
+  const realm = (req.query.realm as string)?.trim();
+  const guildName = (req.query.guild_name as string)?.trim();
+  const serverType = (req.query.server_type as string) || "Retail";
+  const characterName = (req.query.character_name as string)?.trim();
+  if (!realm || !guildName || !characterName) {
+    res.status(400).json({ error: "realm, guild_name, and character_name required" });
+    return;
+  }
+  const db = getDb();
+  const userId = req.session!.user!.id;
+  const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
+  const perms = getEffectiveGuildPermissions(db, userId, realmSlug, guildName, serverType);
+  const myCharRows = db
+    .prepare(
+      `SELECT LOWER(name) as name FROM battle_net_characters WHERE user_id = ? AND LOWER(realm_slug) = ? AND server_type = ?`
+    )
+    .all(userId, realmSlug, serverType) as Array<{ name: string }>;
+  const myChars = new Set(myCharRows.map((r) => r.name));
+  const isOwn = myChars.has(characterName.toLowerCase());
+  const canRemove = perms?.manage_guild_crafters || (perms?.view_guild_roster && isOwn);
+  if (!canRemove) {
+    res.status(403).json({ error: "You can only remove your own character, or manage as officer" });
+    return;
+  }
+  db.prepare(
+    `DELETE FROM guild_member_professions
+     WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)`
+  ).run(realmSlug, guildName, serverType, characterName);
+  db.prepare(
+    `DELETE FROM guild_profession_stars
+     WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)`
+  ).run(realmSlug, guildName, serverType, characterName);
+  db.prepare(
+    `DELETE FROM guild_crafter_list
+     WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)`
+  ).run(realmSlug, guildName, serverType, characterName);
+  res.json({ ok: true });
+});
+
 authRoutes.post("/me/guild-crafter-list", requireAuth, (req, res) => {
   const { realm, guild_name, server_type, character_names } = req.body;
   if (!realm || !guild_name || !Array.isArray(character_names) || character_names.length === 0) {
