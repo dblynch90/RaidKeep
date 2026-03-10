@@ -23,7 +23,7 @@ export function Register() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-900 px-4">
+    <div className="min-h-screen flex items-center justify-center px-4 text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
       <div className="w-full max-w-3xl bg-slate-800 rounded-xl px-6 pt-4 pb-6 shadow-xl border border-amber-900/50">
         <div className="mb-2 w-full">
           <Logo variant="hero" link={false} />

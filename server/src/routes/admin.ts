@@ -456,21 +456,9 @@ adminRoutes.get("/guild/:realmSlug/:guildName/roster", requireAdmin, (req, res) 
        ORDER BY character_name`
     )
     .all(realmSlug, guildName, serverType);
-  const stars = db
-    .prepare(
-      `SELECT character_name, profession_type FROM guild_member_professions
-       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND is_guild_crafter = 1`
-    )
-    .all(realmSlug, guildName, serverType) as Array<{ character_name: string; profession_type: string }>;
-  const starsByChar = new Map<string, string[]>();
-  for (const s of stars) {
-    const key = s.character_name.toLowerCase();
-    if (!starsByChar.has(key)) starsByChar.set(key, []);
-    starsByChar.get(key)!.push(s.profession_type);
-  }
   const rosterWithStars = (roster as Array<Record<string, unknown>>).map((r) => ({
     ...r,
-    guild_profession_stars: starsByChar.get((r.character_name as string).toLowerCase()) ?? [],
+    guild_profession_stars: [] as string[],
   }));
   res.json({ roster: rosterWithStars, profession_types: [...PROFESSION_TYPES] });
 });
@@ -587,22 +575,7 @@ adminRoutes.put("/guild/:realmSlug/:guildName/profession-stars/:charName", requi
     res.status(400).json({ error: "Invalid profession_type" });
     return;
   }
-  const db = getDb();
-  if (starred) {
-    db.prepare(
-      `INSERT OR IGNORE INTO guild_member_professions (guild_realm_slug, guild_name, server_type, character_name, profession_type, notes, is_guild_crafter)
-       VALUES (?, ?, ?, ?, ?, NULL, 1)`
-    ).run(realmSlug, guildName, serverType, charName, profession_type);
-    db.prepare(
-      `UPDATE guild_member_professions SET is_guild_crafter = 1
-       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?) AND profession_type = ?`
-    ).run(realmSlug, guildName, serverType, charName, profession_type);
-  } else {
-    db.prepare(
-      `UPDATE guild_member_professions SET is_guild_crafter = 0
-       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?) AND profession_type = ?`
-    ).run(realmSlug, guildName, serverType, charName, profession_type);
-  }
+  // Guild Crafter starring removed; endpoint kept for backwards compatibility
   res.json({ ok: true });
 });
 

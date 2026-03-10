@@ -282,7 +282,7 @@ export function RaiderRoster() {
     return [...raiders]
       .filter((r) => !q || r.character_name.toLowerCase().includes(q))
       .filter((r) => !raiderClassFilter || r.character_class === raiderClassFilter)
-      .filter((r) => !professionFilter || r.guild_profession_stars?.includes(professionFilter) || r.professions?.includes(professionFilter))
+      .filter((r) => !professionFilter || r.professions?.includes(professionFilter))
       .filter((r) => {
         const gm = guildMemberByLowerName.get(r.character_name.toLowerCase());
         if (!gm) return true;
@@ -900,11 +900,6 @@ export function RaiderRoster() {
                                 <div className="flex flex-col gap-1.5 min-w-0">
                                   <span className="font-medium text-slate-100 truncate" style={{ color: classColor }}>
                                     {r.character_name} {guildMember ? `- ${guildMember.level}` : ""} {r.character_class}
-                                    {(r.guild_profession_stars?.length ?? 0) > 0 && (
-                                      <span className="ml-1.5 text-amber-400 text-xs font-normal" title={`Guild: ${r.guild_profession_stars!.join(", ")}`}>
-                                        ★ {r.guild_profession_stars!.join(", ")}
-                                      </span>
-                                    )}
                                   </span>
                                   {canEdit && (
                                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">

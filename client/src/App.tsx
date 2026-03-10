@@ -27,7 +27,7 @@ function ProtectedRoute({ children, bare }: { children: React.ReactNode; bare?: 
   const { user, loading } = useAuth();
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center gap-6">
+      <div className="min-h-screen text-slate-100 flex flex-col items-center justify-center gap-6" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
         <img src="/logo.png" alt="RaidKeep" className="h-14 w-auto object-contain opacity-90" />
         <p className="text-slate-400">Loading...</p>
       </div>
@@ -176,7 +176,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <ToastProvider>
-        <div className="min-h-screen flex flex-col bg-slate-900">
+        <div className="min-h-screen flex flex-col text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
           <div className="flex-1">
             <AppRoutes />
           </div>

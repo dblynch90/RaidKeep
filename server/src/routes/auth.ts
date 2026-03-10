@@ -1225,19 +1225,6 @@ authRoutes.get("/me/guild-crafters-management", requireAuth, async (req, res) =>
     return;
   }
 
-  const stars = db
-    .prepare(
-      `SELECT character_name, profession_type FROM guild_member_professions
-       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND is_guild_crafter = 1`
-    )
-    .all(realmSlug, guildName, serverType) as Array<{ character_name: string; profession_type: string }>;
-  const starsByChar = new Map<string, string[]>();
-  for (const s of stars) {
-    const key = s.character_name.toLowerCase();
-    if (!starsByChar.has(key)) starsByChar.set(key, []);
-    starsByChar.get(key)!.push(s.profession_type);
-  }
-
   // TBC Anniversary: merge with legacy guild_crafter_roster (manual crafter list)
   if (serverType === "TBC Anniversary") {
     const crafters = db
@@ -1264,7 +1251,7 @@ authRoutes.get("/me/guild-crafters-management", requireAuth, async (req, res) =>
         level: 0,
         professions: profs,
         profession_notes: c.profession_notes || "",
-        guild_profession_stars: starsByChar.get(c.character_name.toLowerCase()) ?? [],
+        guild_profession_stars: [],
       };
     });
     res.json({ members, tbc_manual: true });
@@ -1344,13 +1331,12 @@ authRoutes.get("/me/guild-crafters-management", requireAuth, async (req, res) =>
   }
   const members = roster.members.map((m) => {
     const profs = professionsByChar.get(m.name.toLowerCase()) ?? [];
-    const starList = starsByChar.get(m.name.toLowerCase()) ?? [];
     return {
       name: m.name,
       class: m.class,
       level: m.level,
       professions: profs,
-      guild_profession_stars: starList,
+      guild_profession_stars: [] as string[],
     };
   });
   res.json({ members });
@@ -1400,21 +1386,7 @@ authRoutes.put("/me/guild-profession-star", requireAuth, async (req, res) => {
       return;
     }
   }
-  if (starred) {
-    db.prepare(
-      `INSERT OR IGNORE INTO guild_member_professions (guild_realm_slug, guild_name, server_type, character_name, profession_type, notes, is_guild_crafter)
-       VALUES (?, ?, ?, ?, ?, NULL, 1)`
-    ).run(realmSlug, guild_name, serverType, charName, profession_type);
-    db.prepare(
-      `UPDATE guild_member_professions SET is_guild_crafter = 1
-       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?) AND profession_type = ?`
-    ).run(realmSlug, guild_name, serverType, charName, profession_type);
-  } else {
-    db.prepare(
-      `UPDATE guild_member_professions SET is_guild_crafter = 0
-       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?) AND profession_type = ?`
-    ).run(realmSlug, guild_name, serverType, charName, profession_type);
-  }
+  // Guild Crafter starring removed; endpoint kept for backwards compatibility
   res.json({ ok: true });
 });
 
@@ -1584,21 +1556,9 @@ authRoutes.get("/me/raider-roster", requireAuth, (req, res) => {
         .all(guildOwner.user_id, realmSlug, guildName, serverType);
     }
   }
-  const stars = db
-    .prepare(
-      `SELECT character_name, profession_type FROM guild_member_professions
-       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND is_guild_crafter = 1`
-    )
-    .all(realmSlug, guildName, serverType) as Array<{ character_name: string; profession_type: string }>;
-  const starsByChar = new Map<string, string[]>();
-  for (const s of stars) {
-    const key = s.character_name.toLowerCase();
-    if (!starsByChar.has(key)) starsByChar.set(key, []);
-    starsByChar.get(key)!.push(s.profession_type);
-  }
   raiders = (raiders as Array<Record<string, unknown> & { character_name?: string }>).map((r) => ({
     ...r,
-    guild_profession_stars: starsByChar.get((r.character_name || "").toLowerCase()) ?? [],
+    guild_profession_stars: [] as string[],
     professions: (() => {
       try {
         const p = (r as { professions?: string | null }).professions;
@@ -1652,7 +1612,7 @@ authRoutes.get("/me/guild-recipes", requireAuth, (req, res) => {
     .prepare(
       `SELECT character_name, profession_type, notes
        FROM guild_member_professions
-       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND is_guild_crafter = 1
+       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?
        ORDER BY profession_type, character_name`
     )
     .all(realmSlug, guildName, serverType) as Array<{ character_name: string; profession_type: string; notes: string | null }>;
@@ -1683,7 +1643,7 @@ authRoutes.get("/me/guild-crafters-full", requireAuth, async (req, res) => {
   }
   const rows = db
     .prepare(
-      `SELECT character_name, profession_type, notes, is_guild_crafter
+      `SELECT character_name, profession_type, notes, profession_level
        FROM guild_member_professions
        WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?
        ORDER BY character_name, profession_type`
@@ -1692,11 +1652,11 @@ authRoutes.get("/me/guild-crafters-full", requireAuth, async (req, res) => {
       character_name: string;
       profession_type: string;
       notes: string | null;
-      is_guild_crafter: number;
+      profession_level: number | null;
     }>;
   const membersByChar = new Map<
     string,
-    { name: string; class: string; level: number; professions: Array<{ profession_type: string; notes: string; is_guild_crafter: boolean }> }
+    { name: string; class: string; level: number; professions: Array<{ profession_type: string; notes: string; profession_level: number | null }> }
   >();
   for (const r of rows) {
     const key = r.character_name.toLowerCase();
@@ -1711,7 +1671,7 @@ authRoutes.get("/me/guild-crafters-full", requireAuth, async (req, res) => {
     membersByChar.get(key)!.professions.push({
       profession_type: r.profession_type,
       notes: r.notes || "",
-      is_guild_crafter: r.is_guild_crafter === 1,
+      profession_level: r.profession_level,
     });
   }
   let guildRoster: Array<{ name: string; class: string; level: number }> = [];
@@ -1783,14 +1743,14 @@ authRoutes.post("/me/guild-member-profession", requireAuth, (req, res) => {
     return;
   }
   db.prepare(
-    `INSERT OR IGNORE INTO guild_member_professions (guild_realm_slug, guild_name, server_type, character_name, profession_type, notes, is_guild_crafter)
-     VALUES (?, ?, ?, ?, ?, NULL, 0)`
+    `INSERT OR IGNORE INTO guild_member_professions (guild_realm_slug, guild_name, server_type, character_name, profession_type, notes, profession_level)
+     VALUES (?, ?, ?, ?, ?, NULL, NULL)`
   ).run(realmSlug, guild_name, serverType, charName, profession_type);
   res.json({ ok: true });
 });
 
 authRoutes.put("/me/guild-member-profession", requireAuth, (req, res) => {
-  const { realm, guild_name, server_type, character_name, profession_type, notes, is_guild_crafter } = req.body;
+  const { realm, guild_name, server_type, character_name, profession_type, notes, profession_level } = req.body;
   if (!realm || !guild_name || !character_name || !profession_type || typeof character_name !== "string" || typeof profession_type !== "string") {
     res.status(400).json({ error: "realm, guild_name, character_name, and profession_type required" });
     return;
@@ -1820,9 +1780,9 @@ authRoutes.put("/me/guild-member-profession", requireAuth, (req, res) => {
     updates.push("notes = ?");
     values.push(typeof notes === "string" ? notes.trim() || null : null);
   }
-  if (is_guild_crafter !== undefined && canManage) {
-    updates.push("is_guild_crafter = ?");
-    values.push(is_guild_crafter ? 1 : 0);
+  if (profession_level !== undefined) {
+    updates.push("profession_level = ?");
+    values.push(profession_level === null || profession_level === "" ? null : Math.min(525, Math.max(0, +profession_level)));
   }
   if (updates.length === 0) {
     res.json({ ok: true });

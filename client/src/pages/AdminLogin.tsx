@@ -35,7 +35,7 @@ export function AdminLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen text-slate-100 flex flex-col items-center justify-center p-4" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
       <div
         className="w-full max-w-sm p-8 rounded-xl border border-slate-700"
         style={{

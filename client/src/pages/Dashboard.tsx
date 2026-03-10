@@ -559,7 +559,7 @@ export function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100">
+    <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
       <main className="max-w-6xl mx-auto px-4 py-8">
         <div className="flex flex-wrap items-center gap-4 mb-8">
           <div className="flex items-center gap-2">

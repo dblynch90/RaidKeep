@@ -103,7 +103,7 @@ export function ManageRaids() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[#0b1628]" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
+      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
         <main className="max-w-6xl mx-auto px-4 py-8">
           <p className="text-amber-500">{error}</p>
         </main>
@@ -113,7 +113,7 @@ export function ManageRaids() {
 
   if (!loading && !canViewRaidSchedule) {
     return (
-      <div className="min-h-screen bg-[#0b1628]" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
+      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
         <main className="max-w-6xl mx-auto px-4 py-8">
           <p className="text-amber-500">You do not have permission to view the raid schedule.</p>
         </main>

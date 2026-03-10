@@ -83,9 +83,9 @@ export function AdminDashboard() {
   if (!admin) return null;
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100">
+    <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
       <header className="border-b border-slate-700 bg-slate-800/50">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-lg font-semibold text-sky-400">Admin · RaidKeep</h1>
           <div className="flex items-center gap-4">
             <span className="text-slate-400 text-sm">{admin.username}</span>
@@ -98,7 +98,7 @@ export function AdminDashboard() {
           </div>
         </div>
       </header>
-      <main className="max-w-5xl mx-auto px-4 py-8">
+      <main className="max-w-6xl mx-auto px-4 py-8">
         <h2 className="text-xl font-semibold text-slate-200 mb-6">Active Guilds</h2>
         {loading ? (
           <p className="text-slate-500">Loading...</p>

@@ -772,7 +772,7 @@ export function PlanRaid() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-900 text-slate-100">
+      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
         <main className="max-w-6xl mx-auto px-4 py-8">
           <p className="text-amber-500">{error}</p>
         </main>
@@ -786,7 +786,7 @@ export function PlanRaid() {
       ? `/manage-raids?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
       : "/";
     return (
-      <div className="min-h-screen bg-slate-900 text-slate-100">
+      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
         <main className="max-w-6xl mx-auto px-4 py-8">
           <p className="text-amber-500 mb-4">You do not have permission to create or edit raids.</p>
           <Link to={manageRaidsUrl} className="text-sky-400 hover:text-sky-300">← Back to Raid Schedule</Link>
@@ -798,8 +798,8 @@ export function PlanRaid() {
   const sectionGap = "space-y-8";
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100">
-      <main className="max-w-5xl mx-auto px-4 py-8">
+    <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
+      <main className="max-w-6xl mx-auto px-4 py-8">
         {realm && guildName && (
           <GuildBreadcrumbs
             guildName={guildName}

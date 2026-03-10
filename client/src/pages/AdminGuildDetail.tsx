@@ -266,16 +266,16 @@ export function AdminGuildDetail() {
 
   if (!realmSlug || !guildName) {
     return (
-      <div className="min-h-screen bg-slate-900 text-slate-100 p-4">
+      <div className="min-h-screen text-slate-100 p-4" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
         <p className="text-amber-500 mt-4">Invalid guild.</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100">
+    <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
       <header className="border-b border-slate-700 bg-slate-800/50">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4">
+        <div className="max-w-6xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-xl font-semibold text-sky-400">{guildDisplay}</h1>
             <p className="text-slate-500 text-sm">{realmDisplay} · {serverType}</p>
@@ -295,7 +295,7 @@ export function AdminGuildDetail() {
           </div>
         </div>
       </header>
-      <main className="max-w-5xl mx-auto px-4 py-6">
+      <main className="max-w-6xl mx-auto px-4 py-6">
         <nav className="flex gap-2 mb-6 flex-wrap">
           {(["permissions", "raids", "teams", "roster"] as const).map((t) => (
             <button

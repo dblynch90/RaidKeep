@@ -144,7 +144,7 @@ export function RaidView() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-900 text-slate-100">
+      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
         <main className="max-w-6xl mx-auto px-4 py-8">
           <p className="text-amber-500">{error}</p>
         </main>
@@ -154,7 +154,7 @@ export function RaidView() {
 
   if (loading || !raid) {
     return (
-      <div className="min-h-screen bg-slate-900 text-slate-100">
+      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
         <main className="max-w-6xl mx-auto px-4 py-8">
           <p className="text-slate-500">Loading raid...</p>
         </main>
@@ -228,7 +228,7 @@ export function RaidView() {
   const raidScheduleUrl = `/raid-schedule?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(raid.guild_name)}&server_type=${encodeURIComponent(raid.server_type ?? "Retail")}`;
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100">
+    <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
       <main className="max-w-6xl mx-auto px-4 py-8">
         <GuildBreadcrumbs
           guildName={raid.guild_name}

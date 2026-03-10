@@ -2,6 +2,12 @@ import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 
+interface GuildMember {
+  name: string;
+  class: string;
+  level: number;
+}
+
 const CLASS_COLORS: Record<string, string> = {
   Warrior: "#C69B6D",
   Paladin: "#F58CBA",
@@ -59,8 +65,15 @@ export function RaidRosterPopout() {
 
   const [raiders, setRaiders] = useState<RaiderEntry[]>([]);
   const [teams, setTeams] = useState<RaidTeam[]>([]);
+  const [guildMembers, setGuildMembers] = useState<GuildMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [playerSearch, setPlayerSearch] = useState("");
+  const [classFilter, setClassFilter] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [minLevel, setMinLevel] = useState("");
+  const [maxLevel, setMaxLevel] = useState("");
 
   useEffect(() => {
     if (!realm || !guildName) {
@@ -84,10 +97,14 @@ export function RaidRosterPopout() {
       api.get<{ teams: RaidTeam[] }>(
         `/auth/me/raid-teams?guild_realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
       ).then((r) => (r.teams ?? []) as RaidTeam[]),
+      api.get<{ members?: GuildMember[] }>(
+        `/auth/me/guild-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
+      ).then((r) => (r.members ?? []) as GuildMember[]).catch(() => []),
     ])
-      .then(([raidersList, teamsList]) => {
+      .then(([raidersList, teamsList, membersList]) => {
         setRaiders(raidersList);
         setTeams(teamsList);
+        setGuildMembers(membersList);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load roster"))
       .finally(() => setLoading(false));
@@ -103,23 +120,65 @@ export function RaidRosterPopout() {
     return m;
   }, [teams]);
 
+  const levelByChar = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const g of guildMembers) m.set(g.name.toLowerCase(), g.level);
+    return m;
+  }, [guildMembers]);
+
   // Only show raiders who are in the raid roster (raider_roster), not all guild members.
   // When teams exist, filter to raiders in teams; otherwise show all from raider_roster
-  // (avoids showing full guild when raider_roster was bulk-synced from Blizzard)
   const raidersToShow = useMemo(() => {
     if (teams.length === 0) return raiders;
     const inTeam = new Set(characterToTeamId.keys());
     return raiders.filter((r) => inTeam.has(r.character_name.toLowerCase()));
   }, [raiders, teams.length, characterToTeamId]);
 
-  const sortedRaiders = useMemo(
-    () => [...raidersToShow].sort((a, b) => a.character_name.localeCompare(b.character_name, undefined, { sensitivity: "base" })),
+  const classList = useMemo(
+    () => [...new Set(raidersToShow.map((r) => r.character_class))].sort((a, b) => a.localeCompare(b)),
     [raidersToShow]
   );
 
+  const maxLevelInRoster = useMemo(() => {
+    if (raidersToShow.length === 0) return 80;
+    return Math.max(...raidersToShow.map((r) => levelByChar.get(r.character_name.toLowerCase()) ?? 0), 1);
+  }, [raidersToShow, levelByChar]);
+
+  const filteredRaiders = useMemo(() => {
+    let list = raidersToShow;
+    const search = playerSearch.trim().toLowerCase();
+    if (search) {
+      list = list.filter((r) => r.character_name.toLowerCase().includes(search));
+    }
+    if (classFilter) {
+      list = list.filter((r) => r.character_class === classFilter);
+    }
+    const roleLower = roleFilter.toLowerCase();
+    if (roleLower) {
+      list = list.filter((r) => (r.raid_role ?? "").toLowerCase() === roleLower);
+    }
+    const min = minLevel.trim() ? parseInt(minLevel, 10) : null;
+    const max = maxLevel.trim() ? parseInt(maxLevel, 10) : null;
+    if (min != null && !isNaN(min)) {
+      list = list.filter((r) => {
+        const lvl = levelByChar.get(r.character_name.toLowerCase());
+        return lvl == null || lvl >= min;
+      });
+    }
+    if (max != null && !isNaN(max)) {
+      list = list.filter((r) => {
+        const lvl = levelByChar.get(r.character_name.toLowerCase());
+        return lvl == null || lvl <= max;
+      });
+    }
+    return [...list].sort((a, b) => a.character_name.localeCompare(b.character_name, undefined, { sensitivity: "base" }));
+  }, [raidersToShow, playerSearch, classFilter, roleFilter, minLevel, maxLevel, levelByChar]);
+
+  const sortedRaiders = filteredRaiders;
+
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center p-8">
+      <div className="min-h-screen text-slate-100 flex items-center justify-center p-8" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
         <p className="text-amber-500">{error}</p>
       </div>
     );
@@ -127,23 +186,84 @@ export function RaidRosterPopout() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center p-8">
+      <div className="min-h-screen text-slate-100 flex items-center justify-center p-8" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
         <p className="text-slate-500">Loading roster...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100">
-      {/* Minimal header */}
+    <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
+      {/* Header with filters - similar to Guild Roster in PlanRaid */}
       <div className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur border-b border-slate-700/60 px-4 py-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
           <h1 className="text-lg font-semibold text-sky-400">
             {guildName} · Raid Roster
           </h1>
           <p className="text-slate-500 text-sm">
             {capitalizeRealm(realm)} · {serverType} · {sortedRaiders.length} raider{sortedRaiders.length !== 1 ? "s" : ""}
           </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="text"
+            placeholder="Search player..."
+            value={playerSearch}
+            onChange={(e) => setPlayerSearch(e.target.value)}
+            className="px-3 py-2 rounded-lg bg-slate-700/60 border border-slate-600 text-slate-100 placeholder-slate-500 text-sm w-40 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
+          />
+          <select
+            value={classFilter}
+            onChange={(e) => setClassFilter(e.target.value)}
+            className="px-2.5 py-2 rounded-lg bg-slate-700/60 border border-slate-600 text-slate-100 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
+          >
+            <option value="">All classes</option>
+            {classList.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          <select
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            className="px-2.5 py-2 rounded-lg bg-slate-700/60 border border-slate-600 text-slate-100 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
+          >
+            <option value="">All roles</option>
+            <option value="tank">Tank</option>
+            <option value="healer">Healer</option>
+            <option value="dps">DPS</option>
+          </select>
+          <div className="flex items-center gap-1.5">
+            <span className="text-slate-500 text-xs">Level:</span>
+            <input
+              type="number"
+              min={1}
+              max={maxLevelInRoster}
+              placeholder="Min"
+              value={minLevel}
+              onChange={(e) => setMinLevel(e.target.value)}
+              className="w-14 px-2 py-1.5 rounded-lg bg-slate-700/60 border border-slate-600 text-slate-100 text-sm placeholder-slate-600 [color-scheme:dark]"
+            />
+            <span className="text-slate-600">–</span>
+            <input
+              type="number"
+              min={1}
+              max={maxLevelInRoster}
+              placeholder="Max"
+              value={maxLevel}
+              onChange={(e) => setMaxLevel(e.target.value)}
+              className="w-14 px-2 py-1.5 rounded-lg bg-slate-700/60 border border-slate-600 text-slate-100 text-sm placeholder-slate-600 [color-scheme:dark]"
+            />
+            {(minLevel || maxLevel) && (
+              <button
+                type="button"
+                onClick={() => { setMinLevel(""); setMaxLevel(""); }}
+                className="text-slate-500 hover:text-slate-300 text-xs px-1"
+                title="Clear level filter"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

@@ -474,8 +474,7 @@ export function initDb() {
   `);
   db.exec("CREATE INDEX IF NOT EXISTS idx_guild_crafter_roster_lookup ON guild_crafter_roster(guild_realm_slug, guild_name, server_type)");
 
-  // Guild member professions: per (member, profession) with notes and guild-crafter flag
-  // Replaces the need for guild_profession_stars + per-profession notes
+  // Guild member professions: per (member, profession) with notes and level
   db.exec(`
     CREATE TABLE IF NOT EXISTS guild_member_professions (
       guild_realm_slug TEXT NOT NULL,
@@ -484,24 +483,30 @@ export function initDb() {
       character_name TEXT NOT NULL,
       profession_type TEXT NOT NULL,
       notes TEXT,
-      is_guild_crafter INTEGER NOT NULL DEFAULT 0,
+      profession_level INTEGER,
       created_at TEXT DEFAULT (datetime('now')),
       PRIMARY KEY (guild_realm_slug, guild_name, server_type, character_name, profession_type)
     )
   `);
   db.exec("CREATE INDEX IF NOT EXISTS idx_guild_member_professions_lookup ON guild_member_professions(guild_realm_slug, guild_name, server_type)");
 
-  // Migration: populate guild_member_professions from guild_profession_stars and guild_crafter_roster
+  // Migration: add profession_level to guild_member_professions
+  try {
+    const gmpCols = db.prepare("PRAGMA table_info(guild_member_professions)").all() as Array<{ name: string }>;
+    if (!gmpCols.some((c) => c.name === "profession_level")) {
+      db.exec("ALTER TABLE guild_member_professions ADD COLUMN profession_level INTEGER");
+    }
+  } catch {
+    /* ignore */
+  }
+
+  // Migration: populate guild_member_professions from guild_profession_stars and guild_crafter_roster (fresh DBs only)
   try {
     const count = (db.prepare("SELECT COUNT(*) as n FROM guild_member_professions").get() as { n: number }).n;
     if (count === 0) {
       const ins = db.prepare(
-        `INSERT OR IGNORE INTO guild_member_professions (guild_realm_slug, guild_name, server_type, character_name, profession_type, notes, is_guild_crafter)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
-      );
-      const updateStar = db.prepare(
-        `UPDATE guild_member_professions SET is_guild_crafter = 1
-         WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?) AND profession_type = ?`
+        `INSERT OR IGNORE INTO guild_member_professions (guild_realm_slug, guild_name, server_type, character_name, profession_type, notes, profession_level)
+         VALUES (?, ?, ?, ?, ?, ?, NULL)`
       );
       const roster = db.prepare(
         `SELECT guild_realm_slug, guild_name, server_type, character_name, professions, profession_notes
@@ -516,17 +521,14 @@ export function initDb() {
         }
         const notes = (r.profession_notes || "").trim() || null;
         for (let i = 0; i < profs.length; i++) {
-          ins.run(r.guild_realm_slug, r.guild_name, r.server_type, r.character_name, profs[i], i === 0 ? notes : null, 0);
+          ins.run(r.guild_realm_slug, r.guild_name, r.server_type, r.character_name, profs[i], i === 0 ? notes : null, null);
         }
       }
       const stars = db.prepare(
         `SELECT guild_realm_slug, guild_name, server_type, character_name, profession_type FROM guild_profession_stars`
       ).all() as Array<{ guild_realm_slug: string; guild_name: string; server_type: string; character_name: string; profession_type: string }>;
       for (const s of stars) {
-        const updated = updateStar.run(s.guild_realm_slug, s.guild_name, s.server_type, s.character_name, s.profession_type);
-        if (updated.changes === 0) {
-          ins.run(s.guild_realm_slug, s.guild_name, s.server_type, s.character_name, s.profession_type, null, 1);
-        }
+        ins.run(s.guild_realm_slug, s.guild_name, s.server_type, s.character_name, s.profession_type, null);
       }
     }
   } catch {

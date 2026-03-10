@@ -23,7 +23,7 @@ function getClassColor(className: string): string {
 interface MemberProfession {
   profession_type: string;
   notes: string;
-  is_guild_crafter: boolean;
+  profession_level: number | null;
 }
 
 interface Member {
@@ -77,7 +77,7 @@ export function GuildCrafters() {
   const [crafterClassFilter, setCrafterClassFilter] = useState("");
   const [professionFilter, setProfessionFilter] = useState("");
   const [addProfessionFor, setAddProfessionFor] = useState<string | null>(null);
-  const [editProfession, setEditProfession] = useState<{ member: string; profession: string; notes: string; is_guild_crafter: boolean } | null>(null);
+  const [editProfession, setEditProfession] = useState<{ member: string; profession: string; notes: string; profession_level: number | null } | null>(null);
 
   const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
 
@@ -215,7 +215,7 @@ export function GuildCrafters() {
 
   const clearGuildMemberSelection = () => setSelectedGuildMembers(new Set());
 
-  const updateProfession = (charName: string, prof: string, updates: { notes?: string; is_guild_crafter?: boolean }) => {
+  const updateProfession = (charName: string, prof: string, updates: { notes?: string; profession_level?: number | null }) => {
     api
       .put("/auth/me/guild-member-profession", {
         realm: realmSlug,
@@ -247,7 +247,7 @@ export function GuildCrafters() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-900 text-slate-100">
+      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
         <main className="max-w-6xl mx-auto px-4 py-8">
           <p className="text-amber-500">{error}</p>
         </main>
@@ -256,7 +256,7 @@ export function GuildCrafters() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100">
+    <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
       <main className="max-w-6xl mx-auto px-4 py-8">
         <GuildBreadcrumbs guildName={guildName} realm={realm} serverType={serverType} currentPage="Guild Crafters" />
 
@@ -442,7 +442,7 @@ export function GuildCrafters() {
               {activeTab === "crafters" && (
                 <>
                   <p className="text-slate-500 text-sm mb-3">
-                    View guild crafters and their professions. Officers can star crafters and set notes. Members can edit their own.
+                    View guild members and their professions. Officers can manage all. Members can edit their own.
                   </p>
                   {members.length > 0 && (
                     <div className="flex flex-wrap gap-3 mb-3">
@@ -476,7 +476,7 @@ export function GuildCrafters() {
                       </select>
                     </div>
                   )}
-                  <div className="max-h-[420px] overflow-y-auto space-y-2">
+                  <div className="max-h-[420px] overflow-y-auto">
                     {members.length === 0 ? (
                       <p className="text-slate-500 text-sm py-8 text-center">
                         No crafters yet. Switch to the Guild Members tab to add them.
@@ -486,56 +486,59 @@ export function GuildCrafters() {
                         No crafters match the current filters.
                       </p>
                     ) : (
-                      filteredCrafters.map((m) => {
-                        const classColor = getClassColor(m.class);
-                        return (
-                          <div
-                            key={m.name}
-                            className="rounded-lg border border-slate-600 overflow-hidden"
-                          >
-                            <div
-                              className="flex items-center gap-2 p-2"
-                              style={{ borderLeftWidth: 4, borderLeftColor: classColor }}
-                            >
-                              <span className="font-medium text-sm" style={{ color: classColor }}>{m.name}</span>
-                              <span className="text-slate-500 text-sm">– {m.level} – {m.class}</span>
-                            </div>
-                            <div className="border-t border-slate-600 p-2 space-y-1">
-                              {m.professions.length === 0 ? (
-                                <p className="text-slate-500 text-sm py-1">No professions.</p>
-                              ) : (
-                                m.professions.map((p) => (
-                                  <div
-                                    key={p.profession_type}
-                                    className="flex items-center justify-between py-1.5 px-2 rounded bg-slate-800/40 border border-slate-700/40 group"
-                                  >
-                                    <div className="flex items-center gap-2 min-w-0">
-                                      <span className="text-slate-200 font-medium">{p.profession_type}</span>
-                                      {p.is_guild_crafter && <span className="text-amber-400" title="Guild Crafter">⭐</span>}
-                                      <span className="text-slate-500 text-sm truncate">{p.notes || "—"}</span>
-                                    </div>
+                      <table className="w-full border-collapse text-sm">
+                        <thead>
+                          <tr className="text-left text-slate-400 text-xs font-medium uppercase tracking-wider border-b border-slate-600">
+                            <th className="py-2 pr-4">Player</th>
+                            <th className="py-2">Professions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredCrafters.map((m) => {
+                            const classColor = getClassColor(m.class);
+                            return (
+                              <tr
+                                key={m.name}
+                                className="border-b border-slate-700/60 hover:bg-slate-800/50"
+                              >
+                                <td className="py-2 pr-4 align-top border-l-4" style={{ borderLeftColor: classColor }}>
+                                  <span className="font-medium" style={{ color: classColor }}>{m.name}</span>
+                                  <span className="text-slate-500"> – {m.level} – {m.class}</span>
+                                </td>
+                                <td className="py-2">
+                                  <div className="flex flex-wrap gap-1.5 items-center">
+                                    {m.professions.length === 0 ? (
+                                      <span className="text-slate-500">—</span>
+                                    ) : (
+                                      m.professions.map((p) => (
+                                        <button
+                                          key={p.profession_type}
+                                          type="button"
+                                          onClick={() => canEditMember(m.name) && setEditProfession({ member: m.name, profession: p.profession_type, notes: p.notes, profession_level: p.profession_level })}
+                                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border transition ${canEditMember(m.name) ? "hover:bg-slate-700/80 cursor-pointer" : "cursor-default"} bg-slate-800/60 border-slate-600 text-slate-200`}
+                                          title={p.notes ? `${p.profession_type}: ${p.notes}` : p.profession_type}
+                                        >
+                                          <span>{p.profession_type}</span>
+                                          {p.profession_level != null ? (
+                                            <span className="text-slate-500">({p.profession_level})</span>
+                                          ) : null}
+                                          {canEditMember(m.name) && <span className="text-sky-400 text-[10px]">✎</span>}
+                                        </button>
+                                      ))
+                                    )}
                                     {canEditMember(m.name) && (
-                                      <button
-                                        type="button"
-                                        onClick={() => setEditProfession({ member: m.name, profession: p.profession_type, notes: p.notes, is_guild_crafter: p.is_guild_crafter })}
-                                        className="text-sky-400 hover:text-sky-300 text-xs shrink-0 opacity-0 group-hover:opacity-100"
-                                      >
-                                        Edit
-                                      </button>
+                                      <AddProfessionRow
+                                        existingProfs={m.professions.map((p) => p.profession_type)}
+                                        onAdd={(prof) => addProfession(m.name, prof)}
+                                      />
                                     )}
                                   </div>
-                                ))
-                              )}
-                              {canEditMember(m.name) && (
-                                <AddProfessionRow
-                                  existingProfs={m.professions.map((p) => p.profession_type)}
-                                  onAdd={(prof) => addProfession(m.name, prof)}
-                                />
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     )}
                   </div>
                 </>
@@ -556,8 +559,7 @@ export function GuildCrafters() {
             member={editProfession.member}
             profession={editProfession.profession}
             notes={editProfession.notes}
-            isGuildCrafter={editProfession.is_guild_crafter}
-            canSetGuildCrafter={canManage}
+            professionLevel={editProfession.profession_level}
             onSave={(updates) => updateProfession(editProfession!.member, editProfession!.profession, updates)}
             onDelete={() => deleteProfession(editProfession!.member, editProfession!.profession)}
             onClose={() => setEditProfession(null)}
@@ -573,13 +575,13 @@ function AddProfessionRow({ existingProfs, onAdd }: { existingProfs: string[]; o
   const available = PROFESSION_TYPES.filter((p) => !existingProfs.includes(p));
   if (available.length === 0) return null;
   return (
-    <div className="py-1">
+    <span className="inline-flex flex-wrap gap-1 items-center">
       {!open ? (
-        <button type="button" onClick={() => setOpen(true)} className="text-sky-400 hover:text-sky-300 text-sm">
-          + Add profession
+        <button type="button" onClick={() => setOpen(true)} className="text-sky-400 hover:text-sky-300 text-xs">
+          + Add
         </button>
       ) : (
-        <div className="flex flex-wrap gap-1">
+        <>
           {available.map((p) => (
             <button
               key={p}
@@ -593,9 +595,9 @@ function AddProfessionRow({ existingProfs, onAdd }: { existingProfs: string[]; o
           <button type="button" onClick={() => setOpen(false)} className="text-slate-500 hover:text-slate-300 text-xs">
             Cancel
           </button>
-        </div>
+        </>
       )}
-    </div>
+    </span>
   );
 }
 
@@ -648,8 +650,7 @@ function EditProfessionModal({
   member,
   profession,
   notes,
-  isGuildCrafter,
-  canSetGuildCrafter,
+  professionLevel,
   onSave,
   onDelete,
   onClose,
@@ -657,14 +658,13 @@ function EditProfessionModal({
   member: string;
   profession: string;
   notes: string;
-  isGuildCrafter: boolean;
-  canSetGuildCrafter: boolean;
-  onSave: (updates: { notes?: string; is_guild_crafter?: boolean }) => void;
+  professionLevel: number | null;
+  onSave: (updates: { notes?: string; profession_level?: number | null }) => void;
   onDelete: () => void;
   onClose: () => void;
 }) {
   const [notesVal, setNotesVal] = useState(notes);
-  const [starVal, setStarVal] = useState(isGuildCrafter);
+  const [levelVal, setLevelVal] = useState(professionLevel != null ? String(professionLevel) : "");
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
       <div
@@ -674,12 +674,18 @@ function EditProfessionModal({
       >
         <h3 className="text-lg font-semibold text-slate-200 mb-4">Edit {profession} · {member}</h3>
         <div className="space-y-4">
-          {canSetGuildCrafter && (
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={starVal} onChange={(e) => setStarVal(e.target.checked)} className="rounded" />
-              <span className="text-slate-300">Guild Crafter (starred)</span>
-            </label>
-          )}
+          <div>
+            <label className="block text-slate-400 text-sm mb-1">Profession Level (0–525)</label>
+            <input
+              type="number"
+              min={0}
+              max={525}
+              value={levelVal}
+              onChange={(e) => setLevelVal(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 text-sm"
+              placeholder="e.g. 375"
+            />
+          </div>
           <div>
             <label className="block text-slate-400 text-sm mb-1">Notes</label>
             <textarea
@@ -699,7 +705,10 @@ function EditProfessionModal({
             <button type="button" onClick={onClose} className="px-3 py-1.5 rounded bg-slate-600 text-slate-300 text-sm hover:bg-slate-500">Cancel</button>
             <button
               type="button"
-              onClick={() => onSave({ notes: notesVal, ...(canSetGuildCrafter ? { is_guild_crafter: starVal } : {}) })}
+              onClick={() => {
+                const parsed = levelVal.trim() === "" ? null : Math.min(525, Math.max(0, parseInt(levelVal, 10) || 0));
+                onSave({ notes: notesVal, profession_level: parsed });
+              }}
               className="px-3 py-1.5 rounded bg-sky-600 text-white text-sm hover:bg-sky-500"
             >
               Save
