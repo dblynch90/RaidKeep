@@ -73,7 +73,6 @@ export function GuildDashboard() {
   const raidScheduleUrl = `/raid-schedule?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
   const raidRosterUrl = `/raid-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
   const permissionsUrl = `/guild-permissions?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
-  const crafterManagementUrl = `/crafter-management?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
 
   useEffect(() => {
     if (!realm || !guildName) {
@@ -150,7 +149,7 @@ export function GuildDashboard() {
                   <DashboardCard to={rosterUrl} title="Guild Roster" description="View guild members, filter by class and level." />
                 )}
                 {perms.view_guild_roster && (
-                  <DashboardCard to={craftersUrl} title="Guild Crafters" description="Search recipe books of starred guild crafters." />
+                  <DashboardCard to={craftersUrl} title="Guild Crafters" description="Add crafters, set professions and notes. Officers star guild crafters." />
                 )}
                 {perms.view_raid_roster && (
                   <DashboardCard to={raidRosterUrl} title="Raid Roster" description="View raid roster, set your availability and notes." />
@@ -163,7 +162,7 @@ export function GuildDashboard() {
           )}
 
           {/* Administrative Section */}
-          {(perms.manage_raids || perms.manage_permissions || perms.manage_guild_crafters) && (
+          {(perms.manage_raids || perms.manage_permissions) && (
             <section>
               <h2 className="text-slate-400 font-medium text-sm uppercase tracking-wider mb-4">Administrative</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -172,9 +171,6 @@ export function GuildDashboard() {
                 )}
                 {perms.manage_permissions && (
                   <DashboardCard to={permissionsUrl} title="Guild Permissions" description="Control access to guild dashboard features." />
-                )}
-                {perms.manage_guild_crafters && (
-                  <DashboardCard to={crafterManagementUrl} title="Crafter Management" description="Star guild crafters (Enchanter, Alchemist, etc.) for recipe search." />
                 )}
               </div>
             </section>

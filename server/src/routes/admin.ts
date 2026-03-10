@@ -427,8 +427,10 @@ adminRoutes.delete("/guild/:realmSlug/:guildName/raids/:raidId", requireAdmin, (
 const PROFESSION_TYPES = [
   "Alchemy",
   "Blacksmithing",
+  "Cooking",
   "Enchanting",
   "Engineering",
+  "First Aid",
   "Herbalism",
   "Inscription",
   "Jewelcrafting",
@@ -456,8 +458,8 @@ adminRoutes.get("/guild/:realmSlug/:guildName/roster", requireAdmin, (req, res) 
     .all(realmSlug, guildName, serverType);
   const stars = db
     .prepare(
-      `SELECT character_name, profession_type FROM guild_profession_stars
-       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?`
+      `SELECT character_name, profession_type FROM guild_member_professions
+       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND is_guild_crafter = 1`
     )
     .all(realmSlug, guildName, serverType) as Array<{ character_name: string; profession_type: string }>;
   const starsByChar = new Map<string, string[]>();
@@ -588,12 +590,16 @@ adminRoutes.put("/guild/:realmSlug/:guildName/profession-stars/:charName", requi
   const db = getDb();
   if (starred) {
     db.prepare(
-      `INSERT OR IGNORE INTO guild_profession_stars (guild_realm_slug, guild_name, server_type, character_name, profession_type)
-       VALUES (?, ?, ?, ?, ?)`
+      `INSERT OR IGNORE INTO guild_member_professions (guild_realm_slug, guild_name, server_type, character_name, profession_type, notes, is_guild_crafter)
+       VALUES (?, ?, ?, ?, ?, NULL, 1)`
+    ).run(realmSlug, guildName, serverType, charName, profession_type);
+    db.prepare(
+      `UPDATE guild_member_professions SET is_guild_crafter = 1
+       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?) AND profession_type = ?`
     ).run(realmSlug, guildName, serverType, charName, profession_type);
   } else {
     db.prepare(
-      `DELETE FROM guild_profession_stars
+      `UPDATE guild_member_professions SET is_guild_crafter = 0
        WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?) AND profession_type = ?`
     ).run(realmSlug, guildName, serverType, charName, profession_type);
   }

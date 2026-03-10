@@ -474,6 +474,65 @@ export function initDb() {
   `);
   db.exec("CREATE INDEX IF NOT EXISTS idx_guild_crafter_roster_lookup ON guild_crafter_roster(guild_realm_slug, guild_name, server_type)");
 
+  // Guild member professions: per (member, profession) with notes and guild-crafter flag
+  // Replaces the need for guild_profession_stars + per-profession notes
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS guild_member_professions (
+      guild_realm_slug TEXT NOT NULL,
+      guild_name TEXT NOT NULL,
+      server_type TEXT NOT NULL DEFAULT 'Retail',
+      character_name TEXT NOT NULL,
+      profession_type TEXT NOT NULL,
+      notes TEXT,
+      is_guild_crafter INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      PRIMARY KEY (guild_realm_slug, guild_name, server_type, character_name, profession_type)
+    )
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_guild_member_professions_lookup ON guild_member_professions(guild_realm_slug, guild_name, server_type)");
+
+  // Migration: populate guild_member_professions from guild_profession_stars and guild_crafter_roster
+  try {
+    const count = (db.prepare("SELECT COUNT(*) as n FROM guild_member_professions").get() as { n: number }).n;
+    if (count === 0) {
+      const ins = db.prepare(
+        `INSERT OR IGNORE INTO guild_member_professions (guild_realm_slug, guild_name, server_type, character_name, profession_type, notes, is_guild_crafter)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      );
+      const updateStar = db.prepare(
+        `UPDATE guild_member_professions SET is_guild_crafter = 1
+         WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?) AND profession_type = ?`
+      );
+      const roster = db.prepare(
+        `SELECT guild_realm_slug, guild_name, server_type, character_name, professions, profession_notes
+         FROM guild_crafter_roster`
+      ).all() as Array<{ guild_realm_slug: string; guild_name: string; server_type: string; character_name: string; professions: string | null; profession_notes: string | null }>;
+      for (const r of roster) {
+        let profs: string[] = [];
+        try {
+          if (r.professions) profs = JSON.parse(r.professions) as string[];
+        } catch {
+          /* ignore */
+        }
+        const notes = (r.profession_notes || "").trim() || null;
+        for (let i = 0; i < profs.length; i++) {
+          ins.run(r.guild_realm_slug, r.guild_name, r.server_type, r.character_name, profs[i], i === 0 ? notes : null, 0);
+        }
+      }
+      const stars = db.prepare(
+        `SELECT guild_realm_slug, guild_name, server_type, character_name, profession_type FROM guild_profession_stars`
+      ).all() as Array<{ guild_realm_slug: string; guild_name: string; server_type: string; character_name: string; profession_type: string }>;
+      for (const s of stars) {
+        const updated = updateStar.run(s.guild_realm_slug, s.guild_name, s.server_type, s.character_name, s.profession_type);
+        if (updated.changes === 0) {
+          ins.run(s.guild_realm_slug, s.guild_name, s.server_type, s.character_name, s.profession_type, null, 1);
+        }
+      }
+    }
+  } catch {
+    /* migration is best-effort */
+  }
+
   // Character recipes: which raid-support recipes a character has (for search/filter)
   db.exec(`
     CREATE TABLE IF NOT EXISTS character_recipes (
