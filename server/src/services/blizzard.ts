@@ -691,13 +691,22 @@ export async function fetchCharacterProfileSummary(
   const parseProfile = (data: Record<string, unknown>): CharacterProfileSummary | null => {
     const name = data.name;
     const level = data.level;
-    const playableClass = data.playable_class as { id?: number; name?: { en_US?: string } } | undefined;
-    const className =
-      playableClass?.name && typeof playableClass.name === "object" && playableClass.name.en_US
-        ? String(playableClass.name.en_US)
-        : playableClass?.id != null
-          ? CLASS_IDS[playableClass.id] ?? "Unknown"
-          : "Unknown";
+    const playableClass = (data.playable_class ?? data.character_class) as
+      | { id?: number; name?: string | { en_US?: string } }
+      | undefined;
+    const topLevelClassId = typeof data.class === "number" ? data.class : undefined;
+    let className = "Unknown";
+    const classId = playableClass?.id ?? topLevelClassId;
+    if (classId != null && CLASS_IDS[classId]) {
+      className = CLASS_IDS[classId];
+    } else if (playableClass) {
+      if (typeof playableClass.name === "string") {
+        className = playableClass.name;
+      } else if (playableClass.name && typeof playableClass.name === "object" && "en_US" in playableClass.name) {
+        const localeName = (playableClass.name as { en_US?: string }).en_US;
+        if (localeName) className = localeName;
+      }
+    }
     if (typeof name !== "string" || typeof level !== "number") return null;
     return { name: String(name), class: className, level: Number(level) };
   };

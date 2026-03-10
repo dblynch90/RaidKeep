@@ -140,6 +140,7 @@ export function RaiderRoster() {
   const [characterSearchResult, setCharacterSearchResult] = useState<{ name: string; class: string; level: number } | null>(null);
   const [characterSearching, setCharacterSearching] = useState(false);
   const [characterSearchError, setCharacterSearchError] = useState<string | null>(null);
+  const [characterSearchModalOpen, setCharacterSearchModalOpen] = useState(false);
   const [myCharacters, setMyCharacters] = useState<MyCharacter[]>([]);
 
   const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
@@ -442,6 +443,7 @@ export function RaiderRoster() {
       ]);
       setCharacterSearchResult(null);
       setCharacterSearchName("");
+      setCharacterSearchModalOpen(false);
     } catch (err: unknown) {
       setCharacterSearchError(err instanceof Error ? err.message : "Failed to add");
     } finally {
@@ -627,7 +629,7 @@ export function RaiderRoster() {
           <div className="mt-4 h-px bg-slate-700/60" />
         </header>
 
-        <div className="mb-8">
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <nav className="flex rounded-lg bg-slate-800/60 p-1 border border-slate-700/50 w-fit">
             {(perms.view_raid_schedule || perms.manage_raids) && (
               <Link
@@ -644,7 +646,85 @@ export function RaiderRoster() {
               Raid Roster
             </span>
           </nav>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => setCharacterSearchModalOpen(true)}
+              className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 border border-slate-600 text-slate-200 text-sm font-medium transition flex items-center gap-2"
+              title="Search for a character on the realm"
+            >
+              🔍 Search Character
+            </button>
+          )}
         </div>
+
+        {characterSearchModalOpen && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+            onClick={() => setCharacterSearchModalOpen(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="character-search-title"
+          >
+            <div
+              className="bg-slate-800 border border-slate-600 rounded-lg shadow-xl p-5 w-full max-w-md mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 id="character-search-title" className="text-lg font-semibold text-slate-200">
+                  Search character on realm
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setCharacterSearchModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-200 text-xl leading-none"
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              </div>
+              <p className="text-slate-400 text-sm mb-3">
+                Search for any character on {capitalizeRealm(realm)} to add them to your raid roster.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Character name..."
+                  value={characterSearchName}
+                  onChange={(e) => { setCharacterSearchName(e.target.value); setCharacterSearchError(null); }}
+                  onKeyDown={(e) => e.key === "Enter" && searchCharacter()}
+                  className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-500 text-sm w-full focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                />
+                <button
+                  type="button"
+                  onClick={searchCharacter}
+                  disabled={characterSearching || !characterSearchName.trim()}
+                  className="px-3 py-2 rounded bg-slate-600 hover:bg-slate-500 disabled:opacity-50 text-slate-200 text-sm font-medium"
+                >
+                  {characterSearching ? "Searching..." : "Search"}
+                </button>
+              </div>
+              {characterSearchResult && (
+                <div className="mt-3 flex flex-wrap items-center gap-2 p-3 rounded-lg bg-slate-700/50 border border-slate-600">
+                  <span className="text-sm" style={{ color: getClassColor(characterSearchResult.class) }}>
+                    {characterSearchResult.name} – {characterSearchResult.level} – {characterSearchResult.class}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={addSearchedCharacter}
+                    disabled={characterSearching || raiderMap.has(characterSearchResult.name.toLowerCase())}
+                    className="px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-sm font-medium"
+                  >
+                    Add to Roster
+                  </button>
+                </div>
+              )}
+              {characterSearchError && (
+                <p className="text-amber-500 text-sm mt-2">{characterSearchError}</p>
+              )}
+            </div>
+          </div>
+        )}
 
         {loading ? (
           <p className="text-slate-500">Loading...</p>
@@ -720,47 +800,6 @@ export function RaiderRoster() {
                   <p className="text-slate-500 text-sm mb-3">
                     Add members to your raid roster. Select multiple and add at once, or add individually. Raiders are marked with ✓ Raider.
                   </p>
-                  {canEdit && (
-                    <div className="mb-4 p-3 rounded-lg bg-slate-800/60 border border-slate-700/50">
-                      <p className="text-slate-400 text-sm font-medium mb-2">Search character on realm</p>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <input
-                          type="text"
-                          placeholder="Character name..."
-                          value={characterSearchName}
-                          onChange={(e) => { setCharacterSearchName(e.target.value); setCharacterSearchError(null); }}
-                          onKeyDown={(e) => e.key === "Enter" && searchCharacter()}
-                          className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-500 text-sm w-48 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
-                        />
-                        <button
-                          type="button"
-                          onClick={searchCharacter}
-                          disabled={characterSearching || !characterSearchName.trim()}
-                          className="px-3 py-2 rounded bg-slate-600 hover:bg-slate-500 disabled:opacity-50 text-slate-200 text-sm font-medium"
-                        >
-                          {characterSearching ? "Searching..." : "Search"}
-                        </button>
-                        {characterSearchResult && (
-                          <>
-                            <span className="text-sm" style={{ color: getClassColor(characterSearchResult.class) }}>
-                              {characterSearchResult.name} – {characterSearchResult.level} – {characterSearchResult.class}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={addSearchedCharacter}
-                              disabled={characterSearching || raiderMap.has(characterSearchResult.name.toLowerCase())}
-                              className="px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-sm font-medium"
-                            >
-                              Add
-                            </button>
-                          </>
-                        )}
-                      </div>
-                      {characterSearchError && (
-                        <p className="text-amber-500 text-sm mt-2">{characterSearchError}</p>
-                      )}
-                    </div>
-                  )}
                   <div className="flex flex-wrap gap-3 mb-3">
                     <input
                       type="text"
