@@ -1543,7 +1543,7 @@ authRoutes.get("/me/raider-roster", requireAuth, (req, res) => {
   if (raiders.length === 0) {
     const guildOwner = db.prepare(
       `SELECT user_id FROM raider_roster
-       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?
+       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND user_id IS NOT NULL
        GROUP BY user_id ORDER BY COUNT(*) DESC LIMIT 1`
     ).get(realmSlug, guildName, serverType) as { user_id: number } | undefined;
     if (guildOwner) {
@@ -1554,6 +1554,14 @@ authRoutes.get("/me/raider-roster", requireAuth, (req, res) => {
            ORDER BY character_name`
         )
         .all(guildOwner.user_id, realmSlug, guildName, serverType);
+    } else {
+      raiders = db
+        .prepare(
+          `SELECT * FROM raider_roster
+           WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?
+           ORDER BY character_name`
+        )
+        .all(realmSlug, guildName, serverType);
     }
   }
   raiders = (raiders as Array<Record<string, unknown> & { character_name?: string }>).map((r) => ({
@@ -1988,7 +1996,7 @@ authRoutes.get("/me/raid-teams", requireAuth, (req, res) => {
   if (teams.length === 0) {
     const guildOwner = db.prepare(
       `SELECT user_id FROM raid_teams
-       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?
+       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND user_id IS NOT NULL
        GROUP BY user_id ORDER BY COUNT(*) DESC LIMIT 1`
     ).get(realmSlug, guildName, serverType) as { user_id: number } | undefined;
     if (guildOwner) {
@@ -1999,6 +2007,14 @@ authRoutes.get("/me/raid-teams", requireAuth, (req, res) => {
            ORDER BY team_name`
         )
         .all(guildOwner.user_id, realmSlug, guildName, serverType);
+    } else {
+      teams = db
+        .prepare(
+          `SELECT * FROM raid_teams
+           WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?
+           ORDER BY team_name`
+        )
+        .all(realmSlug, guildName, serverType);
     }
   }
   const teamsWithMembers = teams.map((t) => {

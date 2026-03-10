@@ -561,6 +561,65 @@ export function initDb() {
     )
   `);
 
+  // Migration: raider_roster and raid_teams must NOT CASCADE delete on user delete.
+  // Guild data (roster, teams) should only be deleted when the guild is deleted.
+  try {
+    db.exec("CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)");
+    const applied = db.prepare("SELECT 1 FROM _migrations WHERE name = 'raider_roster_raid_teams_set_null_on_user_delete'").get();
+    if (!applied) {
+      db.exec(`CREATE TABLE raider_roster_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        guild_name TEXT NOT NULL,
+        guild_realm_slug TEXT NOT NULL,
+        server_type TEXT NOT NULL DEFAULT 'Retail',
+        character_name TEXT NOT NULL,
+        character_class TEXT NOT NULL,
+        primary_spec TEXT,
+        off_spec TEXT,
+        secondary_spec TEXT,
+        notes TEXT,
+        raid_role TEXT,
+        raid_lead INTEGER NOT NULL DEFAULT 0,
+        raid_assist INTEGER NOT NULL DEFAULT 0,
+        availability TEXT DEFAULT '0000000',
+        officer_notes TEXT,
+        notes_public INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now')),
+        professions TEXT,
+        UNIQUE(user_id, guild_name, guild_realm_slug, server_type, character_name)
+      )`);
+      db.exec(`INSERT INTO raider_roster_new (id, user_id, guild_name, guild_realm_slug, server_type, character_name, character_class, primary_spec, off_spec, secondary_spec, notes, raid_role, raid_lead, raid_assist, availability, officer_notes, notes_public, created_at, professions)
+        SELECT id, user_id, guild_name, guild_realm_slug, server_type, character_name, character_class, primary_spec, off_spec, secondary_spec, notes, raid_role, raid_lead, raid_assist, availability, officer_notes, notes_public, created_at, professions FROM raider_roster`);
+      db.exec("DROP TABLE raider_roster");
+      db.exec("ALTER TABLE raider_roster_new RENAME TO raider_roster");
+      db.exec("CREATE INDEX IF NOT EXISTS idx_raider_roster_user_guild ON raider_roster(user_id, guild_name, guild_realm_slug, server_type)");
+
+      db.exec(`CREATE TABLE raid_teams_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        guild_name TEXT NOT NULL,
+        guild_realm_slug TEXT NOT NULL,
+        server_type TEXT NOT NULL DEFAULT 'Retail',
+        team_name TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now'))
+      )`);
+      db.exec("INSERT INTO raid_teams_new SELECT * FROM raid_teams");
+      db.exec("DROP TABLE raid_teams");
+      db.exec("ALTER TABLE raid_teams_new RENAME TO raid_teams");
+      db.exec("CREATE INDEX IF NOT EXISTS idx_raid_teams_user_guild ON raid_teams(user_id, guild_name, guild_realm_slug, server_type)");
+      db.exec("CREATE TABLE IF NOT EXISTS raid_team_members_new (id INTEGER PRIMARY KEY AUTOINCREMENT, team_id INTEGER NOT NULL REFERENCES raid_teams(id) ON DELETE CASCADE, character_name TEXT NOT NULL, character_class TEXT NOT NULL, position INTEGER NOT NULL DEFAULT 0, UNIQUE(team_id, character_name))");
+      db.exec("INSERT INTO raid_team_members_new SELECT * FROM raid_team_members");
+      db.exec("DROP TABLE raid_team_members");
+      db.exec("ALTER TABLE raid_team_members_new RENAME TO raid_team_members");
+      db.exec("CREATE INDEX IF NOT EXISTS idx_raid_team_members_team ON raid_team_members(team_id)");
+
+      db.prepare("INSERT INTO _migrations (name) VALUES ('raider_roster_raid_teams_set_null_on_user_delete')").run();
+    }
+  } catch (e) {
+    console.error("Migration raider_roster_raid_teams_set_null_on_user_delete failed:", e);
+  }
+
   db.close();
   console.log("Database initialized at", dbPath);
 }
