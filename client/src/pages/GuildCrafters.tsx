@@ -77,7 +77,6 @@ export function GuildCrafters() {
   const [crafterClassFilter, setCrafterClassFilter] = useState("");
   const [professionFilter, setProfessionFilter] = useState("");
   const [addProfessionFor, setAddProfessionFor] = useState<string | null>(null);
-  const [addProfessionForMultiple, setAddProfessionForMultiple] = useState<string[] | null>(null);
   const [editProfession, setEditProfession] = useState<{ member: string; profession: string; notes: string; profession_level: number | null } | null>(null);
 
   const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
@@ -179,29 +178,17 @@ export function GuildCrafters() {
     setAddProfessionFor(null);
   };
 
-  const openAddMultipleModal = () => {
+  const addSelectedAsCrafters = async () => {
     const toAdd = displayGuildMembers
       .filter((m) => !crafterMap.has(m.name.toLowerCase()) && selectedGuildMembers.has(m.name.toLowerCase()))
       .map((m) => m.name);
-    if (toAdd.length > 0) setAddProfessionForMultiple(toAdd);
-  };
-
-  const addProfessionsToMultiple = async (profs: string[]) => {
-    if (!addProfessionForMultiple || profs.length === 0) return;
-    for (const name of addProfessionForMultiple) {
-      await Promise.all(
-        profs.map((prof) =>
-          api.post("/auth/me/guild-member-profession", {
-            realm: realmSlug,
-            guild_name: guildName,
-            server_type: serverType,
-            character_name: name,
-            profession_type: prof,
-          }).catch(() => {})
-        )
-      );
-    }
-    setAddProfessionForMultiple(null);
+    if (toAdd.length === 0) return;
+    await api.post("/auth/me/guild-crafter-list", {
+      realm: realmSlug,
+      guild_name: guildName,
+      server_type: serverType,
+      character_names: toAdd,
+    }).catch(() => {});
     setSelectedGuildMembers(new Set());
     fetchData();
   };
@@ -370,7 +357,7 @@ export function GuildCrafters() {
                         </button>
                         <button
                           type="button"
-                          onClick={openAddMultipleModal}
+                          onClick={addSelectedAsCrafters}
                           disabled={selectedNonCrafterCount === 0}
                           className="px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium border border-sky-500/50"
                         >
@@ -570,13 +557,6 @@ export function GuildCrafters() {
             onClose={() => setAddProfessionFor(null)}
           />
         )}
-        {addProfessionForMultiple && addProfessionForMultiple.length > 0 && (
-          <AddProfessionToMultipleModal
-            characterNames={addProfessionForMultiple}
-            onAdd={(profs) => addProfessionsToMultiple(profs)}
-            onClose={() => setAddProfessionForMultiple(null)}
-          />
-        )}
         {editProfession && (
           <EditProfessionModal
             member={editProfession.member}
@@ -693,66 +673,6 @@ function AddProfessionModal({
             className="px-3 py-1.5 rounded bg-sky-600 text-white text-sm hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Add ({selected.size})
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AddProfessionToMultipleModal({
-  characterNames,
-  onAdd,
-  onClose,
-}: {
-  characterNames: string[];
-  onAdd: (profs: string[]) => void;
-  onClose: () => void;
-}) {
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const toggle = (p: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(p)) next.delete(p);
-      else next.add(p);
-      return next;
-    });
-  };
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
-      <div
-        className="rounded-xl border border-slate-600 p-6 w-full max-w-sm bg-slate-800 shadow-xl"
-        style={{ background: "linear-gradient(180deg, #1e293b 0%, #0f172a 100%)" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 className="text-lg font-semibold text-slate-200 mb-2">Add professions</h3>
-        <p className="text-slate-400 text-sm mb-4">
-          Select profession(s) to add to {characterNames.length} member{characterNames.length !== 1 ? "s" : ""}
-        </p>
-        <div className="space-y-2 max-h-60 overflow-y-auto">
-          {PROFESSION_TYPES.map((p) => (
-            <label key={p} className="flex items-center gap-2 cursor-pointer py-1">
-              <input
-                type="checkbox"
-                checked={selected.has(p)}
-                onChange={() => toggle(p)}
-                className="rounded border-slate-600 bg-slate-700 text-sky-500"
-              />
-              <span className="text-slate-200 text-sm">{p}</span>
-            </label>
-          ))}
-        </div>
-        <div className="flex justify-end gap-2 mt-6">
-          <button type="button" onClick={onClose} className="px-3 py-1.5 rounded bg-slate-600 text-slate-300 text-sm hover:bg-slate-500">
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => onAdd([...selected])}
-            disabled={selected.size === 0}
-            className="px-3 py-1.5 rounded bg-sky-600 text-white text-sm hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Add ({selected.size}) to {characterNames.length} member{characterNames.length !== 1 ? "s" : ""}
           </button>
         </div>
       </div>

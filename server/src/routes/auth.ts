@@ -1727,6 +1727,40 @@ authRoutes.get("/me/guild-crafters-full", requireAuth, async (req, res) => {
   });
 });
 
+authRoutes.post("/me/guild-crafter-list", requireAuth, (req, res) => {
+  const { realm, guild_name, server_type, character_names } = req.body;
+  if (!realm || !guild_name || !Array.isArray(character_names) || character_names.length === 0) {
+    res.status(400).json({ error: "realm, guild_name, and character_names (array) required" });
+    return;
+  }
+  const db = getDb();
+  const userId = req.session!.user!.id;
+  const realmSlug = String(realm).toLowerCase().replace(/\s+/g, "-");
+  const serverType = server_type || "Retail";
+  const perms = getEffectiveGuildPermissions(db, userId, realmSlug, guild_name, serverType);
+  const myCharRows = db
+    .prepare(
+      `SELECT LOWER(name) as name FROM battle_net_characters WHERE user_id = ? AND LOWER(realm_slug) = ? AND server_type = ?`
+    )
+    .all(userId, realmSlug, serverType) as Array<{ name: string }>;
+  const myChars = new Set(myCharRows.map((r) => r.name));
+  const canManage = !!perms?.manage_guild_crafters;
+  const insert = db.prepare(
+    `INSERT OR IGNORE INTO guild_crafter_list (guild_realm_slug, guild_name, server_type, character_name) VALUES (?, ?, ?, ?)`
+  );
+  let added = 0;
+  for (const name of character_names) {
+    const charName = String(name).trim();
+    if (!charName) continue;
+    const isOwn = myChars.has(charName.toLowerCase());
+    const canAdd = canManage || (perms?.view_guild_roster && isOwn);
+    if (!canAdd) continue;
+    const r = insert.run(realmSlug, guild_name, serverType, charName);
+    if (r.changes > 0) added++;
+  }
+  res.json({ ok: true, added });
+});
+
 authRoutes.post("/me/guild-member-profession", requireAuth, (req, res) => {
   const { realm, guild_name, server_type, character_name, profession_type } = req.body;
   if (!realm || !guild_name || !character_name || !profession_type || typeof character_name !== "string" || typeof profession_type !== "string") {
