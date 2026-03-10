@@ -83,6 +83,7 @@ export function RaidRosterPopout() {
     }
     setLoading(true);
     setError(null);
+    // Load roster and teams first (fast DB calls) - don't block on guild-roster (Blizzard API, slow)
     Promise.all([
       api.get<{ raiders: RaiderEntry[] }>(
         `/auth/me/raider-roster?guild_realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
@@ -97,17 +98,23 @@ export function RaidRosterPopout() {
       api.get<{ teams: RaidTeam[] }>(
         `/auth/me/raid-teams?guild_realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
       ).then((r) => (r.teams ?? []) as RaidTeam[]),
-      api.get<{ members?: GuildMember[] }>(
-        `/auth/me/guild-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
-      ).then((r) => (r.members ?? []) as GuildMember[]).catch(() => []),
     ])
-      .then(([raidersList, teamsList, membersList]) => {
+      .then(([raidersList, teamsList]) => {
         setRaiders(raidersList);
         setTeams(teamsList);
-        setGuildMembers(membersList);
+        setLoading(false);
       })
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load roster"))
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Failed to load roster");
+        setLoading(false);
+      });
+    // Fetch guild-roster in background for level filter - non-blocking
+    api
+      .get<{ members?: GuildMember[] }>(
+        `/auth/me/guild-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
+      )
+      .then((r) => setGuildMembers((r.members ?? []) as GuildMember[]))
+      .catch(() => {});
   }, [realm, guildName, serverType]);
 
   const characterToTeamId = useMemo(() => {
