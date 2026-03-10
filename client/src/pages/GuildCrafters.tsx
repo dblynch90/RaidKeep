@@ -77,6 +77,7 @@ export function GuildCrafters() {
   const [crafterClassFilter, setCrafterClassFilter] = useState("");
   const [professionFilter, setProfessionFilter] = useState("");
   const [addProfessionFor, setAddProfessionFor] = useState<string | null>(null);
+  const [addProfessionForMultiple, setAddProfessionForMultiple] = useState<string[] | null>(null);
   const [editProfession, setEditProfession] = useState<{ member: string; profession: string; notes: string; profession_level: number | null } | null>(null);
 
   const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
@@ -178,20 +179,29 @@ export function GuildCrafters() {
     setAddProfessionFor(null);
   };
 
-  const addSelectedAsCrafters = async () => {
-    const toAdd = displayGuildMembers.filter(
-      (m) => !crafterMap.has(m.name.toLowerCase()) && selectedGuildMembers.has(m.name.toLowerCase())
-    );
-    if (toAdd.length === 0) return;
-    for (const m of toAdd) {
-      await api.post("/auth/me/guild-member-profession", {
-        realm: realmSlug,
-        guild_name: guildName,
-        server_type: serverType,
-        character_name: m.name,
-        profession_type: PROFESSION_TYPES[0],
-      }).catch(() => {});
+  const openAddMultipleModal = () => {
+    const toAdd = displayGuildMembers
+      .filter((m) => !crafterMap.has(m.name.toLowerCase()) && selectedGuildMembers.has(m.name.toLowerCase()))
+      .map((m) => m.name);
+    if (toAdd.length > 0) setAddProfessionForMultiple(toAdd);
+  };
+
+  const addProfessionsToMultiple = async (profs: string[]) => {
+    if (!addProfessionForMultiple || profs.length === 0) return;
+    for (const name of addProfessionForMultiple) {
+      await Promise.all(
+        profs.map((prof) =>
+          api.post("/auth/me/guild-member-profession", {
+            realm: realmSlug,
+            guild_name: guildName,
+            server_type: serverType,
+            character_name: name,
+            profession_type: prof,
+          }).catch(() => {})
+        )
+      );
     }
+    setAddProfessionForMultiple(null);
     setSelectedGuildMembers(new Set());
     fetchData();
   };
@@ -205,13 +215,6 @@ export function GuildCrafters() {
       else next.add(key);
       return next;
     });
-  };
-
-  const selectAllNonCrafters = () => {
-    const nonCrafters = displayGuildMembers
-      .filter((m) => !crafterMap.has(m.name.toLowerCase()))
-      .map((m) => m.name.toLowerCase());
-    setSelectedGuildMembers(new Set(nonCrafters));
   };
 
   const clearGuildMemberSelection = () => setSelectedGuildMembers(new Set());
@@ -234,7 +237,6 @@ export function GuildCrafters() {
   };
 
   const deleteProfession = (charName: string, prof: string) => {
-    if (!confirm(`Remove ${prof} from ${charName}?`)) return;
     api
       .delete(
         `/auth/me/guild-member-profession?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}&character_name=${encodeURIComponent(charName)}&profession_type=${encodeURIComponent(prof)}`
@@ -244,19 +246,6 @@ export function GuildCrafters() {
         setEditProfession(null);
       })
       .catch(() => {});
-  };
-
-  const deleteCrafter = async (charName: string, professions: string[]) => {
-    if (!confirm(`Remove ${charName} from crafters? This will delete all ${professions.length} profession(s).`)) return;
-    await Promise.all(
-      professions.map((prof) =>
-        api.delete(
-          `/auth/me/guild-member-profession?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}&character_name=${encodeURIComponent(charName)}&profession_type=${encodeURIComponent(prof)}`
-        )
-      )
-    );
-    fetchData();
-    setEditProfession(null);
   };
 
   if (error) {
@@ -374,13 +363,6 @@ export function GuildCrafters() {
                       <div className="flex items-center gap-2 ml-auto flex-wrap">
                         <button
                           type="button"
-                          onClick={selectAllNonCrafters}
-                          className="px-2 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 border border-slate-600"
-                        >
-                          Select all non-crafters
-                        </button>
-                        <button
-                          type="button"
                           onClick={clearGuildMemberSelection}
                           className="px-2 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 border border-slate-600"
                         >
@@ -388,7 +370,7 @@ export function GuildCrafters() {
                         </button>
                         <button
                           type="button"
-                          onClick={addSelectedAsCrafters}
+                          onClick={openAddMultipleModal}
                           disabled={selectedNonCrafterCount === 0}
                           className="px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium border border-sky-500/50"
                         >
@@ -516,19 +498,7 @@ export function GuildCrafters() {
                                 className="border-b border-slate-700/60 hover:bg-slate-800/50"
                               >
                                 <td className="py-2 pr-4 pl-3 align-middle border-l-4" style={{ borderLeftColor: classColor }}>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-medium" style={{ color: classColor }}>{m.name}</span>
-                                    {canEditMember(m.name) && (
-                                      <button
-                                        type="button"
-                                        onClick={() => deleteCrafter(m.name, m.professions.map((p) => p.profession_type))}
-                                        className="text-red-400 hover:text-red-300 text-xs shrink-0"
-                                        title="Remove crafter"
-                                      >
-                                        Remove
-                                      </button>
-                                    )}
-                                  </div>
+                                  <span className="font-medium" style={{ color: classColor }}>{m.name}</span>
                                 </td>
                                 <td className="py-2 align-middle">
                                   <div className="flex flex-wrap gap-1.5 items-center">
@@ -536,19 +506,40 @@ export function GuildCrafters() {
                                       <span className="text-slate-500">—</span>
                                     ) : (
                                       m.professions.map((p) => (
-                                        <button
+                                        <span
                                           key={p.profession_type}
-                                          type="button"
-                                          onClick={() => canEditMember(m.name) && setEditProfession({ member: m.name, profession: p.profession_type, notes: p.notes, profession_level: p.profession_level })}
-                                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border transition ${canEditMember(m.name) ? "hover:bg-slate-700/80 cursor-pointer" : "cursor-default"} bg-slate-800/60 border-slate-600 text-slate-200`}
+                                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border transition ${canEditMember(m.name) ? "hover:bg-slate-700/80 cursor-pointer group" : "cursor-default"} bg-slate-800/60 border-slate-600 text-slate-200`}
                                           title={p.notes ? `${p.profession_type}: ${p.notes}` : p.profession_type}
                                         >
-                                          <span>{p.profession_type}</span>
-                                          {p.profession_level != null ? (
-                                            <span className="text-slate-500">({p.profession_level})</span>
-                                          ) : null}
-                                          {canEditMember(m.name) && <span className="text-sky-400 text-[10px]">✎</span>}
-                                        </button>
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (canEditMember(m.name)) setEditProfession({ member: m.name, profession: p.profession_type, notes: p.notes, profession_level: p.profession_level });
+                                            }}
+                                            className="text-left min-w-0"
+                                          >
+                                            <span>{p.profession_type}</span>
+                                            {p.profession_level != null ? (
+                                              <span className="text-slate-500">({p.profession_level})</span>
+                                            ) : null}
+                                            {canEditMember(m.name) && <span className="text-sky-400 text-[10px] ml-0.5">✎</span>}
+                                          </button>
+                                          {canEditMember(m.name) && (
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                deleteProfession(m.name, p.profession_type);
+                                              }}
+                                              className="w-4 h-4 flex items-center justify-center rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 shrink-0 -mr-0.5"
+                                              title={`Remove ${p.profession_type}`}
+                                              aria-label={`Remove ${p.profession_type}`}
+                                            >
+                                              ×
+                                            </button>
+                                          )}
+                                        </span>
                                       ))
                                     )}
                                     {canEditMember(m.name) && (
@@ -579,6 +570,13 @@ export function GuildCrafters() {
             onClose={() => setAddProfessionFor(null)}
           />
         )}
+        {addProfessionForMultiple && addProfessionForMultiple.length > 0 && (
+          <AddProfessionToMultipleModal
+            characterNames={addProfessionForMultiple}
+            onAdd={(profs) => addProfessionsToMultiple(profs)}
+            onClose={() => setAddProfessionForMultiple(null)}
+          />
+        )}
         {editProfession && (
           <EditProfessionModal
             member={editProfession.member}
@@ -586,7 +584,6 @@ export function GuildCrafters() {
             notes={editProfession.notes}
             professionLevel={editProfession.profession_level}
             onSave={(updates) => updateProfession(editProfession!.member, editProfession!.profession, updates)}
-            onDelete={() => deleteProfession(editProfession!.member, editProfession!.profession)}
             onClose={() => setEditProfession(null)}
           />
         )}
@@ -703,13 +700,72 @@ function AddProfessionModal({
   );
 }
 
+function AddProfessionToMultipleModal({
+  characterNames,
+  onAdd,
+  onClose,
+}: {
+  characterNames: string[];
+  onAdd: (profs: string[]) => void;
+  onClose: () => void;
+}) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toggle = (p: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(p)) next.delete(p);
+      else next.add(p);
+      return next;
+    });
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div
+        className="rounded-xl border border-slate-600 p-6 w-full max-w-sm bg-slate-800 shadow-xl"
+        style={{ background: "linear-gradient(180deg, #1e293b 0%, #0f172a 100%)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-lg font-semibold text-slate-200 mb-2">Add professions</h3>
+        <p className="text-slate-400 text-sm mb-4">
+          Select profession(s) to add to {characterNames.length} member{characterNames.length !== 1 ? "s" : ""}
+        </p>
+        <div className="space-y-2 max-h-60 overflow-y-auto">
+          {PROFESSION_TYPES.map((p) => (
+            <label key={p} className="flex items-center gap-2 cursor-pointer py-1">
+              <input
+                type="checkbox"
+                checked={selected.has(p)}
+                onChange={() => toggle(p)}
+                className="rounded border-slate-600 bg-slate-700 text-sky-500"
+              />
+              <span className="text-slate-200 text-sm">{p}</span>
+            </label>
+          ))}
+        </div>
+        <div className="flex justify-end gap-2 mt-6">
+          <button type="button" onClick={onClose} className="px-3 py-1.5 rounded bg-slate-600 text-slate-300 text-sm hover:bg-slate-500">
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => onAdd([...selected])}
+            disabled={selected.size === 0}
+            className="px-3 py-1.5 rounded bg-sky-600 text-white text-sm hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Add ({selected.size}) to {characterNames.length} member{characterNames.length !== 1 ? "s" : ""}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EditProfessionModal({
   member,
   profession,
   notes,
   professionLevel,
   onSave,
-  onDelete,
   onClose,
 }: {
   member: string;
@@ -717,7 +773,6 @@ function EditProfessionModal({
   notes: string;
   professionLevel: number | null;
   onSave: (updates: { notes?: string; profession_level?: number | null }) => void;
-  onDelete: () => void;
   onClose: () => void;
 }) {
   const [notesVal, setNotesVal] = useState(notes);
@@ -754,23 +809,18 @@ function EditProfessionModal({
             />
           </div>
         </div>
-        <div className="flex justify-between mt-6">
-          <button type="button" onClick={onDelete} className="text-red-400 hover:text-red-300 text-sm">
-            Delete
+        <div className="flex justify-end gap-2 mt-6">
+          <button type="button" onClick={onClose} className="px-3 py-1.5 rounded bg-slate-600 text-slate-300 text-sm hover:bg-slate-500">Cancel</button>
+          <button
+            type="button"
+            onClick={() => {
+              const parsed = levelVal.trim() === "" ? null : Math.min(525, Math.max(0, parseInt(levelVal, 10) || 0));
+              onSave({ notes: notesVal, profession_level: parsed });
+            }}
+            className="px-3 py-1.5 rounded bg-sky-600 text-white text-sm hover:bg-sky-500"
+          >
+            Save
           </button>
-          <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="px-3 py-1.5 rounded bg-slate-600 text-slate-300 text-sm hover:bg-slate-500">Cancel</button>
-            <button
-              type="button"
-              onClick={() => {
-                const parsed = levelVal.trim() === "" ? null : Math.min(525, Math.max(0, parseInt(levelVal, 10) || 0));
-                onSave({ notes: notesVal, profession_level: parsed });
-              }}
-              className="px-3 py-1.5 rounded bg-sky-600 text-white text-sm hover:bg-sky-500"
-            >
-              Save
-            </button>
-          </div>
         </div>
       </div>
     </div>

@@ -490,6 +490,33 @@ export function initDb() {
   `);
   db.exec("CREATE INDEX IF NOT EXISTS idx_guild_member_professions_lookup ON guild_member_professions(guild_realm_slug, guild_name, server_type)");
 
+  // Guild crafter list: characters added to the profession list (persist even when all professions removed)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS guild_crafter_list (
+      guild_realm_slug TEXT NOT NULL,
+      guild_name TEXT NOT NULL,
+      server_type TEXT NOT NULL DEFAULT 'Retail',
+      character_name TEXT NOT NULL,
+      PRIMARY KEY (guild_realm_slug, guild_name, server_type, character_name)
+    )
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_guild_crafter_list_lookup ON guild_crafter_list(guild_realm_slug, guild_name, server_type)");
+
+  // Migration: backfill guild_crafter_list from guild_member_professions
+  try {
+    db.exec("CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)");
+    const applied = db.prepare("SELECT 1 FROM _migrations WHERE name = 'backfill_guild_crafter_list'").get();
+    if (!applied) {
+      db.exec(`
+        INSERT OR IGNORE INTO guild_crafter_list (guild_realm_slug, guild_name, server_type, character_name)
+        SELECT DISTINCT guild_realm_slug, guild_name, server_type, character_name FROM guild_member_professions
+      `);
+      db.prepare("INSERT INTO _migrations (name) VALUES ('backfill_guild_crafter_list')").run();
+    }
+  } catch {
+    /* ignore */
+  }
+
   // Migration: add profession_level to guild_member_professions
   try {
     const gmpCols = db.prepare("PRAGMA table_info(guild_member_professions)").all() as Array<{ name: string }>;

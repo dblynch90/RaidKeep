@@ -1649,6 +1649,13 @@ authRoutes.get("/me/guild-crafters-full", requireAuth, async (req, res) => {
     res.status(403).json({ error: "You do not have permission to view guild crafters" });
     return;
   }
+  const crafterList = db
+    .prepare(
+      `SELECT character_name FROM guild_crafter_list
+       WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?
+       ORDER BY character_name`
+    )
+    .all(realmSlug, guildName, serverType) as Array<{ character_name: string }>;
   const rows = db
     .prepare(
       `SELECT character_name, profession_type, notes, profession_level
@@ -1666,21 +1673,19 @@ authRoutes.get("/me/guild-crafters-full", requireAuth, async (req, res) => {
     string,
     { name: string; class: string; level: number; professions: Array<{ profession_type: string; notes: string; profession_level: number | null }> }
   >();
+  for (const c of crafterList) {
+    const key = c.character_name.toLowerCase();
+    membersByChar.set(key, { name: c.character_name, class: "", level: 0, professions: [] });
+  }
   for (const r of rows) {
     const key = r.character_name.toLowerCase();
-    if (!membersByChar.has(key)) {
-      membersByChar.set(key, {
-        name: r.character_name,
-        class: "",
-        level: 0,
-        professions: [],
+    if (membersByChar.has(key)) {
+      membersByChar.get(key)!.professions.push({
+        profession_type: r.profession_type,
+        notes: r.notes || "",
+        profession_level: r.profession_level,
       });
     }
-    membersByChar.get(key)!.professions.push({
-      profession_type: r.profession_type,
-      notes: r.notes || "",
-      profession_level: r.profession_level,
-    });
   }
   let guildRoster: Array<{ name: string; class: string; level: number }> = [];
   try {
@@ -1750,6 +1755,9 @@ authRoutes.post("/me/guild-member-profession", requireAuth, (req, res) => {
     res.status(403).json({ error: "You can only add professions for your own characters, or manage guild crafters as officer" });
     return;
   }
+  db.prepare(
+    `INSERT OR IGNORE INTO guild_crafter_list (guild_realm_slug, guild_name, server_type, character_name) VALUES (?, ?, ?, ?)`
+  ).run(realmSlug, guild_name, serverType, charName);
   db.prepare(
     `INSERT OR IGNORE INTO guild_member_professions (guild_realm_slug, guild_name, server_type, character_name, profession_type, notes, profession_level)
      VALUES (?, ?, ?, ?, ?, NULL, NULL)`
