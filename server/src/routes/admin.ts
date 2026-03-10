@@ -111,6 +111,20 @@ adminRoutes.delete("/users/:id", requireAdmin, (req, res) => {
     res.status(404).json({ error: "User not found" });
     return;
   }
+  // Reassign character assignments and guild data before delete.
+  // Characters in guild roster: reassign to another guild member so they stay in the guild.
+  const guildsWithChars = db
+    .prepare("SELECT DISTINCT guild_id FROM characters WHERE user_id = ?")
+    .all(id) as Array<{ guild_id: number }>;
+  for (const { guild_id } of guildsWithChars) {
+    const other =
+      (db.prepare("SELECT user_id FROM guild_members WHERE guild_id = ? AND user_id != ? LIMIT 1").get(guild_id, id) as { user_id: number } | undefined) ??
+      (db.prepare("SELECT user_id FROM characters WHERE guild_id = ? AND user_id IS NOT NULL AND user_id != ? LIMIT 1").get(guild_id, id) as { user_id: number } | undefined);
+    if (other) {
+      db.prepare("UPDATE characters SET user_id = ? WHERE guild_id = ? AND user_id = ?").run(other.user_id, guild_id, id);
+    }
+  }
+
   // Reassign guild data (raider_roster, raid_teams) to another user before delete.
   // These are shared guild data; deleting the user must not delete them.
   const guildsFromRoster = db
