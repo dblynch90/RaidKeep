@@ -1,7 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { GuildBreadcrumbs } from "../components/GuildBreadcrumbs";
+
+interface RosterMember {
+  name: string;
+  class: string;
+  level: number;
+  role?: string;
+  rank?: string;
+}
 import type { GuildPermissions } from "./GuildPermissions";
 
 const PROFESSION_TYPES = [
@@ -53,6 +61,7 @@ export function CrafterManagement() {
   const serverType = searchParams.get("server_type") ?? "Retail";
 
   const [members, setMembers] = useState<GuildMember[]>([]);
+  const [guildRoster, setGuildRoster] = useState<RosterMember[]>([]);
   const [permissions, setPermissions] = useState<GuildPermissions | null>(null);
   const [tbcManual, setTbcManual] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -62,6 +71,11 @@ export function CrafterManagement() {
   const [addingCrafter, setAddingCrafter] = useState(false);
   const [newCrafter, setNewCrafter] = useState({ character_name: "", professions: [] as string[], profession_notes: "" });
   const [editingCrafter, setEditingCrafter] = useState<GuildMember | null>(null);
+  const [activeTab, setActiveTab] = useState<"crafters" | "guild">("crafters");
+  const [guildSearch, setGuildSearch] = useState("");
+  const [guildClassFilter, setGuildClassFilter] = useState("");
+  const [guildMemberFilter, setGuildMemberFilter] = useState<"all" | "crafter" | "non-crafter">("all");
+  const [selectedGuildMembers, setSelectedGuildMembers] = useState<Set<string>>(new Set());
 
   const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
 
@@ -73,6 +87,11 @@ export function CrafterManagement() {
     }
     setLoading(true);
     setError(null);
+    const fetchGuild = serverType === "TBC Anniversary"
+      ? api.get<{ members: RosterMember[] }>(
+          `/auth/me/guild-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
+        ).then((r) => r.members ?? []).catch(() => [] as RosterMember[])
+      : Promise.resolve([] as RosterMember[]);
     Promise.all([
       api.get<{ permissions: GuildPermissions }>(
         `/auth/me/guild-permissions?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
@@ -83,10 +102,12 @@ export function CrafterManagement() {
         setTbcManual(r.tbc_manual ?? false);
         return r.members ?? [];
       }),
+      fetchGuild,
     ])
-      .then(([perms, list]) => {
+      .then(([perms, list, guildList]) => {
         setPermissions(perms);
         setMembers(list);
+        setGuildRoster(guildList);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
       .finally(() => setLoading(false));
@@ -182,6 +203,84 @@ export function CrafterManagement() {
       .catch(() => {});
   };
 
+  const crafterMap = useMemo(() => {
+    const m = new Map<string, GuildMember>();
+    for (const c of members) m.set(c.name.toLowerCase(), c);
+    return m;
+  }, [members]);
+
+  const guildClassList = useMemo(() => {
+    const set = new Set(guildRoster.map((m) => m.class));
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [guildRoster]);
+
+  const displayGuildMembers = useMemo(() => {
+    const q = guildSearch.trim().toLowerCase();
+    return [...guildRoster]
+      .filter((m) => !q || m.name.toLowerCase().includes(q))
+      .filter((m) => !guildClassFilter || m.class === guildClassFilter)
+      .filter((m) => {
+        const isCrafter = crafterMap.has(m.name.toLowerCase());
+        if (guildMemberFilter === "crafter") return isCrafter;
+        if (guildMemberFilter === "non-crafter") return !isCrafter;
+        return true;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  }, [guildRoster, guildSearch, guildClassFilter, guildMemberFilter, crafterMap]);
+
+  const addSelectedAsCrafters = async () => {
+    const toAdd = displayGuildMembers.filter(
+      (m) => !crafterMap.has(m.name.toLowerCase()) && selectedGuildMembers.has(m.name.toLowerCase())
+    );
+    if (toAdd.length === 0) return;
+    const results = await Promise.allSettled(
+      toAdd.map((m) =>
+        api.post("/auth/me/guild-crafter", {
+          realm: realmSlug,
+          guild_name: guildName,
+          server_type: serverType,
+          character_name: m.name,
+          professions: [],
+          profession_notes: null,
+        })
+      )
+    );
+    const added = toAdd.filter((_, i) => results[i]?.status === "fulfilled");
+    if (added.length > 0) {
+      setMembers((prev) => [
+        ...prev,
+        ...added.map((m) => ({ name: m.name, class: m.class, level: m.level, professions: [] as string[], guild_profession_stars: [] as string[] })),
+      ]);
+    }
+    setSelectedGuildMembers(new Set());
+  };
+
+  const toggleGuildMemberSelection = (name: string) => {
+    const key = name.toLowerCase();
+    if (crafterMap.has(key)) return;
+    setSelectedGuildMembers((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const selectAllNonCrafters = () => {
+    const nonCrafters = displayGuildMembers
+      .filter((m) => !crafterMap.has(m.name.toLowerCase()))
+      .map((m) => m.name.toLowerCase());
+    setSelectedGuildMembers(new Set(nonCrafters));
+  };
+
+  const selectedNonCrafterCount = useMemo(
+    () =>
+      displayGuildMembers.filter(
+        (m) => !crafterMap.has(m.name.toLowerCase()) && selectedGuildMembers.has(m.name.toLowerCase())
+      ).length,
+    [displayGuildMembers, crafterMap, selectedGuildMembers]
+  );
+
   const filteredMembers = members
     .filter((m) => {
       const q = searchQuery.trim().toLowerCase();
@@ -247,6 +346,151 @@ export function CrafterManagement() {
             }}
           >
             <div className="p-6">
+              {tbcManual && (
+                <nav className="flex rounded-lg bg-slate-800/60 p-1 border border-slate-700/50 w-fit mb-6">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("crafters")}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition ${
+                      activeTab === "crafters" ? "text-slate-200 bg-[#223657] border-b-2 border-sky-500" : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
+                    }`}
+                  >
+                    Crafter Roster
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("guild")}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition ${
+                      activeTab === "guild" ? "text-slate-200 bg-[#223657] border-b-2 border-sky-500" : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
+                    }`}
+                  >
+                    Guild Members
+                  </button>
+                </nav>
+              )}
+              {tbcManual && activeTab === "guild" ? (
+                <div>
+                  <p className="text-slate-500 text-sm mb-4">
+                    Add crafters from your guild roster. Select members and add them, or use the manual form in Crafter Roster. Crafters are marked with ✓.
+                  </p>
+                  <div className="flex flex-wrap gap-3 mb-4">
+                    <input
+                      type="text"
+                      placeholder="Search by name..."
+                      value={guildSearch}
+                      onChange={(e) => setGuildSearch(e.target.value)}
+                      className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-500 text-sm min-w-[180px]"
+                    />
+                    <select
+                      value={guildClassFilter}
+                      onChange={(e) => setGuildClassFilter(e.target.value)}
+                      className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 text-sm"
+                    >
+                      <option value="">All classes</option>
+                      {guildClassList.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                    <div className="flex rounded-lg bg-slate-800/60 p-0.5 border border-slate-700/50">
+                      {(["all", "crafter", "non-crafter"] as const).map((f) => (
+                        <button
+                          key={f}
+                          type="button"
+                          onClick={() => setGuildMemberFilter(f)}
+                          className={`px-2 py-0.5 rounded text-xs font-medium ${
+                            guildMemberFilter === f ? "text-slate-200 bg-[#223657]" : "text-slate-400 hover:text-slate-200"
+                          }`}
+                        >
+                          {f === "all" ? "All" : f === "crafter" ? "Crafters" : "Non-crafters"}
+                        </button>
+                      ))}
+                    </div>
+                    {canManage && (
+                      <div className="flex items-center gap-2 ml-auto">
+                        <button
+                          type="button"
+                          onClick={selectAllNonCrafters}
+                          className="px-2 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 border border-slate-600"
+                        >
+                          Select all non-crafters
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedGuildMembers(new Set())}
+                          className="px-2 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 border border-slate-600"
+                        >
+                          Clear
+                        </button>
+                        <button
+                          type="button"
+                          onClick={addSelectedAsCrafters}
+                          disabled={selectedNonCrafterCount === 0}
+                          className="px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-sm font-medium"
+                        >
+                          Add selected as crafters ({selectedNonCrafterCount})
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {guildRoster.length === 0 ? (
+                    <p className="text-slate-500">Guild roster could not be loaded from Blizzard.</p>
+                  ) : (
+                    <div className="space-y-1 max-h-[400px] overflow-y-auto">
+                      {displayGuildMembers.map((m) => {
+                        const isCrafter = crafterMap.has(m.name.toLowerCase());
+                        const isSelected = selectedGuildMembers.has(m.name.toLowerCase());
+                        return (
+                          <div
+                            key={m.name}
+                            className="flex items-center justify-between py-2 px-3 rounded-lg bg-slate-800/50 border border-slate-700/50"
+                          >
+                            <div className="flex items-center gap-3">
+                              {canManage && !isCrafter && (
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => toggleGuildMemberSelection(m.name)}
+                                  className="rounded"
+                                />
+                              )}
+                              <span className="font-medium text-slate-200">{m.name}</span>
+                              <span className="text-slate-500 text-sm">{m.class} · Lv{m.level}</span>
+                              {isCrafter && <span className="text-amber-400 text-sm">✓ Crafter</span>}
+                            </div>
+                              {canManage && !isCrafter && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    api
+                                      .post("/auth/me/guild-crafter", {
+                                        realm: realmSlug,
+                                        guild_name: guildName,
+                                        server_type: serverType,
+                                        character_name: m.name,
+                                        professions: [],
+                                        profession_notes: null,
+                                      })
+                                      .then(() => {
+                                        setMembers((prev) => [
+                                          ...prev,
+                                          { name: m.name, class: m.class, level: m.level, professions: [], guild_profession_stars: [] },
+                                        ]);
+                                      })
+                                      .catch(() => {});
+                                  }}
+                                  className="text-sky-400 hover:text-sky-300 text-sm"
+                                >
+                                  + Add as crafter
+                                </button>
+                              )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : (
+              <>
               {tbcManual && canManage && (
                 <div className="mb-6 flex items-center gap-3 flex-wrap">
                   {!addingCrafter ? (
@@ -264,17 +508,27 @@ export function CrafterManagement() {
                         placeholder="Character name"
                         className="px-2 py-1.5 rounded bg-slate-700 text-sm w-40"
                       />
-                      <input
-                        value={newCrafter.professions.join(", ")}
-                        onChange={(e) =>
-                          setNewCrafter((x) => ({
-                            ...x,
-                            professions: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
-                          }))
-                        }
-                        placeholder="Professions (comma-separated)"
-                        className="px-2 py-1.5 rounded bg-slate-700 text-sm w-56"
-                      />
+                      <div className="flex flex-wrap gap-1.5 items-center">
+                        <span className="text-slate-400 text-xs shrink-0">Professions:</span>
+                        {PROFESSION_TYPES.map((p) => (
+                          <label key={p} className="flex items-center gap-1 px-2 py-0.5 rounded bg-slate-700/80 cursor-pointer hover:bg-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={newCrafter.professions.includes(p)}
+                              onChange={(e) =>
+                                setNewCrafter((x) => ({
+                                  ...x,
+                                  professions: e.target.checked
+                                    ? [...x.professions, p]
+                                    : x.professions.filter((pr) => pr !== p),
+                                }))
+                              }
+                              className="rounded"
+                            />
+                            <span className="text-slate-300 text-xs">{p}</span>
+                          </label>
+                        ))}
+                      </div>
                       <input
                         value={newCrafter.profession_notes}
                         onChange={(e) => setNewCrafter((x) => ({ ...x, profession_notes: e.target.value }))}
@@ -357,16 +611,30 @@ export function CrafterManagement() {
                           )}
                           <td className="py-3 pr-4 text-slate-400">
                             {editingCrafter?.name === m.name ? (
-                              <input
-                                value={(editingCrafter.professions || []).join(", ")}
-                                onChange={(e) =>
-                                  setEditingCrafter((x) =>
-                                    x ? { ...x, professions: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) } : null
-                                  )
-                                }
-                                className="px-2 py-1 rounded bg-slate-700 text-sm w-40"
-                                placeholder="Professions"
-                              />
+                              <div className="flex flex-wrap gap-1.5">
+                                {PROFESSION_TYPES.map((p) => (
+                                  <label key={p} className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-700/80 cursor-pointer hover:bg-slate-700 text-xs">
+                                    <input
+                                      type="checkbox"
+                                      checked={(editingCrafter?.professions || []).includes(p)}
+                                      onChange={(e) =>
+                                        setEditingCrafter((x) =>
+                                          x
+                                            ? {
+                                                ...x,
+                                                professions: e.target.checked
+                                                  ? [...(x.professions || []), p]
+                                                  : (x.professions || []).filter((pr) => pr !== p),
+                                              }
+                                            : null
+                                        )
+                                      }
+                                      className="rounded"
+                                    />
+                                    <span>{p}</span>
+                                  </label>
+                                ))}
+                              </div>
                             ) : (
                               m.professions.length > 0 ? m.professions.join(", ") : "—"
                             )}
@@ -466,6 +734,8 @@ export function CrafterManagement() {
                   ? "Add crafters manually, set their professions and public notes. Star them to show in Guild Crafters recipe search."
                   : "Professions and skill levels come from the Blizzard API. You can star any guild member as a guild crafter for any profession."}
               </p>
+            </>
+          )}
             </div>
           </div>
         )}
