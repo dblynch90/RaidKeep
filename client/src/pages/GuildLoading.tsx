@@ -22,9 +22,12 @@ export function GuildLoading() {
   const [guildDataLoaded, setGuildDataLoaded] = useState(false);
   const [permissions, setPermissions] = useState<GuildPermissions | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
   const guildDashboardUrl = `/guild-dashboard?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
+
+  const permissionsUrl = `/auth/me/guild-permissions?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
 
   useEffect(() => {
     if (!realm || !guildName) {
@@ -34,20 +37,45 @@ export function GuildLoading() {
     setError(null);
     setPermissionsLoaded(false);
     setGuildDataLoaded(false);
-
-    // Step 1: Load permissions
-    api
-      .get<{ permissions: GuildPermissions }>(
-        `/auth/me/guild-permissions?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
-      )
-      .then((r) => {
-        setPermissions(r.permissions);
-        setPermissionsLoaded(true);
-      })
-      .catch((err) => {
-        setError(err instanceof Error ? err.message : "Failed to load permissions");
-      });
+    setRetryCount(0);
   }, [realm, realmSlug, guildName, serverType]);
+
+  // Step 1: Load permissions (with retries for post-login sync race)
+  useEffect(() => {
+    if (!realm || !guildName) return;
+
+    const maxRetries = 3;
+    const retryDelayMs = 1500;
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const fetchPerms = (attempt: number) => {
+      if (cancelled) return;
+      api
+        .get<{ permissions: GuildPermissions }>(permissionsUrl)
+        .then((r) => {
+          if (cancelled) return;
+          const perms = r.permissions;
+          if (perms.view_guild_dashboard || attempt >= maxRetries) {
+            setPermissions(perms);
+            setPermissionsLoaded(true);
+          } else {
+            // No access yet - may be sync race; retry after delay
+            setRetryCount((c) => c + 1);
+            timeoutId = setTimeout(() => fetchPerms(attempt + 1), retryDelayMs);
+          }
+        })
+        .catch((err) => {
+          if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load permissions");
+        });
+    };
+
+    fetchPerms(0);
+    return () => {
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [realm, realmSlug, guildName, serverType, permissionsUrl]);
 
   // Step 2: Load guild data (saved raids - lightweight check that guild is accessible)
   useEffect(() => {
@@ -120,6 +148,9 @@ export function GuildLoading() {
               )}
               <span className={permissionsLoaded ? "text-slate-300" : "text-slate-400"}>
                 Loading Permissions
+                {retryCount > 0 && (
+                  <span className="ml-2 text-slate-500 text-sm">(syncing characters…)</span>
+                )}
               </span>
             </div>
 
