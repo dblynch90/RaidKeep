@@ -1712,18 +1712,21 @@ authRoutes.get("/me/guild-crafters-full", requireAuth, async (req, res) => {
     )
     .all(userId, realmSlug, guildName, serverType) as Array<{ name: string }>;
   const myCharacterNames = new Set(myCharRows.map((r) => r.name));
-  const myCharsForAdd = db
-    .prepare(
-      `SELECT bnc.name, bnc.class, bnc.level FROM battle_net_characters bnc
-       WHERE bnc.user_id = ? AND LOWER(bnc.realm_slug) = ? AND bnc.server_type = ?`
-    )
-    .all(userId, realmSlug, serverType) as Array<{ name: string; class: string; level: number }>;
+  const myCharsOnRealm = new Set(
+    (db.prepare("SELECT LOWER(name) as name FROM battle_net_characters WHERE user_id = ? AND LOWER(realm_slug) = ? AND server_type = ?")
+      .all(userId, realmSlug, serverType) as Array<{ name: string }>).map((r) => r.name)
+  );
+  const myCharsInGuild = guildRoster.filter((m) => myCharsOnRealm.has(m.name.toLowerCase())).map((m) => ({
+    name: m.name,
+    class: m.class || "",
+    level: m.level || 0,
+  }));
   res.json({
     members,
     guild_roster: guildRoster,
     permissions: perms,
     my_character_names: [...myCharacterNames],
-    my_characters: myCharsForAdd,
+    my_characters: myCharsInGuild,
   });
 });
 
