@@ -315,19 +315,29 @@ authRoutes.post("/me/saved-raids", requireAuth, (req, res) => {
     parties,
     backups,
   } = req.body;
-  if (!guild_name || !guild_realm || !raid_name || !raid_date || !parties) {
-    res.status(400).json({ error: "guild_name, guild_realm, raid_name, raid_date, parties required" });
+  if (!raid_name?.trim()) {
+    res.status(400).json({ error: "raid_name required" });
+    return;
+  }
+  if (!guild_name || (!guild_realm && !guild_realm_slug)) {
+    res.status(400).json({ error: "guild_name and guild_realm (or guild_realm_slug) required" });
     return;
   }
   const db = getDb();
   const userId = req.session!.user!.id;
-  const realmSlug = guild_realm_slug ?? String(guild_realm).toLowerCase().replace(/\s+/g, "-");
+  const realmSlug = guild_realm_slug ?? String(guild_realm || "").toLowerCase().replace(/\s+/g, "-");
+  const guildRealm = guild_realm ?? realmSlug.replace(/-/g, " ");
+  const resolvedRaidDate = raid_date && String(raid_date).trim() ? raid_date : new Date().toISOString().slice(0, 10);
+  const resolvedParties = Array.isArray(parties) && parties.length > 0 ? parties : [
+    Array(5).fill(null),
+    Array(5).fill(null),
+  ];
   const perms = getEffectiveGuildPermissions(db, userId, realmSlug, guild_name, server_type || "Retail");
   if (!perms?.manage_raids) {
     res.status(403).json({ error: "You do not have permission to create raids" });
     return;
   }
-  const partyCount = Array.isArray(parties) ? Math.max(parties.length, 1) : 2;
+  const partyCount = Math.max(resolvedParties.length, 1);
   const result = db
     .prepare(
       `INSERT INTO saved_raids (user_id, guild_name, guild_realm, guild_realm_slug, server_type, raid_name, raid_instance, raid_date, start_time, finish_time, party_count)
@@ -336,12 +346,12 @@ authRoutes.post("/me/saved-raids", requireAuth, (req, res) => {
     .run(
       userId,
       guild_name,
-      guild_realm,
+      guildRealm,
       realmSlug,
       server_type || "Retail",
-      raid_name,
+      raid_name.trim(),
       raid_instance || null,
-      raid_date,
+      resolvedRaidDate,
       start_time || null,
       finish_time || null,
       partyCount
@@ -351,8 +361,8 @@ authRoutes.post("/me/saved-raids", requireAuth, (req, res) => {
     `INSERT INTO saved_raid_slots (raid_id, party_index, slot_index, character_name, character_class, role, is_raid_lead, is_raid_assist)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   );
-  for (let pi = 0; pi < parties.length; pi++) {
-    const party = parties[pi] as Array<{ characterName: string; characterClass: string; role: string; isRaidLead?: boolean; isRaidAssist?: boolean } | null>;
+  for (let pi = 0; pi < resolvedParties.length; pi++) {
+    const party = resolvedParties[pi] as Array<{ characterName: string; characterClass: string; role: string; isRaidLead?: boolean; isRaidAssist?: boolean } | null>;
     for (let si = 0; si < (party?.length ?? 0); si++) {
       const slot = party?.[si];
       if (slot) {
