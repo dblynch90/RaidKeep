@@ -1733,11 +1733,12 @@ function RosterAddButton({
       {showMenu && (
         <>
           <div
-            className="fixed inset-0 z-10"
+            className="fixed inset-0 z-30 bg-black/20"
             onClick={() => setShowMenu(false)}
+            onPointerDown={() => setShowMenu(false)}
             aria-hidden
           />
-          <div className="absolute left-0 top-full mt-1 z-20 bg-slate-800 border border-slate-600 rounded shadow-xl py-2 min-w-[180px]">
+          <div className="absolute left-0 top-full mt-1 z-40 bg-slate-800 border border-slate-600 rounded shadow-xl py-2 min-w-[180px]">
             {onQuickAssign && (
               <button
                 type="button"
@@ -2015,11 +2016,12 @@ function RaidSlotCard({
           {showPicker && (
             <>
               <div
-                className="fixed inset-0 z-10"
+                className="fixed inset-0 z-30 bg-black/20"
                 onClick={() => setShowPicker(false)}
+                onPointerDown={() => setShowPicker(false)}
                 aria-hidden
               />
-              <div className="absolute left-0 top-full mt-1 z-20 bg-slate-800 border border-slate-600 rounded shadow-xl py-2 max-h-48 overflow-y-auto min-w-[200px]">
+              <div className="absolute left-0 top-full mt-1 z-40 bg-slate-800 border border-slate-600 rounded shadow-xl py-2 max-h-48 overflow-y-auto min-w-[200px]">
                 {membersToShow.length === 0 ? (
                   <div className="px-3 py-2 text-slate-500 text-sm">No one available</div>
                 ) : (
