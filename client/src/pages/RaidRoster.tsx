@@ -140,13 +140,12 @@ export function RaidRoster() {
   const [characterSearchResult, setCharacterSearchResult] = useState<{ name: string; class: string; level: number } | null>(null);
   const [characterSearching, setCharacterSearching] = useState(false);
   const [characterSearchError, setCharacterSearchError] = useState<string | null>(null);
-  const [characterSearchModalOpen, setCharacterSearchModalOpen] = useState(false);
   const [guildMemberSearch, setGuildMemberSearch] = useState("");
   const [guildClassFilter, setGuildClassFilter] = useState("");
   const [guildMemberFilter, setGuildMemberFilter] = useState<"all" | "raider" | "non-raider">("all");
   const [selectedGuildMembers, setSelectedGuildMembers] = useState<Set<string>>(new Set());
   const [teamNameDrafts, setTeamNameDrafts] = useState<Record<number, string>>({});
-  const [addFromGuildOpen, setAddFromGuildOpen] = useState(false);
+  const [rosterTab, setRosterTab] = useState<"roster" | "guild" | "realm">("roster");
 
   const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
   const perms = permissions ?? (loading ? { ...DEFAULT_PERMISSIONS, manage_raid_roster: false } : DEFAULT_PERMISSIONS);
@@ -476,7 +475,6 @@ export function RaidRoster() {
       ]);
       setCharacterSearchResult(null);
       setCharacterSearchName("");
-      setCharacterSearchModalOpen(false);
       setSaveMsg("Saved.");
     } catch (err: unknown) {
       setCharacterSearchError(err instanceof Error ? err.message : "Failed to add");
@@ -646,74 +644,6 @@ export function RaidRoster() {
           <div className="mt-4 h-px bg-slate-700/60" />
         </header>
 
-        {characterSearchModalOpen && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-            onClick={() => setCharacterSearchModalOpen(false)}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="character-search-title"
-          >
-            <div
-              className="bg-slate-800 border border-slate-600 rounded-lg shadow-xl p-5 w-full max-w-md mx-4"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h2 id="character-search-title" className="text-lg font-semibold text-slate-200">
-                  Realm Search
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => setCharacterSearchModalOpen(false)}
-                  className="text-slate-400 hover:text-slate-200 text-xl leading-none"
-                  aria-label="Close"
-                >
-                  ×
-                </button>
-              </div>
-              <p className="text-slate-400 text-sm mb-3">
-                Search for any character on {capitalizeRealm(realm)} to add them to your raid roster.
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  type="text"
-                  placeholder="Character name..."
-                  value={characterSearchName}
-                  onChange={(e) => { setCharacterSearchName(e.target.value); setCharacterSearchError(null); }}
-                  onKeyDown={(e) => e.key === "Enter" && searchCharacter()}
-                  className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-500 text-sm w-full focus:outline-none focus:ring-1 focus:ring-amber-500/50"
-                />
-                <button
-                  type="button"
-                  onClick={searchCharacter}
-                  disabled={characterSearching || !characterSearchName.trim()}
-                  className="px-3 py-2 rounded bg-slate-600 hover:bg-slate-500 disabled:opacity-50 text-slate-200 text-sm font-medium"
-                >
-                  {characterSearching ? "Searching..." : "Search"}
-                </button>
-              </div>
-              {characterSearchResult && (
-                <div className="mt-3 flex flex-wrap items-center gap-2 p-3 rounded-lg bg-slate-700/50 border border-slate-600">
-                  <span className="text-sm" style={{ color: getClassColor(characterSearchResult.class) }}>
-                    {characterSearchResult.name} – {characterSearchResult.level} – {characterSearchResult.class}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={addSearchedCharacter}
-                    disabled={characterSearching || raiderMap.has(characterSearchResult.name.toLowerCase())}
-                    className="px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-sm font-medium"
-                  >
-                    Add to Roster
-                  </button>
-                </div>
-              )}
-              {characterSearchError && (
-                <p className="text-amber-500 text-sm mt-2">{characterSearchError}</p>
-              )}
-            </div>
-          </div>
-        )}
-
         {loading ? (
           <p className="text-slate-500">Loading...</p>
         ) : (
@@ -724,89 +654,103 @@ export function RaidRoster() {
               boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
             }}
           >
-            {/* Filters + Save */}
-            <div className="p-3 flex flex-wrap items-center gap-2 border-b border-slate-700/60">
-              <input
-                type="text"
-                placeholder="Search..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-8 px-2.5 rounded bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-500 text-sm w-36 focus:ring-1 focus:ring-sky-500/50"
-              />
-              <select
-                value={classFilter}
-                onChange={(e) => setClassFilter(e.target.value)}
-                className="h-8 px-2.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm focus:ring-1 focus:ring-sky-500/50"
-              >
-                <option value="">All classes</option>
-                {raiderClassList.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-              <select
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
-                className="h-8 px-2.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm focus:ring-1 focus:ring-sky-500/50"
-              >
-                <option value="">All roles</option>
-                <option value="tank">Tank</option>
-                <option value="healer">Healer</option>
-                <option value="dps">DPS</option>
-              </select>
-              <select
-                value={teamFilter}
-                onChange={(e) => setTeamFilter(e.target.value)}
-                className="h-8 px-2.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm focus:ring-1 focus:ring-sky-500/50"
-              >
-                <option value="">All teams</option>
-                <option value="none">No team</option>
-                {teams.map((t) => (
-                  <option key={t.id} value={t.team_name}>{t.team_name}</option>
-                ))}
-              </select>
-              <select
-                value={availabilityFilter}
-                onChange={(e) => setAvailabilityFilter(e.target.value)}
-                className="h-8 px-2.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm focus:ring-1 focus:ring-sky-500/50"
-                title="Filter by availability"
-              >
-                <option value="">Any day</option>
-                {DAYS.map((d) => (
-                  <option key={d} value={d}>{d}</option>
-                ))}
-              </select>
-              <div className="flex-1" />
+            {/* Tab nav (officers) + Filters (roster tab) */}
+            <div className="p-3 border-b border-slate-700/60 space-y-3">
               {canEdit && (
-                <>
+                <nav className="flex rounded-lg bg-slate-800/60 p-1 border border-slate-700/50">
                   <button
                     type="button"
-                    onClick={() => setAddFromGuildOpen((o) => !o)}
-                    className={`h-8 px-3 rounded text-sm font-medium border shrink-0 ${addFromGuildOpen ? "bg-sky-600/80 text-white border-sky-500/50" : "bg-slate-700 hover:bg-slate-600 text-slate-200 border-slate-600"}`}
+                    onClick={() => setRosterTab("roster")}
+                    className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition flex items-center justify-center ${rosterTab === "roster" ? "text-slate-200 bg-[#223657] border-b-2 border-sky-500" : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"}`}
+                  >
+                    Roster
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRosterTab("guild")}
+                    className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition flex items-center justify-center ${rosterTab === "guild" ? "text-white bg-emerald-700/80 border-b-2 border-emerald-500" : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"}`}
                   >
                     Add from Guild
                   </button>
                   <button
                     type="button"
-                    onClick={() => setCharacterSearchModalOpen(true)}
-                    className="h-8 px-3 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-medium border border-slate-600 shrink-0"
+                    onClick={() => setRosterTab("realm")}
+                    className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition flex items-center justify-center ${rosterTab === "realm" ? "text-white bg-amber-600/90 border-b-2 border-amber-500" : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"}`}
                     title="Search for a character on the realm"
                   >
                     Add from Realm
                   </button>
-                </>
+                </nav>
               )}
-              {(canEdit || canEditOwnAvailabilityAndNotes) && (
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="h-8 px-4 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-medium text-sm inline-flex items-center justify-center leading-none border border-sky-500/50"
-                >
-                  {saving ? "Saving..." : "Save"}
-                </button>
+              {rosterTab === "roster" && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="Search..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="h-8 px-2.5 rounded bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-500 text-sm w-36 focus:ring-1 focus:ring-sky-500/50"
+                  />
+                  <select
+                    value={classFilter}
+                    onChange={(e) => setClassFilter(e.target.value)}
+                    className="h-8 px-2.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm focus:ring-1 focus:ring-sky-500/50"
+                  >
+                    <option value="">All classes</option>
+                    {raiderClassList.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={roleFilter}
+                    onChange={(e) => setRoleFilter(e.target.value)}
+                    className="h-8 px-2.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm focus:ring-1 focus:ring-sky-500/50"
+                  >
+                    <option value="">All roles</option>
+                    <option value="tank">Tank</option>
+                    <option value="healer">Healer</option>
+                    <option value="dps">DPS</option>
+                  </select>
+                  <select
+                    value={teamFilter}
+                    onChange={(e) => setTeamFilter(e.target.value)}
+                    className="h-8 px-2.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm focus:ring-1 focus:ring-sky-500/50"
+                  >
+                    <option value="">All teams</option>
+                    <option value="none">No team</option>
+                    {teams.map((t) => (
+                      <option key={t.id} value={t.team_name}>{t.team_name}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={availabilityFilter}
+                    onChange={(e) => setAvailabilityFilter(e.target.value)}
+                    className="h-8 px-2.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm focus:ring-1 focus:ring-sky-500/50"
+                    title="Filter by availability"
+                  >
+                    <option value="">Any day</option>
+                    {DAYS.map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                  <div className="flex-1" />
+                  {(canEdit || canEditOwnAvailabilityAndNotes) && (
+                    <button
+                      type="button"
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="h-8 px-4 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-medium text-sm inline-flex items-center justify-center leading-none border border-sky-500/50"
+                    >
+                      {saving ? "Saving..." : "Save"}
+                    </button>
+                  )}
+                </div>
               )}
             </div>
 
+            {/* Roster tab: Table */}
+            {rosterTab === "roster" && (
+            <>
             {/* Table container - header sticks during scroll */}
             <div className="max-h-[60vh] overflow-auto overflow-x-auto">
               {/* Table header - sticky */}
@@ -986,12 +930,11 @@ export function RaidRoster() {
                 })
               )}
             </div>
-          </div>
-        )}
+            </>
+            )}
 
-        {canEdit && (
-          <div className="mt-6 space-y-4">
-            <CollapsibleSection title="Add from Guild" open={addFromGuildOpen} onOpenChange={setAddFromGuildOpen}>
+            {/* Guild tab: Add from Guild */}
+            {rosterTab === "guild" && canEdit && (
               <div className="p-4">
                 <p className="text-slate-500 text-sm mb-3">
                   Add guild members to your raid roster. Select multiple and add at once, or add individually.
@@ -1103,8 +1046,57 @@ export function RaidRoster() {
                   )}
                 </div>
               </div>
-            </CollapsibleSection>
+            )}
 
+            {/* Realm tab: Add from Realm (Realm Search) */}
+            {rosterTab === "realm" && canEdit && (
+              <div className="p-4">
+                <p className="text-slate-500 text-sm mb-3">
+                  Search for any character on {capitalizeRealm(realm)} to add them to your raid roster.
+                </p>
+                <div className="flex flex-wrap items-center gap-2 mb-4">
+                  <input
+                    type="text"
+                    placeholder="Character name..."
+                    value={characterSearchName}
+                    onChange={(e) => { setCharacterSearchName(e.target.value); setCharacterSearchError(null); }}
+                    onKeyDown={(e) => e.key === "Enter" && searchCharacter()}
+                    className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-500 text-sm w-64 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                  />
+                  <button
+                    type="button"
+                    onClick={searchCharacter}
+                    disabled={characterSearching || !characterSearchName.trim()}
+                    className="px-3 py-2 rounded bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-sm font-medium"
+                  >
+                    {characterSearching ? "Searching..." : "Search"}
+                  </button>
+                </div>
+                {characterSearchResult && (
+                  <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg bg-slate-700/50 border border-slate-600">
+                    <span className="text-sm" style={{ color: getClassColor(characterSearchResult.class) }}>
+                      {characterSearchResult.name} – {characterSearchResult.level} – {characterSearchResult.class}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={addSearchedCharacter}
+                      disabled={characterSearching || raiderMap.has(characterSearchResult.name.toLowerCase())}
+                      className="px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-sm font-medium"
+                    >
+                      Add to Roster
+                    </button>
+                  </div>
+                )}
+                {characterSearchError && (
+                  <p className="text-amber-500 text-sm mt-2">{characterSearchError}</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {canEdit && rosterTab === "roster" && (
+          <div className="mt-6 space-y-4">
             <CollapsibleSection title="Raid Teams" defaultOpen={false}>
               <div className="p-4">
                 <p className="text-slate-500 text-sm mb-4">
