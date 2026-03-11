@@ -430,7 +430,7 @@ export function PlanRaid() {
   const loadFromTeam = (teamId: number) => {
     const team = teams.find((t) => t.id === teamId);
     if (!team?.members.length) return;
-    const slots: RaidSlot[] = team.members.map((m) => {
+    const members: RaidSlot[] = team.members.map((m) => {
       const raiderData = getRaiderData(m.character_name);
       return {
         characterName: m.character_name,
@@ -440,20 +440,23 @@ export function PlanRaid() {
         isRaidAssist: raiderData?.raid_assist ?? false,
       };
     });
-    const newParties: (RaidSlot | null)[][] = [];
-    for (let i = 0; i < slots.length; i += SLOTS_PER_PARTY) {
-      const party: (RaidSlot | null)[] = [];
-      for (let j = 0; j < SLOTS_PER_PARTY; j++) {
-        party.push(slots[i + j] ?? null);
-      }
-      newParties.push(party);
-    }
-    if (newParties.length === 0) newParties.push(Array(SLOTS_PER_PARTY).fill(null));
     setParties((prev) => {
-      const minCount = Math.max(prev.length, newParties.length);
-      const result = [...newParties];
-      while (result.length < minCount) {
-        result.push(Array(SLOTS_PER_PARTY).fill(null));
+      const result = prev.map((p) => [...p]);
+      for (const member of members) {
+        let placed = false;
+        for (let pi = 0; pi < result.length && !placed; pi++) {
+          for (let si = 0; si < result[pi].length && !placed; si++) {
+            if (!result[pi][si]) {
+              result[pi][si] = member;
+              placed = true;
+            }
+          }
+        }
+        if (!placed) {
+          const newParty = Array(SLOTS_PER_PARTY).fill(null) as (RaidSlot | null)[];
+          newParty[0] = member;
+          result.push(newParty);
+        }
       }
       return result;
     });
