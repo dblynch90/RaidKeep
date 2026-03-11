@@ -870,7 +870,7 @@ export function PlanRaid() {
                     <p className="text-slate-500 text-xs mt-1.5">Copies raid name, instance, times, composition, and backups. Raid date is left empty for you to set.</p>
                   </div>
                 )}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 min-w-0">
                   <div className="rk-field-wrap min-w-0">
                     <label className="block text-slate-400 text-sm mb-1.5 font-medium">
                       Raid Name <span className="text-amber-500">*</span>
@@ -941,6 +941,7 @@ export function PlanRaid() {
                       value={raidDate}
                       onChange={(e) => setRaidDate(e.target.value)}
                       className="w-full px-3 py-2.5 sm:py-2 min-h-[44px] rounded-lg bg-slate-700/80 border border-slate-600 text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
+                      style={{ minWidth: 0, maxWidth: "100%" }}
                     />
                   </div>
                   <div className="rk-field-wrap min-w-0">
@@ -950,6 +951,7 @@ export function PlanRaid() {
                       value={startTime}
                       onChange={(e) => setStartTime(e.target.value)}
                       className="w-full px-3 py-2.5 sm:py-2 min-h-[44px] rounded-lg bg-slate-700/80 border border-slate-600 text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
+                      style={{ minWidth: 0, maxWidth: "100%" }}
                     />
                   </div>
                   <div className="rk-field-wrap min-w-0">
@@ -959,6 +961,7 @@ export function PlanRaid() {
                       value={finishTime}
                       onChange={(e) => setFinishTime(e.target.value)}
                       className="w-full px-3 py-2.5 sm:py-2 min-h-[44px] rounded-lg bg-slate-700/80 border border-slate-600 text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
+                      style={{ minWidth: 0, maxWidth: "100%" }}
                     />
                   </div>
                   {perms.manage_raids && (
@@ -982,17 +985,18 @@ export function PlanRaid() {
               {showGuildRosterDrawer && (
                 <div className="fixed inset-0 sm:absolute sm:inset-auto sm:left-0 sm:top-0 sm:bottom-0 w-full sm:w-[340px] border-r border-slate-700 bg-slate-800/95 flex flex-col overflow-hidden sm:rounded-l-xl z-20">
                   <div className="p-4 border-b border-slate-700 shrink-0">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-slate-300 font-medium text-sm">
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <h3 className="text-slate-300 font-medium text-sm truncate flex-1 min-w-0">
                         {rosterDrawerTab === "guild" ? "Add From Guild" : "Add From Realm"}
                       </h3>
                       <button
                         type="button"
-                        onClick={() => setShowGuildRosterDrawer(false)}
-                        className="min-w-[44px] min-h-[44px] w-11 h-11 sm:w-8 sm:h-8 flex items-center justify-center rounded text-slate-500 hover:text-slate-200 hover:bg-slate-700 shrink-0"
-                        aria-label="Close"
+                        onClick={closeRosterDrawer}
+                        className="flex items-center gap-1.5 min-h-[44px] px-3 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-sm font-medium shrink-0 sm:bg-transparent sm:text-slate-500 sm:hover:bg-slate-700 sm:hover:text-slate-200 sm:min-w-[44px] sm:min-h-[44px] sm:w-8 sm:h-8 sm:justify-center sm:px-0"
+                        aria-label="Back to composition"
                       >
-                        ×
+                        <span className="sm:hidden">← Back</span>
+                        <span className="hidden sm:inline">×</span>
                       </button>
                     </div>
                     <div className="flex gap-2 mb-3">

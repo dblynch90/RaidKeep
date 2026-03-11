@@ -104,10 +104,22 @@
 /* Form field containers – prevent inputs from overflowing on mobile */
 .rk-field-wrap {
   min-width: 0;
+  overflow: hidden;
 }
 
 .rk-field-wrap input,
 .rk-field-wrap select {
   max-width: 100%;
+  width: 100%;
   box-sizing: border-box;
+}
+
+/* Date/time inputs have browser min-width that causes overflow – override on mobile */
+@media (max-width: 639px) {
+  .rk-field-wrap input[type="date"],
+  .rk-field-wrap input[type="time"] {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+  }
 }

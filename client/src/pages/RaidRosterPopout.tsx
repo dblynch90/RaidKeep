@@ -314,7 +314,7 @@ export function RaidRosterPopout() {
             placeholder="Search player..."
             value={playerSearch}
             onChange={(e) => setPlayerSearch(e.target.value)}
-            className="px-3 py-2 rounded-lg bg-slate-700/60 border border-slate-600 text-slate-100 placeholder-slate-500 text-sm w-40 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
+            className="flex-1 min-w-0 sm:flex-initial sm:w-40 px-3 py-2 rounded-lg bg-slate-700/60 border border-slate-600 text-slate-100 placeholder-slate-500 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
           />
           <select
             value={classFilter}
@@ -371,9 +371,9 @@ export function RaidRosterPopout() {
         </div>
       </div>
 
-      {/* Excel-style table - full width */}
-      <div className="overflow-auto p-3 sm:p-4 rk-scroll-x" style={{ minHeight: "calc(100vh - 60px)" }}>
-        <table className="w-full border-collapse text-sm table-fixed" style={{ minWidth: 960 }}>
+      {/* Desktop: Excel-style table */}
+      <div className="hidden sm:block overflow-auto p-3 sm:p-4" style={{ minHeight: "calc(100vh - 60px)" }}>
+        <table className="w-full border-collapse text-sm table-fixed" style={{ minWidth: 720 }}>
           <colgroup>
             <col style={{ width: "12%" }} />
             <col style={{ width: "18%" }} />
@@ -537,6 +537,163 @@ export function RaidRosterPopout() {
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile: Card layout – no horizontal scroll */}
+      <div className="sm:hidden p-3 pb-8 space-y-3" style={{ minHeight: "calc(100vh - 60px)" }}>
+        {sortedRaiders.length === 0 ? (
+          <p className="py-12 text-center text-slate-500 text-sm">No raiders in roster.</p>
+        ) : (
+          sortedRaiders.map((r) => {
+            const classColor = getClassColor(r.character_class);
+            const teamId = characterToTeamId.get(r.character_name.toLowerCase());
+            const team = teams.find((t) => t.id === teamId);
+            const avail = (r.availability || DEFAULT_AVAILABILITY).padEnd(7, "0");
+            return (
+              <div
+                key={r.character_name}
+                className="rounded-xl border border-slate-700/80 bg-slate-800/60 p-4"
+                style={{ borderLeftWidth: 4, borderLeftColor: classColor }}
+              >
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <span className="font-medium" style={{ color: classColor }}>
+                    {r.character_name}
+                  </span>
+                  {team && (
+                    <span className="text-slate-500 text-xs shrink-0">{team.team_name}</span>
+                  )}
+                </div>
+                <div className="space-y-3 text-sm">
+                  <div>
+                    <span className="text-slate-500 text-xs uppercase block mb-1">Availability</span>
+                    <span className="flex gap-1 flex-wrap">
+                      {DAYS.map((d, i) => {
+                        const checked = avail[i] === "1";
+                        const canEditAvail = canEditRaider(r.character_name);
+                        return (
+                          <label
+                            key={d}
+                            className={`inline-flex items-center justify-center w-8 text-center text-xs py-1.5 rounded min-h-[36px] ${canEditAvail ? "cursor-pointer" : "cursor-default"} ${
+                              canEditAvail
+                                ? checked
+                                  ? "bg-sky-500/20 text-sky-400 border border-sky-500/50"
+                                  : "text-slate-600 border border-slate-600"
+                                : checked
+                                  ? "bg-sky-500/20 text-sky-400"
+                                  : "text-slate-600"
+                            }`}
+                            title={d}
+                          >
+                            {canEditAvail ? (
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleAvailabilityDay(r.character_name, i)}
+                                className="sr-only"
+                              />
+                            ) : null}
+                            {d[0]}
+                          </label>
+                        );
+                      })}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-slate-500 text-xs uppercase block mb-0.5">Role / Spec</span>
+                      {canEditRaider(r.character_name) ? (
+                        <div className="flex flex-col gap-1">
+                          <select
+                            value={r.raid_role ?? ""}
+                            onChange={(e) => updateRaider(r.character_name, { raid_role: e.target.value })}
+                            className="w-full h-8 px-2 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs [color-scheme:dark]"
+                          >
+                            {RAID_ROLES.map((opt) => (
+                              <option key={opt.value || "_"} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            value={r.primary_spec ?? ""}
+                            onChange={(e) => updateRaider(r.character_name, { primary_spec: e.target.value })}
+                            placeholder="Spec"
+                            className="w-full h-8 px-2 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs placeholder-slate-500"
+                          />
+                        </div>
+                      ) : (
+                        <span className="text-slate-400">
+                          {[(r.raid_role || "—").charAt(0).toUpperCase() + (r.raid_role || "").slice(1).toLowerCase(), r.primary_spec || "—"].join(" · ")}
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-slate-500 text-xs uppercase block mb-0.5">Secondary</span>
+                      {canEditRaider(r.character_name) ? (
+                        <div className="flex flex-col gap-1">
+                          <select
+                            value={["tank", "healer", "dps"].includes((r.off_spec ?? "").toLowerCase()) ? (r.off_spec ?? "").toLowerCase() : ""}
+                            onChange={(e) => updateRaider(r.character_name, { off_spec: e.target.value })}
+                            className="w-full h-8 px-2 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs [color-scheme:dark]"
+                          >
+                            {RAID_ROLES.map((opt) => (
+                              <option key={opt.value || "_"} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            value={r.secondary_spec ?? ""}
+                            onChange={(e) => updateRaider(r.character_name, { secondary_spec: e.target.value })}
+                            placeholder="Spec"
+                            className="w-full h-8 px-2 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs placeholder-slate-500"
+                          />
+                        </div>
+                      ) : (
+                        <span className="text-slate-400">
+                          {[(r.off_spec || "—").charAt(0).toUpperCase() + (r.off_spec || "").slice(1).toLowerCase(), r.secondary_spec || "—"].join(" · ")}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 text-xs uppercase block mb-0.5">Notes</span>
+                    <div className="flex items-start gap-2 min-w-0">
+                      <div className="flex-1 min-w-0 text-slate-400 text-sm whitespace-pre-wrap break-words">
+                        {r.notes ? (
+                          <div>
+                            <span className="text-slate-500 text-xs">Player: </span>
+                            {r.notes}
+                          </div>
+                        ) : null}
+                        {canEdit && r.officer_notes ? (
+                          <div className="mt-0.5">
+                            <span className="text-slate-500 text-xs">Officer: </span>
+                            {r.officer_notes}
+                          </div>
+                        ) : null}
+                        {!r.notes && !(canEdit && r.officer_notes) ? (
+                          <span className="text-slate-600">—</span>
+                        ) : null}
+                      </div>
+                      {canEditRaider(r.character_name) && (
+                        <button
+                          type="button"
+                          onClick={() => setNotesFor(r.character_name)}
+                          className={`shrink-0 min-w-[44px] min-h-[44px] w-11 h-11 flex items-center justify-center rounded text-lg ${
+                            (r.notes || (canEdit && r.officer_notes)) ? "text-sky-400" : "text-slate-500"
+                          }`}
+                          title="Edit notes"
+                          aria-label="Edit notes"
+                        >
+                          📝
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* Notes modal */}
