@@ -12,42 +12,6 @@ interface RosterMember {
   race?: string;
 }
 
-function CollapsibleSection({
-  title,
-  defaultOpen = false,
-  open: controlledOpen,
-  onOpenChange,
-  children,
-}: {
-  title: string;
-  defaultOpen?: boolean;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
-  children: React.ReactNode;
-}) {
-  const [internalOpen, setInternalOpen] = useState(defaultOpen);
-  const isControlled = controlledOpen !== undefined;
-  const open = isControlled ? controlledOpen : internalOpen;
-  const setOpen = (v: boolean | ((prev: boolean) => boolean)) => {
-    const next = typeof v === "function" ? v(open) : v;
-    if (!isControlled) setInternalOpen(next);
-    onOpenChange?.(next);
-  };
-  return (
-    <div className="rounded-lg border border-slate-700 overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left bg-slate-800/80 hover:bg-slate-700/80 transition"
-      >
-        <span className="font-medium text-slate-200">{title}</span>
-        <span className={`text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}>▼</span>
-      </button>
-      {open && <div className="border-t border-slate-700">{children}</div>}
-    </div>
-  );
-}
-
 const CLASS_COLORS: Record<string, string> = {
   Warrior: "#C69B6D",
   Paladin: "#F58CBA",
@@ -145,7 +109,7 @@ export function RaidRoster() {
   const [guildMemberFilter, setGuildMemberFilter] = useState<"all" | "raider" | "non-raider">("all");
   const [selectedGuildMembers, setSelectedGuildMembers] = useState<Set<string>>(new Set());
   const [teamNameDrafts, setTeamNameDrafts] = useState<Record<number, string>>({});
-  const [rosterTab, setRosterTab] = useState<"roster" | "guild" | "realm">("roster");
+  const [rosterTab, setRosterTab] = useState<"roster" | "guild" | "realm" | "teams">("roster");
 
   const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
   const perms = permissions ?? (loading ? { ...DEFAULT_PERMISSIONS, manage_raid_roster: false } : DEFAULT_PERMISSIONS);
@@ -680,6 +644,14 @@ export function RaidRoster() {
                   >
                     Add from Realm
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setRosterTab("teams")}
+                    className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition flex items-center justify-center ${rosterTab === "teams" ? "text-white bg-violet-700/80 border-b-2 border-violet-500" : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"}`}
+                    title="Create and manage raid teams"
+                  >
+                    Raid Teams
+                  </button>
                 </nav>
               )}
               {rosterTab === "roster" && (
@@ -734,15 +706,6 @@ export function RaidRoster() {
                     ))}
                   </select>
                   <div className="flex-1" />
-                  {canEdit && (
-                    <button
-                      type="button"
-                      onClick={createTeam}
-                      className="h-8 px-3 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-medium border border-slate-600 flex items-center justify-center"
-                    >
-                      + Create Team
-                    </button>
-                  )}
                   {(canEdit || canEditOwnAvailabilityAndNotes) && (
                     <button
                       type="button"
@@ -1101,17 +1064,14 @@ export function RaidRoster() {
                 )}
               </div>
             )}
-          </div>
-        )}
 
-        {canEdit && rosterTab === "roster" && (
-          <div className="mt-6 space-y-4">
-            <CollapsibleSection title="Raid Teams" defaultOpen={false}>
+            {/* Teams tab */}
+            {rosterTab === "teams" && canEdit && (
               <div className="p-4">
                 <p className="text-slate-500 text-sm mb-4">
                   Create teams and assign raiders. Use teams when planning raids.
                 </p>
-                <div className="flex items-center gap-2 mb-4">
+                <div className="flex flex-wrap gap-2 mb-4">
                   <button
                     type="button"
                     onClick={createTeam}
@@ -1198,7 +1158,7 @@ export function RaidRoster() {
                   </div>
                 )}
               </div>
-            </CollapsibleSection>
+            )}
           </div>
         )}
 
