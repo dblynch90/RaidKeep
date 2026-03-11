@@ -85,7 +85,6 @@ export function AdminGuildDetail() {
   const [addingRoster, setAddingRoster] = useState(false);
   const [newRosterEntry, setNewRosterEntry] = useState<Partial<RosterEntry>>({ character_name: "", character_class: "Unknown" });
   const [deleteGuildConfirm, setDeleteGuildConfirm] = useState(false);
-  const [syncingRoster, setSyncingRoster] = useState(false);
 
   const guildDisplay = guildName ? decodeURIComponent(guildName) : "";
   const realmDisplay = realmSlug ? capitalizeRealm(realmSlug.replace(/-/g, " ")) : "";
@@ -226,21 +225,6 @@ export function AdminGuildDetail() {
       method: "DELETE",
       credentials: "include",
     }).then((r) => r.ok && fetchData());
-  };
-
-  const syncRosterFromBlizzard = () => {
-    setSyncingRoster(true);
-    fetch(
-      `${API}/admin/guild/${realmSlug}/${guildName}/roster/sync?server_type=${encodeURIComponent(serverType)}&region=us`,
-      { method: "POST", credentials: "include" }
-    )
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.error) alert(data.error);
-        else fetchData();
-      })
-      .catch(() => alert("Sync failed"))
-      .finally(() => setSyncingRoster(false));
   };
 
   const addRosterEntry = () => {
@@ -502,13 +486,6 @@ export function AdminGuildDetail() {
             <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
               <h3 className="font-semibold text-sky-400">Raider Roster</h3>
               <div className="flex gap-2">
-                <button
-                  onClick={syncRosterFromBlizzard}
-                  disabled={syncingRoster}
-                  className="text-sm px-3 py-1.5 rounded-lg bg-amber-600/80 hover:bg-amber-500/80 text-white font-medium disabled:opacity-50"
-                >
-                  {syncingRoster ? "Syncing..." : "Sync from Blizzard"}
-                </button>
                 {!addingRoster && <button onClick={() => setAddingRoster(true)} className="text-sky-400 hover:text-sky-300 text-sm">+ Add</button>}
               </div>
             </div>

@@ -458,8 +458,8 @@ export function RaidRosterPopout() {
             <tr className="border-b border-slate-600">
               <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Player</th>
               <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">General Availability</th>
-              <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Role - Spec</th>
-              <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Role - Spec</th>
+              <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Primary Role/Spec</th>
+              <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Secondary Role/Spec</th>
               <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Team</th>
               <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Notes</th>
             </tr>

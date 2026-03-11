@@ -113,14 +113,6 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/raid-roster-view"
-        element={
-          <ProtectedRoute>
-            <RaidRoster />
-          </ProtectedRoute>
-        }
-      />
-      <Route
         path="/raid-schedule"
         element={
           <ProtectedRoute>

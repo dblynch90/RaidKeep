@@ -1,7 +1,6 @@
 import { Router, Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import { getDb } from "../db/init.js";
-import { fetchGuildRoster } from "../services/blizzard.js";
 
 export const adminRoutes = Router();
 
@@ -514,60 +513,6 @@ adminRoutes.get("/guild/:realmSlug/:guildName/roster", requireAdmin, (req, res) 
     guild_profession_stars: [] as string[],
   }));
   res.json({ roster: rosterWithStars, profession_types: [...PROFESSION_TYPES] });
-});
-
-adminRoutes.post("/guild/:realmSlug/:guildName/roster/sync", requireAdmin, async (req, res) => {
-  const realmSlug = (req.params.realmSlug as string)?.toLowerCase().replace(/\s+/g, "-");
-  const guildName = decodeURIComponent((req.params.guildName as string) || "");
-  const serverType = (req.query.server_type as string) || "Retail";
-  const region = (req.query.region as string) || process.env.ADMIN_BLIZZARD_REGION || "us";
-  if (!realmSlug || !guildName) {
-    res.status(400).json({ error: "realm and guild_name required" });
-    return;
-  }
-  try {
-    const roster = await fetchGuildRoster(region, realmSlug, guildName, serverType);
-    const db = getDb();
-    const uid = getOrCreateUserIdForGuild(db, realmSlug, guildName, serverType);
-    const insert = db.prepare(
-      `INSERT OR REPLACE INTO raider_roster (user_id, guild_name, guild_realm_slug, server_type, character_name, character_class, primary_spec, off_spec, notes, officer_notes, raid_role, raid_lead, raid_assist, availability)
-       VALUES (?, ?, ?, ?, ?, ?, COALESCE((SELECT primary_spec FROM raider_roster WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)), NULL),
-         COALESCE((SELECT off_spec FROM raider_roster WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)), NULL),
-         COALESCE((SELECT notes FROM raider_roster WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)), NULL),
-         COALESCE((SELECT officer_notes FROM raider_roster WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)), NULL),
-         COALESCE((SELECT raid_role FROM raider_roster WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)), NULL),
-         COALESCE((SELECT raid_lead FROM raider_roster WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)), 0),
-         COALESCE((SELECT raid_assist FROM raider_roster WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)), 0),
-         COALESCE((SELECT availability FROM raider_roster WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)), '0000000')
-       )`
-    );
-    // Simpler: use upsert with INSERT ... ON CONFLICT or check-then-insert/update
-    let added = 0;
-    let updated = 0;
-    for (const m of roster.members) {
-      const existing = db.prepare(
-        "SELECT id FROM raider_roster WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)"
-      ).get(realmSlug, guildName, serverType, m.name);
-      if (existing) {
-        db.prepare(
-          `UPDATE raider_roster SET character_class = ? WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND LOWER(character_name) = LOWER(?)`
-        ).run(m.class || "Unknown", realmSlug, guildName, serverType, m.name);
-        updated++;
-      } else {
-        db.prepare(
-          `INSERT INTO raider_roster (user_id, guild_name, guild_realm_slug, server_type, character_name, character_class, primary_spec, off_spec, notes, officer_notes, raid_role, raid_lead, raid_assist, availability)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        ).run(uid, guildName, realmSlug, serverType, m.name, m.class || "Unknown", null, null, null, null, null, 0, 0, "0000000");
-        added++;
-      }
-    }
-    res.json({ ok: true, added, updated, total: roster.members.length });
-  } catch (err) {
-    console.error("[admin roster sync]", err);
-    res.status(502).json({
-      error: err instanceof Error ? err.message : "Failed to sync roster from Blizzard",
-    });
-  }
 });
 
 adminRoutes.post("/guild/:realmSlug/:guildName/roster", requireAdmin, (req, res) => {
