@@ -137,9 +137,10 @@ export function RaidRoster() {
   const [teamNameDrafts, setTeamNameDrafts] = useState<Record<number, string>>({});
 
   const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
-  const canEdit = (permissions ?? DEFAULT_PERMISSIONS).manage_raid_roster;
+  const perms = permissions ?? (loading ? { ...DEFAULT_PERMISSIONS, manage_raid_roster: false } : DEFAULT_PERMISSIONS);
+  const canEdit = perms.manage_raid_roster;
   const canEditOwnAvailabilityAndNotes =
-    (permissions ?? DEFAULT_PERMISSIONS).view_raid_roster && !canEdit;
+    perms.view_raid_roster && !canEdit;
   const myCharacterNames = useMemo(
     () => new Set(myCharacters.map((c) => c.name.toLowerCase())),
     [myCharacters]
@@ -581,8 +582,6 @@ export function RaidRoster() {
     const t = setTimeout(() => setSaveMsg(null), 2500);
     return () => clearTimeout(t);
   }, [saveMsg]);
-
-  const perms = permissions ?? DEFAULT_PERMISSIONS;
 
   if (error) {
     return (
