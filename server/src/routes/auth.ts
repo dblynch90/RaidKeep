@@ -89,7 +89,7 @@ function enrichRaidWithSlotCounts(
   return { ...raid, slot_counts, raid_status };
 }
 
-/** Batch-enrich raids to fix N+1: 1 query for all slots instead of 2 per raid. */
+/** Batch-enrich raids to fix N+1: 1 query for all slots + signed_up counts. */
 function enrichRaidsBatch(
   db: Database.Database,
   raids: Array<Record<string, unknown>>
@@ -107,6 +107,15 @@ function enrichRaidsBatch(
     availability_status: string;
     party_index?: number;
   }>;
+  const signedUpByRaid = db
+    .prepare(
+      `SELECT raid_id, COUNT(*) as cnt FROM saved_raid_available WHERE raid_id IN (${placeholders}) GROUP BY raid_id`
+    )
+    .all(...ids) as Array<{ raid_id: number; cnt: number }>;
+  const signedUpMap = new Map<number, number>();
+  for (const row of signedUpByRaid) {
+    signedUpMap.set(row.raid_id, row.cnt);
+  }
   const slotsByRaid = new Map<number, Array<{ role: string; availability_status: string; party_index?: number }>>();
   for (const s of allSlots) {
     let arr = slotsByRaid.get(s.raid_id);
@@ -120,7 +129,9 @@ function enrichRaidsBatch(
     const raidId = raid.id as number;
     const slots = slotsByRaid.get(raidId) ?? [];
     const { slot_counts, raid_status } = computeSlotCountsAndStatus(slots, raid);
-    return { ...raid, slot_counts, raid_status };
+    const signed_up = signedUpMap.get(raidId) ?? 0;
+    const slot_counts_with_signed_up = { ...slot_counts, signed_up };
+    return { ...raid, slot_counts: slot_counts_with_signed_up, raid_status };
   });
 }
 

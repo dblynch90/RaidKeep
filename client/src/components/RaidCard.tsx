@@ -21,6 +21,8 @@ export interface RaidCardData {
     tanks: number;
     healers: number;
     dps: number;
+    confirmed?: number;
+    signed_up?: number;
   };
   raid_status?: RaidStatus | string;
   /** Your character(s) assigned to this raid (for My Raids cards) */
@@ -108,10 +110,7 @@ export function RaidCard({
           )}
           {!isAssigned && sc && (
             <p className="text-slate-400 text-sm mt-1">
-              Signups: {sc.filled} / {sc.total}
-              {sc.tanks > 0 || sc.healers > 0 ? (
-                <> · Tanks: {sc.tanks} Healers: {sc.healers}</>
-              ) : null}
+              Assigned: {sc.filled} · Confirmed: {sc.confirmed ?? 0} · Signed Up: {sc.signed_up ?? 0}
             </p>
           )}
         </div>
