@@ -734,6 +734,15 @@ export function RaidRoster() {
                     ))}
                   </select>
                   <div className="flex-1" />
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={createTeam}
+                      className="h-8 px-3 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-medium border border-slate-600 flex items-center justify-center"
+                    >
+                      + Create Team
+                    </button>
+                  )}
                   {(canEdit || canEditOwnAvailabilityAndNotes) && (
                     <button
                       type="button"
@@ -994,7 +1003,7 @@ export function RaidRoster() {
                       type="button"
                       onClick={addSelectedMembers}
                       disabled={selectedNonRaiderCount === 0}
-                      className="px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium border border-sky-500/50"
+                      className="px-3 py-1.5 flex items-center justify-center rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium border border-sky-500/50"
                     >
                       Add selected {selectedNonRaiderCount > 0 ? `(${selectedNonRaiderCount})` : ""}
                     </button>
@@ -1035,7 +1044,7 @@ export function RaidRoster() {
                             <button
                               type="button"
                               onClick={() => toggleRaider(m, true)}
-                              className="shrink-0 h-7 px-2 rounded bg-sky-600/90 hover:bg-sky-500 text-white text-sm font-medium border border-sky-500/50"
+                              className="shrink-0 h-7 px-2 flex items-center justify-center rounded bg-sky-600/90 hover:bg-sky-500 text-white text-sm font-medium border border-sky-500/50"
                             >
                               Add
                             </button>
