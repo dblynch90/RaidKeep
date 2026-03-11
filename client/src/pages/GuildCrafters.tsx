@@ -287,15 +287,17 @@ export function GuildCrafters() {
                   >
                     Professions
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("guild")}
-                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
-                      activeTab === "guild" ? "text-slate-200 bg-[#223657] border-b-2 border-sky-500" : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
-                    }`}
-                  >
-                    Guild Members
-                  </button>
+                  {canManage && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("guild")}
+                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
+                        activeTab === "guild" ? "text-slate-200 bg-[#223657] border-b-2 border-sky-500" : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
+                      }`}
+                    >
+                      Add From Guild
+                    </button>
+                  )}
                 </nav>
               </div>
 
@@ -474,7 +476,9 @@ export function GuildCrafters() {
                   <div className="max-h-[420px] overflow-y-auto">
                     {members.length === 0 ? (
                       <p className="text-slate-500 text-sm py-8 text-center">
-                        No members with professions yet. Switch to the Guild Members tab to add them.
+                        {canManage
+                          ? "No members with professions yet. Switch to Add From Guild to add them."
+                          : "No members with professions yet. Add your characters below to get started."}
                       </p>
                     ) : filteredCrafters.length === 0 ? (
                       <p className="text-slate-500 text-sm py-8 text-center">
@@ -569,6 +573,35 @@ export function GuildCrafters() {
                       </table>
                     )}
                   </div>
+                  {!canManage && myCharacters.length > 0 && (() => {
+                    const myNotInTable = myCharacters.filter((c) => !crafterMap.has(c.name.toLowerCase()));
+                    if (myNotInTable.length === 0) return null;
+                    return (
+                      <div className="mt-6 pt-4 border-t border-slate-700/60">
+                        <p className="text-slate-400 text-sm mb-2">Add your characters to the professions list:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {myNotInTable.map((m) => (
+                            <div
+                              key={m.name}
+                              className="flex items-center gap-2 rounded-lg border border-slate-600 px-3 py-2"
+                              style={{ borderLeftWidth: 4, borderLeftColor: getClassColor(m.class) }}
+                            >
+                              <span className="font-medium text-sm" style={{ color: getClassColor(m.class) }}>{m.name}</span>
+                              <span className="text-slate-500 text-sm">– {m.level} – {m.class}</span>
+                              <button
+                                type="button"
+                                onClick={() => setAddProfessionFor(m.name)}
+                                className="shrink-0 h-7 px-2 flex items-center justify-center rounded bg-sky-600/90 hover:bg-sky-500 text-white text-sm font-medium border border-sky-500/50"
+                                title="Add professions"
+                              >
+                                Add
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </>
               )}
             </div>

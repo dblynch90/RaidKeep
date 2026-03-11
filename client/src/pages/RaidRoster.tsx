@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { GuildBreadcrumbs } from "../components/GuildBreadcrumbs";
 import type { GuildPermissions } from "./GuildPermissions";
@@ -137,7 +137,6 @@ export function RaidRoster() {
   const [teamNameDrafts, setTeamNameDrafts] = useState<Record<number, string>>({});
 
   const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
-  const raidScheduleUrl = `/raid-schedule?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
   const canEdit = (permissions ?? DEFAULT_PERMISSIONS).manage_raid_roster;
   const canEditOwnAvailabilityAndNotes =
     (permissions ?? DEFAULT_PERMISSIONS).view_raid_roster && !canEdit;
@@ -620,14 +619,6 @@ export function RaidRoster() {
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              {(perms.view_raid_schedule || perms.manage_raids) && (
-                <Link
-                  to={raidScheduleUrl}
-                  className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 border border-slate-600 text-slate-200 text-sm font-medium transition"
-                >
-                  View Raids
-                </Link>
-              )}
               <button
                 type="button"
                 onClick={() => {
