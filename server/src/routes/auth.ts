@@ -586,6 +586,16 @@ authRoutes.get("/me/saved-raids/:id", requireAuth, (req, res) => {
     }
   }
   if (!raid) {
+    const anyRaid = db.prepare("SELECT * FROM saved_raids WHERE id = ?").get(raidId);
+    if (anyRaid) {
+      const r = anyRaid as { guild_realm_slug: string; guild_name: string; server_type?: string };
+      const perms = getEffectiveGuildPermissions(db, userId, r.guild_realm_slug ?? "", r.guild_name ?? "", r.server_type ?? "Retail");
+      if (perms?.view_raid_schedule) {
+        raid = anyRaid;
+      }
+    }
+  }
+  if (!raid) {
     res.status(404).json({ error: "Raid not found" });
     return;
   }
