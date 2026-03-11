@@ -184,6 +184,8 @@ export function Dashboard() {
   const [characterRealmFilter, setCharacterRealmFilter] = useState<string>("");
   const syncedVersionsRef = useRef<Set<string>>(new Set());
   const gameVersionRef = useRef("");
+  const mountTimeRef = useRef(Date.now());
+  const recoveryRefetchDoneRef = useRef(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -228,17 +230,6 @@ export function Dashboard() {
 
   const isFavorite = (guild: { guildName: string; realmSlug: string; serverType: string }) =>
     favoriteGuilds.some((f) => favKey(f) === favKey(guild));
-
-  const fetchCharacters = (serverType?: string) => {
-    const url = serverType ? `/auth/me/characters?server_type=${encodeURIComponent(serverType)}` : "/auth/me/characters";
-    return api
-      .get<{ characters: MyCharacter[]; syncStatus?: { lastSyncAt: string | null } }>(url)
-      .then((res) => {
-        setAllCharacters(res.characters);
-        setGuildsSynced(isSyncRecent(res.syncStatus?.lastSyncAt ?? null));
-        return res;
-      });
-  };
 
   useEffect(() => {
     let cancelled = false;
@@ -337,16 +328,28 @@ export function Dashboard() {
     };
   }, []);
 
-  // Refetch when user returns to tab (e.g. after OAuth redirect) using current game version
+  // Refetch when user returns to tab (e.g. after OAuth redirect) using current game version.
+  // Skip for 2s after mount to avoid racing with initial load; never overwrite good data with empty.
   useEffect(() => {
     const onVisibilityChange = () => {
       if (document.visibilityState !== "visible") return;
+      if (Date.now() - mountTimeRef.current < 2000) return;
       const ver = gameVersionRef.current || DEFAULT_GAME_VERSION;
       fetchPreferences().catch(() => {});
-      fetchCharacters(ver).then(() => {}).catch(() => {});
+      api
+        .get<{ characters: MyCharacter[]; syncStatus?: { lastSyncAt: string | null } }>(`/auth/me/characters?server_type=${encodeURIComponent(ver)}`)
+        .then((res) => {
+          if ((res.characters?.length ?? 0) > 0) {
+            setAllCharacters(res.characters!);
+            setGuildsSynced(isSyncRecent(res.syncStatus?.lastSyncAt ?? null));
+          }
+        })
+        .catch(() => {});
       api
         .get<{ raids: SavedRaid[] }>(`/auth/me/saved-raids/my-assignments?server_type=${encodeURIComponent(ver)}`)
-        .then((r) => setMyAssignmentRaids(r.raids ?? []))
+        .then((r) => {
+          if ((r.raids?.length ?? 0) > 0) setMyAssignmentRaids(r.raids!);
+        })
         .catch(() => {});
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
@@ -384,6 +387,29 @@ export function Dashboard() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [initialLoadDone, gameVersion]);
+
+  // Recovery: if we have characters for this version but none have guilds (incomplete post-login data), refetch once
+  useEffect(() => {
+    if (!initialLoadDone || loading || recoveryRefetchDoneRef.current) return;
+    const ver = gameVersionRef.current || gameVersion || DEFAULT_GAME_VERSION;
+    const charsForVersion = allCharacters.filter((c) => (c.server_type ?? "TBC Anniversary") === ver);
+    const hasChars = charsForVersion.length > 0;
+    const hasGuilds = charsForVersion.some((c) => (c.guild_name ?? "").trim().length > 0);
+    if (!hasChars || hasGuilds) return;
+    recoveryRefetchDoneRef.current = true;
+    const timer = setTimeout(() => {
+      Promise.all([
+        api.get<{ characters: MyCharacter[]; syncStatus?: { lastSyncAt: string | null } }>(`/auth/me/characters?server_type=${encodeURIComponent(ver)}`),
+        api.get<{ raids: SavedRaid[] }>(`/auth/me/saved-raids/my-assignments?server_type=${encodeURIComponent(ver)}`),
+      ])
+        .then(([charsRes, raidsRes]) => {
+          setAllCharacters(charsRes.characters ?? []);
+          setMyAssignmentRaids(raidsRes.raids ?? []);
+        })
+        .catch(() => {});
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [initialLoadDone, loading, allCharacters, gameVersion]);
 
   const filteredCharacters = useMemo(() => {
     if (!gameVersion) return [];
