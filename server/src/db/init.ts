@@ -436,6 +436,23 @@ export function initDb() {
     /* column may already exist */
   }
 
+  // Migration: add party_count to saved_raids (default 2, used for Signups total)
+  try {
+    const raidCols = db.prepare("PRAGMA table_info(saved_raids)").all() as Array<{ name: string }>;
+    if (!raidCols.some((c) => c.name === "party_count")) {
+      db.exec("ALTER TABLE saved_raids ADD COLUMN party_count INTEGER DEFAULT 2");
+      // Backfill: use max party_index+1 from slots, or 2
+      db.exec(`
+        UPDATE saved_raids SET party_count = (
+          SELECT COALESCE(MAX(party_index), -1) + 1 FROM saved_raid_slots WHERE raid_id = saved_raids.id
+        ) WHERE party_count IS NULL AND id IN (SELECT raid_id FROM saved_raid_slots);
+      `);
+      db.exec("UPDATE saved_raids SET party_count = 2 WHERE party_count IS NULL");
+    }
+  } catch {
+    /* column may already exist */
+  }
+
   // Migration: add professions to raider_roster (JSON array of profession names)
   try {
     const rrCols = db.prepare("PRAGMA table_info(raider_roster)").all() as Array<{ name: string }>;

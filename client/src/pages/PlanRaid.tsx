@@ -6,17 +6,35 @@ import { GuildBreadcrumbs } from "../components/GuildBreadcrumbs";
 import { formatRaidDateShort } from "../utils/raidDateTime";
 import type { GuildPermissions } from "./GuildPermissions";
 
-/** Raid instances for TBC Anniversary */
-const RAID_INSTANCES_BY_VERSION: Record<string, string[]> = {
+/** Raid instance with display name and size (used for default party count). Multi-size raids have separate entries. */
+export interface RaidInstanceOption {
+  displayName: string;
+  size: number; // 10, 25, 40
+}
+
+/** Raid instances by server type. Each option shows size; multi-size raids are split (e.g. "Molten Core (10)" vs "Molten Core (40)"). */
+const RAID_INSTANCES_BY_VERSION: Record<string, RaidInstanceOption[]> = {
   "TBC Anniversary": [
-    "Karazhan",
-    "Gruul's Lair",
-    "Magtheridon's Lair",
-    "Serpentshrine Cavern",
-    "Tempest Keep",
-    "Battle for Mount Hyjal",
-    "Black Temple",
-    "Sunwell Plateau",
+    { displayName: "Karazhan (10)", size: 10 },
+    { displayName: "Zul'Aman (10)", size: 10 },
+    { displayName: "Gruul's Lair (25)", size: 25 },
+    { displayName: "Magtheridon's Lair (25)", size: 25 },
+    { displayName: "Serpentshrine Cavern (25)", size: 25 },
+    { displayName: "Tempest Keep (25)", size: 25 },
+    { displayName: "Battle for Mount Hyjal (25)", size: 25 },
+    { displayName: "Black Temple (25)", size: 25 },
+    { displayName: "Sunwell Plateau (25)", size: 25 },
+  ],
+  Retail: [
+    { displayName: "Vault of the Incarnates (10)", size: 10 },
+    { displayName: "Vault of the Incarnates (25)", size: 25 },
+    { displayName: "Vault of the Incarnates (20 Mythic)", size: 20 },
+    { displayName: "Aberrus (10)", size: 10 },
+    { displayName: "Aberrus (25)", size: 25 },
+    { displayName: "Aberrus (20 Mythic)", size: 20 },
+    { displayName: "Amirdrassil (10)", size: 10 },
+    { displayName: "Amirdrassil (25)", size: 25 },
+    { displayName: "Amirdrassil (20 Mythic)", size: 20 },
   ],
 };
 
@@ -157,7 +175,7 @@ export function PlanRaid() {
     }
     api
       .get<{
-        raid: { raid_name: string; raid_instance?: string; raid_date: string; start_time?: string; finish_time?: string };
+        raid: { raid_name: string; raid_instance?: string; raid_date: string; start_time?: string; finish_time?: string; party_count?: number };
         slots: Array<{ party_index: number; slot_index: number; character_name: string; character_class: string; role: string; is_raid_lead: number; is_raid_assist: number; availability_status?: string }>;
         backups?: Array<{ character_name: string; character_class: string }>;
         available?: Array<{ character_name: string; character_class: string }>;
@@ -207,8 +225,8 @@ export function PlanRaid() {
           const list = byPartyForAvailable.get(pi) ?? Array(SLOTS_PER_PARTY).fill(null);
           newPartiesAvailable.push(list.map((s) => s ?? null));
         }
-        if (newPartiesAvailable.length === 0) {
-          newPartiesAvailable.push(Array(SLOTS_PER_PARTY).fill(null));
+        const partyCount = res.raid.party_count ?? (partyIndicesAvailable.length > 0 ? Math.max(...partyIndicesAvailable) + 1 : 2);
+        while (newPartiesAvailable.length < partyCount) {
           newPartiesAvailable.push(Array(SLOTS_PER_PARTY).fill(null));
         }
         setParties(newPartiesAvailable);
@@ -218,8 +236,15 @@ export function PlanRaid() {
 
   const raidInstancesForVersion = useMemo(() => {
     const list = RAID_INSTANCES_BY_VERSION[serverType] ?? RAID_INSTANCES_BY_VERSION["TBC Anniversary"];
-    return [...list].sort((a, b) => a.localeCompare(b));
+    return [...list].sort((a, b) => a.displayName.localeCompare(b.displayName));
   }, [serverType]);
+
+  /** Party count for a given raid size (5 per party) */
+  const getPartyCountForSize = (size: number) => Math.max(1, Math.ceil(size / SLOTS_PER_PARTY));
+
+  /** Find raid option by display name to get size */
+  const getRaidOption = (displayName: string) =>
+    raidInstancesForVersion.find((o) => o.displayName === displayName);
 
   const raidsForCopy = useMemo(() => {
     return savedRaids
@@ -398,6 +423,7 @@ export function PlanRaid() {
           raid_instance?: string | null;
           start_time?: string | null;
           finish_time?: string | null;
+          party_count?: number;
         };
         slots: Array<{
           party_index: number;
@@ -444,6 +470,10 @@ export function PlanRaid() {
         newParties = indices.map((pi) => (byParty.get(pi) ?? Array(SLOTS_PER_PARTY).fill(null)).map((s) => s ?? null));
       } else {
         newParties = [Array(SLOTS_PER_PARTY).fill(null), Array(SLOTS_PER_PARTY).fill(null)];
+      }
+      const partyCount = res.raid?.party_count ?? (indices.length > 0 ? Math.max(...indices) + 1 : 2);
+      while (newParties.length < partyCount) {
+        newParties.push(Array(SLOTS_PER_PARTY).fill(null));
       }
       setParties(newParties);
       const backupList = res.backups ?? [];
@@ -831,13 +861,47 @@ export function PlanRaid() {
                     <label className="block text-slate-400 text-sm mb-1.5 font-medium">Raid Instance</label>
                     <select
                       value={raidInstance}
-                      onChange={(e) => setRaidInstance(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setRaidInstance(val);
+                        const opt = getRaidOption(val);
+                        if (opt) {
+                          const targetCount = getPartyCountForSize(opt.size);
+                          setParties((prev) => {
+                            if (prev.length === targetCount) return prev;
+                            if (prev.length < targetCount) {
+                              const next = [...prev];
+                              while (next.length < targetCount) {
+                                next.push(Array(SLOTS_PER_PARTY).fill(null));
+                              }
+                              return next;
+                            }
+                            const toRemove = prev.length - targetCount;
+                            const removedSlots = prev
+                              .slice(-toRemove)
+                              .flat()
+                              .filter((s): s is RaidSlot => s != null)
+                              .map((s) => ({ characterName: s.characterName, characterClass: s.characterClass }));
+                            if (removedSlots.length > 0) {
+                              setBackups((b) =>
+                                [...b, ...removedSlots]
+                                  .filter((x, i, arr) => arr.findIndex((y) => y.characterName.toLowerCase() === x.characterName.toLowerCase()) === i)
+                                  .sort((a, b) => a.characterName.localeCompare(b.characterName, undefined, { sensitivity: "base" }))
+                              );
+                            }
+                            return prev.slice(0, targetCount);
+                          });
+                        }
+                      }}
                       className="w-full px-3 py-2 rounded-lg bg-slate-700/80 border border-slate-600 text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
                     >
                       <option value="">Select raid...</option>
-                      {raidInstancesForVersion.map((r) => (
-                        <option key={r} value={r}>
-                          {r}
+                      {raidInstance && !raidInstancesForVersion.some((o) => o.displayName === raidInstance) && (
+                        <option value={raidInstance}>{raidInstance}</option>
+                      )}
+                      {raidInstancesForVersion.map((o) => (
+                        <option key={o.displayName} value={o.displayName}>
+                          {o.displayName}
                         </option>
                       ))}
                     </select>

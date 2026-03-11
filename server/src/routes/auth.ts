@@ -52,8 +52,10 @@ function enrichRaidWithSlotCounts(
   const partyRow = db
     .prepare("SELECT COALESCE(MAX(party_index), -1) + 1 as cnt FROM saved_raid_slots WHERE raid_id = ?")
     .get(raidId) as { cnt: number } | undefined;
-  const partyCount = partyRow?.cnt ?? 0;
-  const total = Math.max(partyCount * 5, filled || 20);
+  const partyCountFromSlots = partyRow?.cnt ?? 0;
+  const storedPartyCount = typeof raid.party_count === "number" ? raid.party_count : null;
+  const partyCount = storedPartyCount ?? Math.max(partyCountFromSlots, 2);
+  const total = partyCount * 5;
   let tanks = 0,
     healers = 0,
     dps = 0,
@@ -325,10 +327,11 @@ authRoutes.post("/me/saved-raids", requireAuth, (req, res) => {
     res.status(403).json({ error: "You do not have permission to create raids" });
     return;
   }
+  const partyCount = Array.isArray(parties) ? Math.max(parties.length, 1) : 2;
   const result = db
     .prepare(
-      `INSERT INTO saved_raids (user_id, guild_name, guild_realm, guild_realm_slug, server_type, raid_name, raid_instance, raid_date, start_time, finish_time)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO saved_raids (user_id, guild_name, guild_realm, guild_realm_slug, server_type, raid_name, raid_instance, raid_date, start_time, finish_time, party_count)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       userId,
@@ -340,7 +343,8 @@ authRoutes.post("/me/saved-raids", requireAuth, (req, res) => {
       raid_instance || null,
       raid_date,
       start_time || null,
-      finish_time || null
+      finish_time || null,
+      partyCount
     );
   const raidId = result.lastInsertRowid as number;
   const insertSlot = db.prepare(
@@ -675,6 +679,10 @@ authRoutes.patch("/me/saved-raids/:id", requireAuth, (req, res) => {
   if (officer_notes !== undefined) {
     updates.push("officer_notes = ?");
     values.push(officer_notes ?? null);
+  }
+  if (parties !== undefined) {
+    updates.push("party_count = ?");
+    values.push(Math.max(Array.isArray(parties) ? parties.length : 1, 1));
   }
   if (updates.length > 0) {
     values.push(raidId);
