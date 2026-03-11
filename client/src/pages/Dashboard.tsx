@@ -278,6 +278,19 @@ export function Dashboard() {
           setTimeout(load, retryDelay);
           return;
         }
+        // Don't mark load complete until we have characters (avoid flashing empty state)
+        if ((charsRes.characters?.length ?? 0) === 0 && retries >= maxRetries) {
+          // Exhausted retries - stay on loading a bit longer, then one final attempt
+          await new Promise((r) => setTimeout(r, retryDelay));
+          if (cancelled) return;
+          const [lastChars, lastRaids] = await Promise.all([
+            api.get<{ characters: MyCharacter[] }>(`/auth/me/characters?server_type=${encodeURIComponent(serverType)}`).catch(() => ({ characters: [] })),
+            api.get<{ raids: SavedRaid[] }>(`/auth/me/saved-raids/my-assignments?server_type=${encodeURIComponent(serverType)}`).catch(() => ({ raids: [] })),
+          ]);
+          if (cancelled) return;
+          setAllCharacters(lastChars.characters ?? []);
+          setMyAssignmentRaids(lastRaids.raids ?? []);
+        }
 
         const lastSync = charsRes.syncStatus?.lastSyncAt ?? null;
         const needToPoll =
@@ -377,8 +390,10 @@ export function Dashboard() {
           try {
             await api.post<{ ok: boolean }>("/auth/me/sync", { server_type: v });
             const [afterChars, afterRaids] = await loadForVersion(v);
-            setAllCharacters(afterChars.characters ?? []);
-            setMyAssignmentRaids(afterRaids.raids ?? []);
+            const ac = afterChars.characters ?? [];
+            const ar = afterRaids.raids ?? [];
+            if (ac.length > 0) setAllCharacters(ac);
+            if (ar.length > 0) setMyAssignmentRaids(ar);
           } catch {
             syncedVersionsRef.current.delete(v);
           }
@@ -403,8 +418,10 @@ export function Dashboard() {
         api.get<{ raids: SavedRaid[] }>(`/auth/me/saved-raids/my-assignments?server_type=${encodeURIComponent(ver)}`),
       ])
         .then(([charsRes, raidsRes]) => {
-          setAllCharacters(charsRes.characters ?? []);
-          setMyAssignmentRaids(raidsRes.raids ?? []);
+          const nc = charsRes.characters ?? [];
+          const nr = raidsRes.raids ?? [];
+          if (nc.length > 0) setAllCharacters(nc);
+          if (nr.length > 0) setMyAssignmentRaids(nr);
         })
         .catch(() => {});
     }, 1500);
@@ -545,7 +562,9 @@ export function Dashboard() {
         {/* My Raids */}
         <section className="mb-10">
           <h2 className="text-lg font-semibold text-slate-200 mb-4">My Raids</h2>
-          {myAssignmentRaids.length === 0 ? (
+          {loading ? (
+            <p className="text-slate-500 text-sm py-4">Loading raids...</p>
+          ) : myAssignmentRaids.length === 0 ? (
             <p className="text-slate-500 text-sm py-4">You are not assigned to any raids.</p>
           ) : (
             <>
