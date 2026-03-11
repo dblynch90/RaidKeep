@@ -553,45 +553,10 @@ authRoutes.get("/me/saved-raids", requireAuth, qaMockMiddleware("saved-raids"), 
     raids = db
       .prepare(
         `SELECT * FROM saved_raids
-         WHERE user_id = ? AND guild_realm_slug = ? AND guild_name = ? AND server_type = ?
+         WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ?
          ORDER BY raid_date DESC, start_time DESC`
       )
-      .all(userId, realmSlug, guildName, serverType) as Array<Record<string, unknown>>;
-    if (raids.length === 0) {
-      const guildOwner = db.prepare(
-        `SELECT user_id FROM saved_raids
-         WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND user_id IS NOT NULL
-         GROUP BY user_id ORDER BY COUNT(*) DESC LIMIT 1`
-      ).get(realmSlug, guildName, serverType) as { user_id: number } | undefined;
-      if (guildOwner) {
-        raids = db
-          .prepare(
-            `SELECT * FROM saved_raids
-             WHERE user_id = ? AND guild_realm_slug = ? AND guild_name = ? AND server_type = ?
-             ORDER BY raid_date DESC, start_time DESC`
-          )
-          .all(guildOwner.user_id, realmSlug, guildName, serverType) as Array<Record<string, unknown>>;
-      }
-    }
-    if (raids.length === 0) {
-      const charNames = db.prepare(
-        "SELECT DISTINCT LOWER(name) as name FROM battle_net_characters WHERE user_id = ? AND (server_type = ? OR (server_type IS NULL AND ? = 'Retail'))"
-      ).all(userId, serverType, serverType) as Array<{ name: string }>;
-      const names = charNames.map((c) => c.name);
-      if (names.length > 0) {
-        const placeholders = names.map(() => "?").join(",");
-        const fallbackRaids = db
-          .prepare(
-            `SELECT DISTINCT sr.* FROM saved_raids sr
-             JOIN saved_raid_slots srs ON srs.raid_id = sr.id
-             WHERE sr.guild_realm_slug = ? AND sr.guild_name = ? AND sr.server_type = ?
-             AND LOWER(srs.character_name) IN (${placeholders})
-             ORDER BY sr.raid_date DESC, sr.start_time DESC`
-          )
-          .all(realmSlug, guildName, serverType, ...names) as Array<Record<string, unknown>>;
-        raids = fallbackRaids;
-      }
-    }
+      .all(realmSlug, guildName, serverType) as Array<Record<string, unknown>>;
   } else {
     raids = db
       .prepare(
