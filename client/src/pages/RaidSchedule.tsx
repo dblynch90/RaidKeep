@@ -40,7 +40,7 @@ function CollapsibleSection({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left bg-transparent hover:bg-slate-700/30 transition"
+        className="w-full min-h-[48px] flex items-center justify-between gap-2 px-4 py-3 text-left bg-transparent hover:bg-slate-700/30 transition"
       >
         <span className="font-medium text-slate-200">{title}</span>
         <span className={`text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden>
@@ -134,30 +134,30 @@ export function RaidSchedule() {
       <main className="rk-page-main">
         <GuildBreadcrumbs guildName={guildName} realm={realm} serverType={serverType} currentPage="Raid Schedule" />
 
-        <header className="mb-8">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-semibold text-sky-400">{guildName}</h1>
-              <p className="text-slate-400 text-sm mt-1">
+        <header className="mb-6 sm:mb-8">
+          <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-semibold text-sky-400 truncate">{guildName}</h1>
+              <p className="text-slate-400 text-xs sm:text-sm mt-1 truncate">
                 Raid Schedule · {capitalizeRealm(realm)} · {serverType}
               </p>
             </div>
             {canManageRaids && (
               <Link
                 to={planRaidUrl}
-                className="h-9 px-3.5 rounded-lg bg-slate-700/80 hover:bg-slate-600 border border-slate-600 text-slate-200 text-sm font-medium flex items-center shrink-0 transition"
+                className="h-11 min-h-[44px] sm:h-9 px-4 rounded-lg bg-slate-700/80 hover:bg-slate-600 border border-slate-600 text-slate-200 text-sm font-medium flex items-center shrink-0 transition"
               >
                 + Create Raid
               </Link>
             )}
           </div>
-          <div className="mt-4 h-px bg-slate-700/60" />
+          <div className="mt-3 sm:mt-4 h-px bg-slate-700/60" />
         </header>
 
         {loading ? (
           <p className="text-slate-500">Loading raids...</p>
         ) : raids.length === 0 ? (
-          <div className="rounded-xl border border-white/[0.05] p-12 text-center rk-card-panel">
+          <div className="rounded-xl border border-white/[0.05] p-8 sm:p-12 text-center rk-card-panel">
             <div className="text-4xl mb-4">📅</div>
             <p className="text-slate-400 font-medium mb-1">No raids scheduled yet</p>
             <p className="text-slate-500 text-sm mb-6">

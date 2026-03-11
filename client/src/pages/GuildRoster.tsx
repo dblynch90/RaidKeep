@@ -146,20 +146,20 @@ export function GuildRoster() {
           <GuildBreadcrumbs guildName={guildName} realm={realm} serverType={serverType} currentPage="Guild Roster" />
         )}
 
-        <header className="mb-8">
-          <h1 className="text-2xl font-semibold text-sky-400">{data?.guild?.name ?? guildName}</h1>
-          <p className="text-slate-400 text-sm mt-1">
+        <header className="mb-6 sm:mb-8">
+          <h1 className="text-xl sm:text-2xl font-semibold text-sky-400 truncate">{data?.guild?.name ?? guildName}</h1>
+          <p className="text-slate-400 text-xs sm:text-sm mt-1 truncate">
             Guild Roster · {(data?.guild?.realm ? capitalizeRealm(data.guild.realm) : capitalizeRealm(realm))} · {serverType}
             {data?.members && ` · ${data.members.length} member${data.members.length !== 1 ? "s" : ""}`}
           </p>
-          <div className="mt-4 h-px bg-slate-700/60" />
+          <div className="mt-3 sm:mt-4 h-px bg-slate-700/60" />
         </header>
 
         {loading ? (
           <p className="text-slate-500">Loading roster...</p>
         ) : data?.members && data.members.length > 0 ? (
           <>
-            <div className="flex flex-wrap items-center gap-4 mb-6">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
               <div className="flex items-center gap-2">
                 <span className="text-slate-400 text-sm">Level range:</span>
                 <input
@@ -208,7 +208,8 @@ export function GuildRoster() {
               </div>
             </div>
             <div className="rounded-xl border border-white/[0.05] overflow-hidden rk-card-panel">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto rk-scroll-x">
+            <table className="w-full text-sm min-w-[480px]">
               <thead className="bg-slate-800/80">
                 <tr>
                   <SortHeader col="rank" label="Rank" />
@@ -252,6 +253,7 @@ export function GuildRoster() {
                 })}
               </tbody>
             </table>
+            </div>
           </div>
           {filteredAndSortedMembers.length === 0 && (minLevel || maxLevel || classFilter) && (
             <p className="text-slate-500 text-sm mt-2">No members match the current filters.</p>

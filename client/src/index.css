@@ -29,6 +29,7 @@ html, body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  min-height: -webkit-fill-available;
   width: 100%;
 }
 
@@ -38,8 +39,14 @@ html, body {
 }
 
 h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+  font-size: clamp(1.5rem, 5vw, 3.2em);
+  line-height: 1.2;
+}
+
+@media (max-width: 639px) {
+  h1 {
+    font-size: 1.5rem;
+  }
 }
 
 button {

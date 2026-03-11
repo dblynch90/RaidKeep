@@ -497,8 +497,8 @@ export function Dashboard() {
     <div className="rk-page-bg text-slate-100">
       <main className="rk-page-main">
         {/* My Guilds */}
-        <section className="mb-10">
-          <h2 className="text-lg font-semibold text-slate-200 mb-4">
+        <section className="mb-8 sm:mb-10">
+          <h2 className="text-base sm:text-lg font-semibold text-slate-200 mb-3 sm:mb-4">
             My Guilds
           </h2>
           {!hasSelection ? (
@@ -527,8 +527,8 @@ export function Dashboard() {
         </section>
 
         {/* My Raids */}
-        <section className="mb-10">
-          <h2 className="text-lg font-semibold text-slate-200 mb-4">My Raids</h2>
+        <section className="mb-8 sm:mb-10">
+          <h2 className="text-base sm:text-lg font-semibold text-slate-200 mb-3 sm:mb-4">My Raids</h2>
           {loading ? (
             <p className="text-slate-500 text-sm py-4">Loading raids...</p>
           ) : myAssignmentRaids.length === 0 ? (
@@ -561,7 +561,7 @@ export function Dashboard() {
 
         {/* My Characters */}
         <section>
-          <h2 className="text-lg font-semibold text-slate-200 mb-4">My Characters</h2>
+          <h2 className="text-base sm:text-lg font-semibold text-slate-200 mb-3 sm:mb-4">My Characters</h2>
           {!hasSelection ? (
             <p className="text-slate-500 text-sm py-4">Select a game version to see your characters.</p>
           ) : loading ? (

@@ -287,13 +287,13 @@ export function RaidRosterPopout() {
   return (
     <div className="rk-page-bg text-slate-100" >
       {/* Header with filters - similar to Guild Roster in PlanRaid */}
-      <div className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur border-b border-slate-700/60 px-4 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-          <h1 className="text-lg font-semibold text-sky-400">
+      <div className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur border-b border-slate-700/60 px-3 sm:px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 mb-2 sm:mb-3">
+          <h1 className="text-base sm:text-lg font-semibold text-sky-400 truncate min-w-0">
             {guildName} · Raid Roster
           </h1>
-          <div className="flex items-center gap-3">
-            <p className="text-slate-500 text-sm">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <p className="text-slate-500 text-xs sm:text-sm">
               {capitalizeRealm(realm)} · {serverType} · {sortedRaiders.length} raider{sortedRaiders.length !== 1 ? "s" : ""}
             </p>
             {(canEdit || canEditOwnAvailabilityAndNotes) && (
@@ -301,7 +301,7 @@ export function RaidRosterPopout() {
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-medium text-sm border border-sky-500/50"
+                className="min-h-[44px] px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-medium text-sm border border-sky-500/50"
               >
                 {saving ? "Saving..." : "Save"}
               </button>
@@ -372,7 +372,7 @@ export function RaidRosterPopout() {
       </div>
 
       {/* Excel-style table - full width */}
-      <div className="overflow-auto p-4" style={{ minHeight: "calc(100vh - 60px)" }}>
+      <div className="overflow-auto p-3 sm:p-4 rk-scroll-x" style={{ minHeight: "calc(100vh - 60px)" }}>
         <table className="w-full border-collapse text-sm table-fixed" style={{ minWidth: 960 }}>
           <colgroup>
             <col style={{ width: "12%" }} />

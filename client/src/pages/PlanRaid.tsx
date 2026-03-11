@@ -807,9 +807,9 @@ export function PlanRaid() {
           />
         )}
 
-        <header className="mb-10">
-          <h1 className="text-3xl font-semibold text-sky-400">{isEdit ? "Edit Raid" : "Plan Raid"}</h1>
-          <p className="text-slate-400 text-sm mt-1">
+        <header className="mb-6 sm:mb-10">
+          <h1 className="text-xl sm:text-3xl font-semibold text-sky-400">{isEdit ? "Edit Raid" : "Plan Raid"}</h1>
+          <p className="text-slate-400 text-xs sm:text-sm mt-1 truncate">
             {guildName ? (
               `${guildName} · ${capitalizeRealm(realm)} · ${serverType}`
             ) : (

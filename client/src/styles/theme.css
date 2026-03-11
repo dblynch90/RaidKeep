@@ -62,3 +62,28 @@
 .rk-error {
   color: rgb(245 158 11); /* amber-500 */
 }
+
+/* Mobile-first: reduce padding on small screens */
+@media (max-width: 639px) {
+  .rk-page-main {
+    padding: 1rem 0.75rem;
+  }
+}
+
+/* Touch-friendly minimum tap target (44px) */
+.rk-touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Safe area for notched devices */
+.safe-area-inset-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Horizontal scroll container for wide tables on mobile */
+.rk-scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}

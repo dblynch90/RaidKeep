@@ -538,30 +538,30 @@ export function RaidRoster() {
       <main className="rk-page-main">
         <GuildBreadcrumbs guildName={guildName} realm={realm} serverType={serverType} currentPage="Raid Roster" />
 
-        <header className="mb-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-semibold text-sky-400">{guildName}</h1>
-              <p className="text-slate-400 text-sm mt-1">
+        <header className="mb-4 sm:mb-6">
+          <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-semibold text-sky-400 truncate">{guildName}</h1>
+              <p className="text-slate-400 text-xs sm:text-sm mt-1 truncate">
                 Raid Roster · {capitalizeRealm(realm)} · {serverType}
                 {!loading && ` · ${raiders.length} raider${raiders.length !== 1 ? "s" : ""}`}
               </p>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
               <button
                 type="button"
                 onClick={() => {
                   const url = `${window.location.origin}/raid-roster-popout?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
                   window.open(url, "raid-roster-popout", "width=1400,height=900,scrollbars=yes,resizable=yes");
                 }}
-                className="px-3 py-2 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium text-sm shrink-0 border border-slate-600"
+                className="h-11 min-h-[44px] sm:h-auto px-3 py-2 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium text-sm shrink-0 border border-slate-600"
                 title="Open roster in a separate window"
               >
                 ⧉ Open Fullscreen Roster
               </button>
             </div>
           </div>
-          <div className="mt-4 h-px bg-slate-700/60" />
+          <div className="mt-3 sm:mt-4 h-px bg-slate-700/60" />
         </header>
 
         {loading ? (
@@ -575,21 +575,21 @@ export function RaidRoster() {
                   <button
                     type="button"
                     onClick={() => setRosterTab("roster")}
-                    className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition flex items-center justify-center ${rosterTab === "roster" ? "text-slate-200 bg-[#223657] border-b-2 border-sky-500" : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"}`}
+                    className={`flex-1 min-h-[44px] sm:min-h-0 px-3 py-2.5 sm:py-2 rounded-md text-sm font-medium transition flex items-center justify-center ${rosterTab === "roster" ? "text-slate-200 bg-[#223657] border-b-2 border-sky-500" : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"}`}
                   >
                     Roster
                   </button>
                   <button
                     type="button"
                     onClick={() => setRosterTab("guild")}
-                    className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition flex items-center justify-center ${rosterTab === "guild" ? "text-white bg-emerald-700/80 border-b-2 border-emerald-500" : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"}`}
+                    className={`flex-1 min-h-[44px] sm:min-h-0 px-3 py-2.5 sm:py-2 rounded-md text-sm font-medium transition flex items-center justify-center ${rosterTab === "guild" ? "text-white bg-emerald-700/80 border-b-2 border-emerald-500" : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"}`}
                   >
                     Add from Guild
                   </button>
                   <button
                     type="button"
                     onClick={() => setRosterTab("realm")}
-                    className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition flex items-center justify-center ${rosterTab === "realm" ? "text-white bg-amber-600/90 border-b-2 border-amber-500" : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"}`}
+                    className={`flex-1 min-h-[44px] sm:min-h-0 px-3 py-2.5 sm:py-2 rounded-md text-sm font-medium transition flex items-center justify-center ${rosterTab === "realm" ? "text-white bg-amber-600/90 border-b-2 border-amber-500" : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"}`}
                     title="Search for a character on the realm"
                   >
                     Add from Realm
@@ -597,7 +597,7 @@ export function RaidRoster() {
                   <button
                     type="button"
                     onClick={() => setRosterTab("teams")}
-                    className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition flex items-center justify-center ${rosterTab === "teams" ? "text-white bg-violet-700/80 border-b-2 border-violet-500" : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"}`}
+                    className={`flex-1 min-h-[44px] sm:min-h-0 px-3 py-2.5 sm:py-2 rounded-md text-sm font-medium transition flex items-center justify-center ${rosterTab === "teams" ? "text-white bg-violet-700/80 border-b-2 border-violet-500" : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"}`}
                     title="Create and manage raid teams"
                   >
                     Raid Teams
@@ -661,7 +661,7 @@ export function RaidRoster() {
                       type="button"
                       onClick={handleSave}
                       disabled={saving}
-                      className="h-8 px-4 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-medium text-sm inline-flex items-center justify-center leading-none border border-sky-500/50"
+                      className="h-11 min-h-[44px] sm:h-8 sm:min-h-0 px-4 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-medium text-sm inline-flex items-center justify-center leading-none border border-sky-500/50"
                     >
                       {saving ? "Saving..." : "Save"}
                     </button>
@@ -673,8 +673,8 @@ export function RaidRoster() {
             {/* Roster tab: Table */}
             {rosterTab === "roster" && (
             <>
-            {/* Table container - header sticks during scroll */}
-            <div className="max-h-[60vh] overflow-auto overflow-x-auto">
+            {/* Table container - header sticks during scroll; scroll horizontally on mobile */}
+            <div className="max-h-[60vh] overflow-auto overflow-x-auto rk-scroll-x">
               {/* Table header - sticky */}
               <div className={`sticky top-0 z-10 grid gap-x-2 gap-y-0 px-4 py-2 h-10 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700/60 text-slate-400 text-xs font-medium uppercase tracking-wider min-w-[1040px] items-center shrink-0 ${canEdit ? "grid-cols-[32px_minmax(105px,1.55fr)_minmax(290px,2.775fr)_minmax(200px,1.4fr)_minmax(200px,1.4fr)_80px_40px]" : "grid-cols-[minmax(105px,1.55fr)_minmax(290px,2.775fr)_minmax(200px,1.4fr)_minmax(200px,1.4fr)_80px_40px]"}`}>
                 {canEdit && <span />}

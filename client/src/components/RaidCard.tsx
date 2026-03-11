@@ -76,8 +76,8 @@ export function RaidCard({
   };
 
   return (
-    <div className="rk-card-panel rounded-xl border border-white/[0.05] p-5 transition-all duration-200 hover:-translate-y-0.5">
-      <div className="flex items-start justify-between gap-4">
+    <div className="rk-card-panel rounded-xl border border-white/[0.05] p-4 sm:p-5 transition-all duration-200 hover:-translate-y-0.5">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-slate-400 font-medium text-sm tabular-nums">{dateShort}</span>
@@ -114,25 +114,25 @@ export function RaidCard({
             </p>
           )}
         </div>
-        <div className="flex shrink-0 gap-2 flex-wrap">
+        <div className="flex shrink-0 gap-2 flex-wrap sm:flex-nowrap">
           <button
             type="button"
             onClick={copyRaidLink}
-            className="h-9 px-3.5 rounded-lg bg-slate-700 hover:bg-slate-600 border border-slate-600 text-slate-300 text-sm font-medium flex items-center justify-center"
+            className="h-11 min-h-[44px] sm:h-9 flex-1 sm:flex-none px-3.5 rounded-lg bg-slate-700 hover:bg-slate-600 border border-slate-600 text-slate-300 text-sm font-medium flex items-center justify-center"
             title="Copy raid link"
           >
             Copy Link
           </button>
           <Link
             to={showSignUp && !isAssigned ? `${baseUrl}/${raid.id}#signup` : `${baseUrl}/${raid.id}`}
-            className="h-9 px-3.5 rounded-lg bg-slate-600 hover:bg-slate-500 border border-slate-500 text-slate-100 text-sm font-medium flex items-center justify-center"
+            className="h-11 min-h-[44px] sm:h-9 flex-1 sm:flex-none px-3.5 rounded-lg bg-slate-600 hover:bg-slate-500 border border-slate-500 text-slate-100 text-sm font-medium flex items-center justify-center"
           >
             {showSignUp && !isAssigned ? "View/Sign Up" : "View"}
           </Link>
           {editUrl && (
             <Link
               to={editUrl}
-              className="h-9 px-3.5 rounded-lg bg-slate-600 hover:bg-slate-500 border border-slate-500 text-slate-100 text-sm font-medium flex items-center justify-center"
+              className="h-11 min-h-[44px] sm:h-9 flex-1 sm:flex-none px-3.5 rounded-lg bg-slate-600 hover:bg-slate-500 border border-slate-500 text-slate-100 text-sm font-medium flex items-center justify-center"
             >
               Edit
             </Link>
@@ -142,7 +142,7 @@ export function RaidCard({
               type="button"
               onClick={onDelete}
               disabled={deleting}
-              className="h-9 px-3.5 rounded-lg bg-red-900/30 hover:bg-red-800/40 border border-red-800/50 text-red-400 text-sm font-medium disabled:opacity-50 flex items-center justify-center"
+              className="h-11 min-h-[44px] sm:h-9 flex-1 sm:flex-none px-3.5 rounded-lg bg-red-900/30 hover:bg-red-800/40 border border-red-800/50 text-red-400 text-sm font-medium disabled:opacity-50 flex items-center justify-center"
             >
               {deleting ? "..." : "Delete"}
             </button>

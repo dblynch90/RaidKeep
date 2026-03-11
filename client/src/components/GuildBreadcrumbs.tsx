@@ -38,8 +38,8 @@ export function GuildBreadcrumbs({
       ];
 
   return (
-    <nav aria-label="Breadcrumb" className="mb-6">
-      <ol className="flex flex-wrap items-center gap-2 text-sm">
+    <nav aria-label="Breadcrumb" className="mb-4 sm:mb-6">
+      <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm">
         {items.map((item, i) => (
           <li key={i} className="flex items-center gap-2">
             {i > 0 && <span className="text-slate-600" aria-hidden>›</span>}

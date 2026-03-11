@@ -211,14 +211,14 @@ export function RaidView() {
           extraItems={[{ label: "Raid Schedule", href: raidScheduleUrl }]}
           currentPage={raid.raid_name}
         />
-        <div className="mb-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h1 className="text-xl font-bold text-sky-400">{raid.raid_name}</h1>
-              <p className="text-slate-400 text-sm mt-0.5">
+        <div className="mb-4 sm:mb-6">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-start sm:justify-between gap-3 sm:gap-4">
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-xl font-bold text-sky-400 break-words">{raid.raid_name}</h1>
+              <p className="text-slate-400 text-xs sm:text-sm mt-0.5 truncate">
                 {raid.raid_instance || "Raid"} · {raid.guild_name} · {capitalizeRealm(raid.guild_realm)} · {raid.server_type}
               </p>
-              <p className="text-slate-500 text-sm mt-1">
+              <p className="text-slate-500 text-xs sm:text-sm mt-1">
                 {formatRaidDateTime(raid.raid_date, raid.start_time, raid.finish_time)}
               </p>
             </div>
@@ -228,7 +228,7 @@ export function RaidView() {
                 const link = `${window.location.origin}/raid/${raid.id}`;
                 navigator.clipboard.writeText(link).then(() => toast.showSuccess("Raid link copied")).catch(() => toast.showError("Failed to copy link"));
               }}
-              className="shrink-0 px-3 py-1.5 rounded-lg bg-slate-600 hover:bg-slate-500 border border-slate-500 text-slate-200 text-sm font-medium"
+              className="shrink-0 h-11 min-h-[44px] sm:h-9 px-4 rounded-lg bg-slate-600 hover:bg-slate-500 border border-slate-500 text-slate-200 text-sm font-medium self-start"
             >
               Copy Raid Link
             </button>
@@ -286,12 +286,12 @@ export function RaidView() {
                             <span className="text-sky-400 text-xs ml-0.5" title="Raid Assist">🛡 RA</span>
                           )}
                           {(isMySlot || canEditAvailabilityForOthers) && (
-                            <span className="ml-auto flex items-center gap-0.5">
+                            <span className="ml-auto flex items-center gap-1">
                               <button
                                 type="button"
                                 onClick={() => handleConfirm(s.id, "confirmed")}
                                 disabled={confirming === s.id}
-                                className={`w-5 h-5 rounded flex items-center justify-center text-xs ${status === "confirmed" ? "bg-emerald-500/30 text-emerald-400" : "text-slate-500 hover:bg-slate-600 hover:text-emerald-400"}`}
+                                className={`min-w-[36px] min-h-[36px] sm:w-5 sm:h-5 sm:min-w-0 sm:min-h-0 rounded flex items-center justify-center text-xs ${status === "confirmed" ? "bg-emerald-500/30 text-emerald-400" : "text-slate-500 hover:bg-slate-600 hover:text-emerald-400"}`}
                                 title={isMySlot ? "Confirm available" : `Confirm available for ${s.character_name}`}
                                 aria-label={`Confirm available for ${s.character_name}`}
                               >
@@ -301,7 +301,7 @@ export function RaidView() {
                                 type="button"
                                 onClick={() => handleConfirm(s.id, "unavailable")}
                                 disabled={confirming === s.id}
-                                className={`w-5 h-5 rounded flex items-center justify-center text-xs ${status === "unavailable" ? "bg-red-500/30 text-red-400" : "text-slate-500 hover:bg-slate-600 hover:text-red-400"}`}
+                                className={`min-w-[36px] min-h-[36px] sm:w-5 sm:h-5 sm:min-w-0 sm:min-h-0 rounded flex items-center justify-center text-xs ${status === "unavailable" ? "bg-red-500/30 text-red-400" : "text-slate-500 hover:bg-slate-600 hover:text-red-400"}`}
                                 title={isMySlot ? "Not available" : `Mark ${s.character_name} as unavailable`}
                                 aria-label={`Decline availability for ${s.character_name}`}
                               >

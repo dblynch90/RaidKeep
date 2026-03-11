@@ -12,10 +12,10 @@ function DashboardCard({ to, title, description }: { to: string; title: string; 
   return (
     <Link
       to={to}
-      className="rk-card-panel block p-6 rounded-xl border border-white/[0.05] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20"
+      className="rk-card-panel block p-5 sm:p-6 rounded-xl border border-white/[0.05] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20 min-h-[88px] sm:min-h-0 flex flex-col justify-center"
     >
-      <h3 className="font-semibold text-sky-400 mb-2">{title}</h3>
-      <p className="text-slate-400 text-sm">{description}</p>
+      <h3 className="font-semibold text-sky-400 mb-1 sm:mb-2">{title}</h3>
+      <p className="text-slate-400 text-xs sm:text-sm">{description}</p>
     </Link>
   );
 }
@@ -104,15 +104,15 @@ export function GuildDashboard() {
       <main className="rk-page-main">
         <GuildBreadcrumbs guildName={guildName} realm={realm} serverType={serverType} currentPage="Guild Dashboard" />
 
-        <header className="mb-8">
-          <h1 className="text-2xl font-semibold text-sky-400">{guildName}</h1>
-          <p className="text-slate-400 text-sm mt-1">
+        <header className="mb-6 sm:mb-8">
+          <h1 className="text-xl sm:text-2xl font-semibold text-sky-400 truncate">{guildName}</h1>
+          <p className="text-slate-400 text-xs sm:text-sm mt-1 truncate">
             Guild Dashboard · {capitalizeRealm(realm)} · {serverType}
           </p>
-          <div className="mt-4 h-px bg-slate-700/60" />
+          <div className="mt-3 sm:mt-4 h-px bg-slate-700/60" />
         </header>
 
-        <div className="space-y-10">
+        <div className="space-y-8 sm:space-y-10">
           {/* Member Section */}
           {(perms.view_guild_roster || perms.view_raid_roster || perms.view_raid_schedule) && (
             <section>
