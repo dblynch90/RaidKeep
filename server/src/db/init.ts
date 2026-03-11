@@ -664,6 +664,41 @@ export function initDb() {
     console.error("Migration raider_roster_raid_teams_set_null_on_user_delete failed:", e);
   }
 
+  // Migration: saved_raids must NOT CASCADE delete on user delete.
+  // Guild raids should persist when a user account is deleted.
+  try {
+    db.exec("CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)");
+    const applied = db.prepare("SELECT 1 FROM _migrations WHERE name = 'saved_raids_set_null_on_user_delete'").get();
+    if (!applied) {
+      const cols = db.prepare("PRAGMA table_info(saved_raids)").all() as Array<{ name: string }>;
+      const colNames = cols.map((c) => c.name).join(", ");
+      db.exec(`CREATE TABLE saved_raids_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        guild_name TEXT NOT NULL,
+        guild_realm TEXT NOT NULL,
+        guild_realm_slug TEXT NOT NULL,
+        server_type TEXT NOT NULL DEFAULT 'Retail',
+        raid_name TEXT NOT NULL,
+        raid_instance TEXT,
+        raid_date TEXT NOT NULL,
+        start_time TEXT,
+        finish_time TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        officer_notes TEXT,
+        party_count INTEGER DEFAULT 2
+      )`);
+      db.exec(`INSERT INTO saved_raids_new (${colNames}) SELECT ${colNames} FROM saved_raids`);
+      db.exec("DROP TABLE saved_raids");
+      db.exec("ALTER TABLE saved_raids_new RENAME TO saved_raids");
+      db.exec("CREATE INDEX IF NOT EXISTS idx_saved_raids_user ON saved_raids(user_id)");
+      db.exec("CREATE INDEX IF NOT EXISTS idx_saved_raids_guild ON saved_raids(guild_name, guild_realm_slug, server_type)");
+      db.prepare("INSERT INTO _migrations (name) VALUES ('saved_raids_set_null_on_user_delete')").run();
+    }
+  } catch (e) {
+    console.error("Migration saved_raids_set_null_on_user_delete failed:", e);
+  }
+
   db.close();
   console.log("Database initialized at", dbPath);
 }

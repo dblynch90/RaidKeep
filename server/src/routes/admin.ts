@@ -21,7 +21,7 @@ function getOrCreateUserIdForGuild(db: ReturnType<typeof getDb>, realmSlug: stri
       .get(realmSlug, guildName, serverType) as { user_id: number } | undefined)?.user_id;
   }
   if (!uid) {
-    uid = (db.prepare("SELECT user_id FROM saved_raids WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? LIMIT 1")
+    uid = (db.prepare("SELECT user_id FROM saved_raids WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND user_id IS NOT NULL LIMIT 1")
       .get(realmSlug, guildName, serverType) as { user_id: number } | undefined)?.user_id;
   }
   if (!uid) {
@@ -124,7 +124,7 @@ adminRoutes.delete("/users/:id", requireAdmin, (req, res) => {
     }
   }
 
-  // Reassign guild data (raider_roster, raid_teams) to another user before delete.
+  // Reassign guild data (raider_roster, raid_teams, saved_raids) to another user before delete.
   // These are shared guild data; deleting the user must not delete them.
   const guildsFromRoster = db
     .prepare(
@@ -136,8 +136,13 @@ adminRoutes.delete("/users/:id", requireAdmin, (req, res) => {
       "SELECT DISTINCT guild_realm_slug, guild_name, server_type FROM raid_teams WHERE user_id = ?"
     )
     .all(id) as Array<{ guild_realm_slug: string; guild_name: string; server_type: string }>;
+  const guildsFromRaids = db
+    .prepare(
+      "SELECT DISTINCT guild_realm_slug, guild_name, server_type FROM saved_raids WHERE user_id = ?"
+    )
+    .all(id) as Array<{ guild_realm_slug: string; guild_name: string; server_type: string }>;
   const allGuilds = new Map<string, { guild_realm_slug: string; guild_name: string; server_type: string }>();
-  for (const g of [...guildsFromRoster, ...guildsFromTeams]) {
+  for (const g of [...guildsFromRoster, ...guildsFromTeams, ...guildsFromRaids]) {
     const key = `${g.guild_realm_slug}|${g.guild_name}|${g.server_type}`;
     if (!allGuilds.has(key)) allGuilds.set(key, g);
   }
@@ -152,14 +157,24 @@ adminRoutes.delete("/users/:id", requireAdmin, (req, res) => {
         .prepare(
           "SELECT user_id FROM raid_teams WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND user_id IS NOT NULL AND user_id != ? LIMIT 1"
         )
-        .get(g.guild_realm_slug, g.guild_name, g.server_type, id) as { user_id: number } | undefined);
-    if (other) {
+        .get(g.guild_realm_slug, g.guild_name, g.server_type, id) as { user_id: number } | undefined) ??
+      (db
+        .prepare(
+          "SELECT user_id FROM saved_raids WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND user_id != ? LIMIT 1"
+        )
+        .get(g.guild_realm_slug, g.guild_name, g.server_type, id) as { user_id: number } | undefined) ??
+      (db.prepare("SELECT id FROM users WHERE id != ? ORDER BY id LIMIT 1").get(id) as { id: number } | undefined);
+    const otherUserId = other && "user_id" in other ? other.user_id : other && "id" in other ? other.id : undefined;
+    if (otherUserId !== undefined) {
       db.prepare(
         "UPDATE raider_roster SET user_id = ? WHERE user_id = ? AND guild_realm_slug = ? AND guild_name = ? AND server_type = ?"
-      ).run(other.user_id, id, g.guild_realm_slug, g.guild_name, g.server_type);
+      ).run(otherUserId, id, g.guild_realm_slug, g.guild_name, g.server_type);
       db.prepare(
         "UPDATE raid_teams SET user_id = ? WHERE user_id = ? AND guild_realm_slug = ? AND guild_name = ? AND server_type = ?"
-      ).run(other.user_id, id, g.guild_realm_slug, g.guild_name, g.server_type);
+      ).run(otherUserId, id, g.guild_realm_slug, g.guild_name, g.server_type);
+      db.prepare(
+        "UPDATE saved_raids SET user_id = ? WHERE user_id = ? AND guild_realm_slug = ? AND guild_name = ? AND server_type = ?"
+      ).run(otherUserId, id, g.guild_realm_slug, g.guild_name, g.server_type);
     }
   }
   db.prepare("DELETE FROM users WHERE id = ?").run(id);

@@ -75,7 +75,7 @@ export function AdminDashboard() {
   const deleteUser = async (e: React.MouseEvent, u: User) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm(`Delete user "${u.username}"? This will remove all their guild memberships, characters, raids, and roster data.`)) return;
+    if (!confirm(`Delete user "${u.username}"? Their account will be removed. Guild data (raids, roster, teams) they created will be reassigned to other guild members.`)) return;
     const r = await fetch(`${API}/admin/users/${u.id}`, { method: "DELETE", credentials: "include" });
     if (r.ok) setUsers((prev) => prev.filter((x) => x.id !== u.id));
   };
