@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { GuildBreadcrumbs } from "../components/GuildBreadcrumbs";
 import type { GuildPermissions } from "./GuildPermissions";
+import { RaiderRoster } from "./RaiderRoster";
 
 const CLASS_COLORS: Record<string, string> = {
   Warrior: "#C69B6D",
@@ -319,6 +320,10 @@ export function RaidRoster() {
         </main>
       </div>
     );
+  }
+
+  if (!loading && perms.manage_raid_roster) {
+    return <RaiderRoster />;
   }
 
   return (

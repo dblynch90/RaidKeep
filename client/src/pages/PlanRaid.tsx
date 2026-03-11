@@ -742,7 +742,7 @@ export function PlanRaid() {
   const perms = permissions ?? DEFAULT_PERMISSIONS;
   if (!loading && !perms.manage_raids) {
     const manageRaidsUrl = realm && guildName
-      ? `/manage-raids?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
+      ? `/raid-schedule?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
       : "/";
     return (
       <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
@@ -765,7 +765,7 @@ export function PlanRaid() {
             realm={realm}
             serverType={serverType}
             currentPage={isEdit ? "Edit Raid" : "Plan Raid"}
-            extraItems={[{ label: "Raid Management", href: `/manage-raids?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}` }]}
+            extraItems={[{ label: "Raid Schedule", href: `/raid-schedule?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}` }]}
           />
         )}
 

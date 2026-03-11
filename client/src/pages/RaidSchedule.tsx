@@ -1,8 +1,20 @@
 import { useState, useEffect, useRef } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { GuildBreadcrumbs } from "../components/GuildBreadcrumbs";
 import { RaidCard, type RaidCardData } from "../components/RaidCard";
+import type { GuildPermissions } from "./GuildPermissions";
+
+const DEFAULT_PERMISSIONS: GuildPermissions = {
+  view_guild_dashboard: true,
+  view_guild_roster: true,
+  view_raid_roster: true,
+  view_raid_schedule: true,
+  manage_raids: true,
+  manage_raid_roster: true,
+  manage_permissions: true,
+  manage_guild_crafters: true,
+};
 
 interface SavedRaid extends RaidCardData {
   guild_name: string;
@@ -63,9 +75,18 @@ export function RaidSchedule() {
   const guildName = searchParams.get("guild_name") ?? "";
   const serverType = searchParams.get("server_type") ?? "TBC Anniversary";
 
+  const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
+
   const [raids, setRaids] = useState<SavedRaid[]>([]);
+  const [permissions, setPermissions] = useState<GuildPermissions | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const perms = permissions ?? DEFAULT_PERMISSIONS;
+  const canManageRaids = perms.manage_raids;
+
+  const planRaidUrl = `/plan-raid?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
 
   useEffect(() => {
     if (!realm || !guildName) {
@@ -75,14 +96,34 @@ export function RaidSchedule() {
     }
     setLoading(true);
     setError(null);
-    api
-      .get<{ raids: SavedRaid[] }>(
+    Promise.all([
+      api.get<{ permissions: GuildPermissions }>(
+        `/auth/me/guild-permissions?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
+      ).then((r) => r.permissions).catch(() => DEFAULT_PERMISSIONS),
+      api.get<{ raids: SavedRaid[] }>(
         `/auth/me/saved-raids?guild_realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
-      )
-      .then((r) => setRaids(r.raids))
+      ).then((r) => r.raids),
+    ])
+      .then(([perms, r]) => {
+        setPermissions(perms);
+        setRaids(r);
+      })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load raids"))
       .finally(() => setLoading(false));
-  }, [realm, guildName, serverType]);
+  }, [realm, realmSlug, guildName, serverType]);
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Delete this raid?")) return;
+    setDeletingId(id);
+    try {
+      await api.delete(`/auth/me/saved-raids/${id}`);
+      setRaids((prev) => prev.filter((r) => r.id !== id));
+    } catch {
+      // ignore
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const today = new Date().toISOString().slice(0, 10);
   const upcomingRaids = raids
@@ -102,21 +143,65 @@ export function RaidSchedule() {
     );
   }
 
+  if (!loading && !perms.view_raid_schedule) {
+    return (
+      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
+        <main className="max-w-6xl mx-auto px-4 py-8">
+          <p className="text-amber-500">You do not have permission to view the raid schedule.</p>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
       <main className="max-w-6xl mx-auto px-4 py-8">
         <GuildBreadcrumbs guildName={guildName} realm={realm} serverType={serverType} currentPage="Raid Schedule" />
 
         <header className="mb-8">
-          <h1 className="text-2xl font-semibold text-sky-400">{guildName}</h1>
-          <p className="text-slate-400 text-sm mt-1">
-            Raid Schedule · {capitalizeRealm(realm)} · {serverType}
-          </p>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-semibold text-sky-400">{guildName}</h1>
+              <p className="text-slate-400 text-sm mt-1">
+                Raid Schedule · {capitalizeRealm(realm)} · {serverType}
+              </p>
+            </div>
+            {canManageRaids && (
+              <Link
+                to={planRaidUrl}
+                className="h-9 px-3.5 rounded-lg bg-slate-700/80 hover:bg-slate-600 border border-slate-600 text-slate-200 text-sm font-medium flex items-center shrink-0 transition"
+              >
+                + Create Raid
+              </Link>
+            )}
+          </div>
           <div className="mt-4 h-px bg-slate-700/60" />
         </header>
 
         {loading ? (
           <p className="text-slate-500">Loading raids...</p>
+        ) : raids.length === 0 ? (
+          <div
+            className="rounded-xl border border-white/[0.05] p-12 text-center"
+            style={{
+              background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+            }}
+          >
+            <div className="text-4xl mb-4">📅</div>
+            <p className="text-slate-400 font-medium mb-1">No raids scheduled yet</p>
+            <p className="text-slate-500 text-sm mb-6">
+              {canManageRaids ? "Create your first raid to get started." : "Raids will appear here once they are scheduled."}
+            </p>
+            {canManageRaids && (
+              <Link
+                to={planRaidUrl}
+                className="inline-flex h-9 px-3.5 items-center rounded-lg bg-slate-700/80 hover:bg-slate-600 border border-slate-600 text-slate-200 text-sm font-medium transition"
+              >
+                + Create Raid
+              </Link>
+            )}
+          </div>
         ) : (
           <div className="space-y-6">
             <section>
@@ -128,7 +213,15 @@ export function RaidSchedule() {
               ) : (
                 <div className="space-y-4">
                   {upcomingRaids.map((r) => (
-                    <RaidCard key={r.id} raid={r} showSignUp baseUrl="/raid" />
+                    <RaidCard
+                      key={r.id}
+                      raid={r}
+                      showSignUp
+                      baseUrl="/raid"
+                      editUrl={canManageRaids ? `${planRaidUrl}&raidId=${r.id}` : undefined}
+                      onDelete={canManageRaids ? () => handleDelete(r.id) : undefined}
+                      deleting={deletingId === r.id}
+                    />
                   ))}
                 </div>
               )}
@@ -138,7 +231,14 @@ export function RaidSchedule() {
               <CollapsibleSection title={`Past Raids (${pastRaids.length})`} defaultOpen={false}>
                 <div className="p-4 space-y-4">
                   {pastRaids.map((r) => (
-                    <RaidCard key={r.id} raid={r} baseUrl="/raid" />
+                    <RaidCard
+                      key={r.id}
+                      raid={r}
+                      baseUrl="/raid"
+                      editUrl={canManageRaids ? `${planRaidUrl}&raidId=${r.id}` : undefined}
+                      onDelete={canManageRaids ? () => handleDelete(r.id) : undefined}
+                      deleting={deletingId === r.id}
+                    />
                   ))}
                 </div>
               </CollapsibleSection>

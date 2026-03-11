@@ -217,7 +217,7 @@ export function RaidRosterView() {
                 <div className="p-8 text-center">
                   <p className="text-slate-500">No raiders in the roster yet.</p>
                   <p className="text-slate-500 text-sm mt-2">
-                    Go to Raid Management → Raid Team to add members and create teams.
+                    Go to Raid Roster to add members and create teams.
                   </p>
                 </div>
               ) : filteredRaiders.length === 0 ? (

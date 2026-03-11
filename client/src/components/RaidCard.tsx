@@ -66,11 +66,17 @@ export function RaidCard({
   showSignUp = false,
   isAssigned = false,
   baseUrl = "/raid",
+  editUrl,
+  onDelete,
+  deleting = false,
 }: {
   raid: RaidCardData;
   showSignUp?: boolean;
   isAssigned?: boolean;
   baseUrl?: string;
+  editUrl?: string;
+  onDelete?: () => void;
+  deleting?: boolean;
 }) {
   const toast = useToast();
   const dateShort = formatRaidDateShort(raid.raid_date);
@@ -134,7 +140,7 @@ export function RaidCard({
             </p>
           )}
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 gap-2 flex-wrap">
           <button
             type="button"
             onClick={copyRaidLink}
@@ -149,6 +155,24 @@ export function RaidCard({
           >
             {showSignUp && !isAssigned ? "View/Sign Up" : "View"}
           </Link>
+          {editUrl && (
+            <Link
+              to={editUrl}
+              className="h-9 px-3.5 rounded-lg bg-slate-600 hover:bg-slate-500 border border-slate-500 text-slate-100 text-sm font-medium flex items-center justify-center"
+            >
+              Edit
+            </Link>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={deleting}
+              className="h-9 px-3.5 rounded-lg bg-red-900/30 hover:bg-red-800/40 border border-red-800/50 text-red-400 text-sm font-medium disabled:opacity-50 flex items-center justify-center"
+            >
+              {deleting ? "..." : "Delete"}
+            </button>
+          )}
         </div>
       </div>
     </div>

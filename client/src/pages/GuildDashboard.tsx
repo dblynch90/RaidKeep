@@ -69,7 +69,6 @@ export function GuildDashboard() {
   const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
   const rosterUrl = `/guild-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
   const professionsUrl = `/guild-professions?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
-  const manageRaidsUrl = `/manage-raids?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
   const raidScheduleUrl = `/raid-schedule?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
   const raidRosterUrl = `/raid-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
   const permissionsUrl = `/guild-permissions?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
@@ -152,26 +151,21 @@ export function GuildDashboard() {
                   <DashboardCard to={professionsUrl} title="Guild Professions" description="Add guild members with professions, set levels and notes." />
                 )}
                 {perms.view_raid_roster && (
-                  <DashboardCard to={raidRosterUrl} title="Raid Roster" description="View raid roster, set your availability and notes." />
+                  <DashboardCard to={raidRosterUrl} title="Raid Roster" description="View raid roster, set availability and notes. Officers can add raiders and manage teams." />
                 )}
                 {perms.view_raid_schedule && (
-                  <DashboardCard to={raidScheduleUrl} title="Raid Schedule" description="View upcoming and past raids for this guild." />
+                  <DashboardCard to={raidScheduleUrl} title="Raid Schedule" description="View and sign up for raids. Officers can create, edit, and delete raids." />
                 )}
               </div>
             </section>
           )}
 
           {/* Administrative Section */}
-          {(perms.manage_raids || perms.manage_permissions) && (
+          {perms.manage_permissions && (
             <section>
               <h2 className="text-slate-400 font-medium text-sm uppercase tracking-wider mb-4">Administrative</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {perms.manage_raids && (
-                  <DashboardCard to={manageRaidsUrl} title="Raid Management" description="Create, edit, and manage raids for this guild." />
-                )}
-                {perms.manage_permissions && (
-                  <DashboardCard to={permissionsUrl} title="Guild Permissions" description="Control access to guild dashboard features." />
-                )}
+                <DashboardCard to={permissionsUrl} title="Guild Permissions" description="Control access to guild dashboard features." />
               </div>
             </section>
           )}

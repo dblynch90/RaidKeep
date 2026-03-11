@@ -288,13 +288,7 @@ export function RaidRosterPopout() {
     return () => clearTimeout(t);
   }, [saveMsg]);
 
-  // Only show raiders who are in the raid roster (raider_roster), not all guild members.
-  // When teams exist, filter to raiders in teams; otherwise show all from raider_roster
-  const raidersToShow = useMemo(() => {
-    if (teams.length === 0) return raiders;
-    const inTeam = new Set(characterToTeamId.keys());
-    return raiders.filter((r) => inTeam.has(r.character_name.toLowerCase()));
-  }, [raiders, teams.length, characterToTeamId]);
+  const raidersToShow = raiders;
 
   const classList = useMemo(
     () => [...new Set(raidersToShow.map((r) => r.character_class))].sort((a, b) => a.localeCompare(b)),
@@ -451,14 +445,14 @@ export function RaidRosterPopout() {
 
       {/* Excel-style table - full width */}
       <div className="overflow-auto p-4" style={{ minHeight: "calc(100vh - 60px)" }}>
-        <table className="w-full border-collapse text-sm table-fixed" style={{ minWidth: 800 }}>
+        <table className="w-full border-collapse text-sm table-fixed" style={{ minWidth: 960 }}>
           <colgroup>
-            <col style={{ width: "14%" }} />
-            <col style={{ width: "20%" }} />
-            <col style={{ width: "14%" }} />
-            <col style={{ width: "14%" }} />
-            <col style={{ width: "10%" }} />
-            <col style={{ width: "6%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "18%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "8%" }} />
+            <col style={{ width: "38%" }} />
           </colgroup>
           <thead>
             <tr className="border-b border-slate-600">
@@ -467,7 +461,7 @@ export function RaidRosterPopout() {
               <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Role - Spec</th>
               <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Role - Spec</th>
               <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Team</th>
-              <th className="text-center py-2 px-3 text-slate-400 font-medium uppercase tracking-wider" title="Notes">📝</th>
+              <th className="text-left py-2 px-3 text-slate-400 font-medium uppercase tracking-wider">Notes</th>
             </tr>
           </thead>
           <tbody>
@@ -578,17 +572,36 @@ export function RaidRosterPopout() {
                       )}
                     </td>
                     <td className="py-2 px-3 text-slate-400">{team ? team.team_name : "—"}</td>
-                    <td className="py-2 px-3 text-center">
-                      <button
-                        type="button"
-                        onClick={() => setNotesFor(r.character_name)}
-                        className={`w-7 h-7 flex items-center justify-center rounded text-sm transition-colors mx-auto ${
-                          (r.notes || (canEdit && r.officer_notes)) ? "text-sky-400 hover:bg-sky-500/20" : "text-slate-500 hover:bg-slate-600/50"
-                        }`}
-                        title={(r.notes || (canEdit && r.officer_notes)) ? `Player: ${r.notes || "—"}${canEdit && r.officer_notes ? ` · Officer: ${r.officer_notes}` : ""}` : "Add or edit notes."}
-                      >
-                        📝
-                      </button>
+                    <td className="py-2 px-3 align-top">
+                      <div className="flex items-start gap-2 min-w-0">
+                        <div className="flex-1 min-w-0 align-top whitespace-pre-wrap break-words text-sm">
+                          {r.notes ? (
+                            <div className="text-slate-400 mb-1">
+                              <span className="text-slate-500 text-xs uppercase">Player:</span> {r.notes}
+                            </div>
+                          ) : null}
+                          {canEdit && r.officer_notes ? (
+                            <div className="text-slate-500">
+                              <span className="text-slate-500 text-xs uppercase">Officer:</span> {r.officer_notes}
+                            </div>
+                          ) : null}
+                          {!r.notes && !(canEdit && r.officer_notes) ? (
+                            <span className="text-slate-600">—</span>
+                          ) : null}
+                        </div>
+                        {canEditRaider(r.character_name) && (
+                          <button
+                            type="button"
+                            onClick={() => setNotesFor(r.character_name)}
+                            className={`shrink-0 w-7 h-7 flex items-center justify-center rounded text-sm transition-colors ${
+                              (r.notes || (canEdit && r.officer_notes)) ? "text-sky-400 hover:bg-sky-500/20" : "text-slate-500 hover:bg-slate-600/50"
+                            }`}
+                            title="Edit notes"
+                          >
+                            📝
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

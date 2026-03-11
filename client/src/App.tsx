@@ -10,7 +10,6 @@ import { BattleNetCallback } from "./pages/BattleNetCallback";
 import { Dashboard } from "./pages/Dashboard";
 import { GuildRoster } from "./pages/GuildRoster";
 import { RaidView } from "./pages/RaidView";
-import { ManageRaids } from "./pages/ManageRaids";
 import { RaidRoster } from "./pages/RaidRoster";
 import { RaiderRoster } from "./pages/RaiderRoster";
 import { RaidRosterPopout } from "./pages/RaidRosterPopout";
@@ -131,26 +130,10 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/manage-raids"
-        element={
-          <ProtectedRoute>
-            <ManageRaids />
-          </ProtectedRoute>
-        }
-      />
-      <Route
         path="/raid-roster"
         element={
           <ProtectedRoute>
             <RaidRoster />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/raider-roster"
-        element={
-          <ProtectedRoute>
-            <RaiderRoster />
           </ProtectedRoute>
         }
       />
