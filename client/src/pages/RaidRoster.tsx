@@ -215,26 +215,24 @@ export function RaidRoster() {
             notes_public: r.notes_public ?? false,
           }));
         if (myUpdates.length > 0) {
-          const res = await api.patch<{ raiders: Array<Omit<RaiderEntry, "notes_public"> & { notes_public?: number }> }>("/auth/me/raider-roster/self", {
+          await api.patch("/auth/me/raider-roster/self", {
             guild_name: guildName,
             guild_realm: realm,
             guild_realm_slug: realmSlug,
             server_type: serverType,
             updates: myUpdates,
           });
+          // Re-fetch roster from GET to ensure full roster is displayed (PATCH response can be inconsistent)
+          const rosterQs = guildRealmQueryString({ realm, guildName, serverType });
+          const r = await api.get<{ raiders: Array<Omit<RaiderEntry, "notes_public"> & { notes_public?: number; raid_lead?: unknown; raid_assist?: unknown; availability?: string }> }>(
+            `/auth/me/raider-roster?${rosterQs}`
+          );
           setRaiders(
-            (res.raiders ?? []).map((x) => ({
-              character_name: x.character_name ?? "",
-              character_class: x.character_class ?? "",
-              primary_spec: x.primary_spec ?? "",
-              off_spec: x.off_spec ?? "",
-              secondary_spec: (x as RaiderEntry & { secondary_spec?: string }).secondary_spec ?? "",
-              notes: x.notes ?? "",
-              officer_notes: x.officer_notes ?? "",
-              notes_public: x.notes_public === 1,
-              raid_role: x.raid_role ?? "",
+            (r.raiders ?? []).map((x) => ({
+              ...x,
               raid_lead: Boolean(x.raid_lead),
               raid_assist: Boolean(x.raid_assist),
+              notes_public: x.notes_public === 1,
               availability: typeof x.availability === "string" ? x.availability.padEnd(7, "0").slice(0, 7) : DEFAULT_AVAILABILITY,
             }))
           );
