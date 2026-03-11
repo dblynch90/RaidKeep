@@ -547,6 +547,8 @@ export function PlanRaid() {
     );
   };
 
+  const closeRosterDrawer = () => setShowGuildRosterDrawer(false);
+
   const handleRosterAdd = (member: RosterMember, role: RaidRole) => {
     const raiderData = getRaiderData(member.name);
     const slot = toRaidSlot(member, role, raiderData);
@@ -565,6 +567,24 @@ export function PlanRaid() {
       }
       return [...prev, [slot, null, null, null, null]];
     });
+  };
+
+  /** Wraps handleRosterAdd to close roster drawer after add (mobile UX) */
+  const handleRosterAddFromDrawer = (member: RosterMember, role: RaidRole) => {
+    handleRosterAdd(member, role);
+    closeRosterDrawer();
+  };
+
+  /** Wraps addBackup to close roster drawer after add (mobile UX) */
+  const addBackupFromDrawer = (member: RosterMember) => {
+    addBackup(member);
+    closeRosterDrawer();
+  };
+
+  /** Wraps assignToFirstEmptySlot to close roster drawer after add (mobile UX) */
+  const assignToFirstEmptySlotFromDrawer = (member: RosterMember) => {
+    assignToFirstEmptySlot(member);
+    closeRosterDrawer();
   };
 
   const assignToFirstEmptySlot = (member: RosterMember) => {
@@ -821,12 +841,12 @@ export function PlanRaid() {
         {loading ? (
           <p className="text-slate-500">Loading roster...</p>
         ) : (
-          <div className={sectionGap}>
-            <Card className="rounded-xl shadow-lg bg-slate-800/95 border-slate-700/80">
-              <div className="p-4 sm:p-5">
+          <div className={`${sectionGap} min-w-0`}>
+            <Card className="rounded-xl shadow-lg bg-slate-800/95 border-slate-700/80 min-w-0 overflow-hidden">
+              <div className="p-4 sm:p-5 min-w-0">
                 <h2 className="text-slate-400 font-normal text-sm uppercase tracking-wider mb-4">Raid Details</h2>
                 {!isEdit && raidsForCopy.length > 0 && (
-                  <div className="mb-4 p-4 rounded-lg bg-slate-700/40 border border-slate-600/60">
+                  <div className="mb-4 p-4 rounded-lg bg-slate-700/40 border border-slate-600/60 rk-field-wrap min-w-0">
                     <label className="block text-slate-400 text-sm mb-2 font-medium">Start from a copy of a previous raid</label>
                     <select
                       className="w-full max-w-xs px-3 py-2.5 min-h-[44px] rounded-lg bg-slate-700/80 border border-slate-600 text-slate-100 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
@@ -851,7 +871,7 @@ export function PlanRaid() {
                   </div>
                 )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div>
+                  <div className="rk-field-wrap min-w-0">
                     <label className="block text-slate-400 text-sm mb-1.5 font-medium">
                       Raid Name <span className="text-amber-500">*</span>
                     </label>
@@ -865,7 +885,7 @@ export function PlanRaid() {
                       }`}
                     />
                   </div>
-                  <div>
+                  <div className="rk-field-wrap min-w-0">
                     <label className="block text-slate-400 text-sm mb-1.5 font-medium">Raid Instance</label>
                     <select
                       value={raidInstance}
@@ -914,7 +934,7 @@ export function PlanRaid() {
                       ))}
                     </select>
                   </div>
-                  <div>
+                  <div className="rk-field-wrap min-w-0">
                     <label className="block text-slate-400 text-sm mb-1.5 font-medium">Raid Date</label>
                     <input
                       type="date"
@@ -923,7 +943,7 @@ export function PlanRaid() {
                       className="w-full px-3 py-2.5 sm:py-2 min-h-[44px] rounded-lg bg-slate-700/80 border border-slate-600 text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
                     />
                   </div>
-                  <div>
+                  <div className="rk-field-wrap min-w-0">
                     <label className="block text-slate-400 text-sm mb-1.5 font-medium">Start Time (server)</label>
                     <input
                       type="time"
@@ -932,7 +952,7 @@ export function PlanRaid() {
                       className="w-full px-3 py-2.5 sm:py-2 min-h-[44px] rounded-lg bg-slate-700/80 border border-slate-600 text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
                     />
                   </div>
-                  <div>
+                  <div className="rk-field-wrap min-w-0">
                     <label className="block text-slate-400 text-sm mb-1.5 font-medium">Finish Time (server)</label>
                     <input
                       type="time"
@@ -942,7 +962,7 @@ export function PlanRaid() {
                     />
                   </div>
                   {perms.manage_raids && (
-                    <div className="flex items-end">
+                    <div className="flex items-end rk-field-wrap min-w-0">
                       <button
                         type="button"
                         onClick={handleOpenOfficerNotes}
@@ -1039,7 +1059,10 @@ export function PlanRaid() {
                             </span>
                             <button
                               type="button"
-                              onClick={addRealmCharacterToRaid}
+                              onClick={() => {
+                                addRealmCharacterToRaid();
+                                closeRosterDrawer();
+                              }}
                               disabled={assignedNames.has(characterSearchResult.name.toLowerCase()) || backupNames.has(characterSearchResult.name.toLowerCase())}
                               className="px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-sm font-medium"
                             >
@@ -1148,9 +1171,9 @@ export function PlanRaid() {
                           >
                             <RosterAddButton
                               member={m}
-                              onAdd={handleRosterAdd}
-                              onAddBackup={addBackup}
-                              onQuickAssign={assignToFirstEmptySlot}
+                              onAdd={handleRosterAddFromDrawer}
+                              onAddBackup={addBackupFromDrawer}
+                              onQuickAssign={assignToFirstEmptySlotFromDrawer}
                               canAddAsBackup={!backupNames.has(m.name.toLowerCase())}
                             />
                           </div>
@@ -1160,11 +1183,20 @@ export function PlanRaid() {
                       </>
                     )}
                   </div>
+                  <div className="p-4 border-t border-slate-700 shrink-0 sm:hidden">
+                    <button
+                      type="button"
+                      onClick={closeRosterDrawer}
+                      className="w-full min-h-[48px] px-4 py-3 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium text-base"
+                    >
+                      ← Back to Composition
+                    </button>
+                  </div>
                 </div>
               )}
               <div className={`flex-1 min-w-0 ${showGuildRosterDrawer ? "sm:ml-[340px]" : ""}`}>
-                <Card className="rounded-xl shadow-lg bg-slate-800/95 border-slate-700/80">
-                  <div className="p-4 sm:p-5">
+                <Card className="rounded-xl shadow-lg bg-slate-800/95 border-slate-700/80 min-w-0 overflow-hidden">
+                  <div className="p-4 sm:p-5 min-w-0">
                     <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3 mb-5">
                       <h3 className="text-slate-400 font-normal text-sm uppercase tracking-wider shrink-0">Raid Composition</h3>
                       <div className="flex flex-wrap items-center gap-2 rk-touch-targets">
