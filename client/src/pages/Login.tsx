@@ -11,10 +11,10 @@ export function Login() {
         aria-hidden
       />
 
-      <div className="relative max-w-6xl mx-auto px-5 py-11 sm:py-16">
+      <div className="relative max-w-6xl mx-auto px-4 sm:px-5 py-8 sm:py-16">
         <div className="flex flex-col lg:flex-row lg:items-start gap-11 lg:gap-14">
-          {/* Hero card */}
-          <div className="lg:shrink-0 lg:w-[418px]">
+          {/* Hero card - full width on mobile */}
+          <div className="w-full max-w-full lg:shrink-0 lg:w-[418px]">
             <div className="rounded-xl bg-slate-800/60 border border-amber-900/30 shadow-2xl backdrop-blur-sm overflow-hidden">
               {/* Gold accent line */}
               <div className="h-0.5 bg-gradient-to-r from-transparent via-amber-500/60 to-transparent" />

@@ -823,13 +823,13 @@ export function PlanRaid() {
         ) : (
           <div className={sectionGap}>
             <Card className="rounded-xl shadow-lg bg-slate-800/95 border-slate-700/80">
-              <div className="p-5">
+              <div className="p-4 sm:p-5">
                 <h2 className="text-slate-400 font-normal text-sm uppercase tracking-wider mb-4">Raid Details</h2>
                 {!isEdit && raidsForCopy.length > 0 && (
                   <div className="mb-4 p-4 rounded-lg bg-slate-700/40 border border-slate-600/60">
                     <label className="block text-slate-400 text-sm mb-2 font-medium">Start from a copy of a previous raid</label>
                     <select
-                      className="w-full max-w-xs px-3 py-2 rounded-lg bg-slate-700/80 border border-slate-600 text-slate-100 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
+                      className="w-full max-w-xs px-3 py-2.5 min-h-[44px] rounded-lg bg-slate-700/80 border border-slate-600 text-slate-100 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
                       defaultValue=""
                       onChange={(e) => {
                         const val = e.target.value;
@@ -860,7 +860,7 @@ export function PlanRaid() {
                       value={raidName}
                       onChange={(e) => setRaidName(e.target.value)}
                       placeholder="Required — e.g. Friday Farm Run"
-                      className={`w-full px-3 py-2 rounded-lg bg-slate-700/80 border text-slate-100 placeholder-slate-600 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 ${
+                      className={`w-full px-3 py-2.5 sm:py-2 min-h-[44px] rounded-lg bg-slate-700/80 border text-slate-100 placeholder-slate-600 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 ${
                         !raidName.trim() ? "border-amber-500/50" : "border-slate-600"
                       }`}
                     />
@@ -901,7 +901,7 @@ export function PlanRaid() {
                           });
                         }
                       }}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-700/80 border border-slate-600 text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
+                      className="w-full px-3 py-2.5 sm:py-2 min-h-[44px] rounded-lg bg-slate-700/80 border border-slate-600 text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
                     >
                       <option value="">Select raid...</option>
                       {raidInstance && !raidInstancesForVersion.some((o) => o.displayName === raidInstance) && (
@@ -920,7 +920,7 @@ export function PlanRaid() {
                       type="date"
                       value={raidDate}
                       onChange={(e) => setRaidDate(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-700/80 border border-slate-600 text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
+                      className="w-full px-3 py-2.5 sm:py-2 min-h-[44px] rounded-lg bg-slate-700/80 border border-slate-600 text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
                     />
                   </div>
                   <div>
@@ -929,7 +929,7 @@ export function PlanRaid() {
                       type="time"
                       value={startTime}
                       onChange={(e) => setStartTime(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-700/80 border border-slate-600 text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
+                      className="w-full px-3 py-2.5 sm:py-2 min-h-[44px] rounded-lg bg-slate-700/80 border border-slate-600 text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
                     />
                   </div>
                   <div>
@@ -938,7 +938,7 @@ export function PlanRaid() {
                       type="time"
                       value={finishTime}
                       onChange={(e) => setFinishTime(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-700/80 border border-slate-600 text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
+                      className="w-full px-3 py-2.5 sm:py-2 min-h-[44px] rounded-lg bg-slate-700/80 border border-slate-600 text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500/50 [color-scheme:dark]"
                     />
                   </div>
                   {perms.manage_raids && (
@@ -947,7 +947,7 @@ export function PlanRaid() {
                         type="button"
                         onClick={handleOpenOfficerNotes}
                         disabled={saving}
-                        className="w-full px-3 py-2 rounded-lg bg-slate-700/80 hover:bg-slate-600 border border-slate-600 text-slate-200 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed transition"
+                        className="w-full min-h-[44px] px-3 py-2.5 rounded-lg bg-slate-700/80 hover:bg-slate-600 border border-slate-600 text-slate-200 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed transition"
                         title="Open officer notes in a separate window"
                       >
                         Officer Notes
@@ -960,7 +960,7 @@ export function PlanRaid() {
 
             <div className="flex gap-0 relative">
               {showGuildRosterDrawer && (
-                <div className="absolute left-0 top-0 bottom-0 w-[340px] border-r border-slate-700 bg-slate-800/95 flex flex-col overflow-hidden rounded-l-xl z-10">
+                <div className="fixed inset-0 sm:absolute sm:inset-auto sm:left-0 sm:top-0 sm:bottom-0 w-full sm:w-[340px] border-r border-slate-700 bg-slate-800/95 flex flex-col overflow-hidden sm:rounded-l-xl z-20">
                   <div className="p-4 border-b border-slate-700 shrink-0">
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="text-slate-300 font-medium text-sm">
@@ -969,7 +969,7 @@ export function PlanRaid() {
                       <button
                         type="button"
                         onClick={() => setShowGuildRosterDrawer(false)}
-                        className="w-8 h-8 flex items-center justify-center rounded text-slate-500 hover:text-slate-200 hover:bg-slate-700"
+                        className="min-w-[44px] min-h-[44px] w-11 h-11 sm:w-8 sm:h-8 flex items-center justify-center rounded text-slate-500 hover:text-slate-200 hover:bg-slate-700 shrink-0"
                         aria-label="Close"
                       >
                         ×
@@ -1162,12 +1162,12 @@ export function PlanRaid() {
                   </div>
                 </div>
               )}
-              <div className={`flex-1 min-w-0 ${showGuildRosterDrawer ? "ml-[340px]" : ""}`}>
+              <div className={`flex-1 min-w-0 ${showGuildRosterDrawer ? "sm:ml-[340px]" : ""}`}>
                 <Card className="rounded-xl shadow-lg bg-slate-800/95 border-slate-700/80">
-                  <div className="p-5">
-                    <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-                      <h3 className="text-slate-400 font-normal text-sm uppercase tracking-wider">Raid Composition</h3>
-                      <div className="flex items-center gap-2">
+                  <div className="p-4 sm:p-5">
+                    <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3 mb-5">
+                      <h3 className="text-slate-400 font-normal text-sm uppercase tracking-wider shrink-0">Raid Composition</h3>
+                      <div className="flex flex-wrap items-center gap-2 rk-touch-targets">
                         {!showGuildRosterDrawer && (
                           <>
                             <button
@@ -1219,7 +1219,7 @@ export function PlanRaid() {
                         </button>
                       </div>
                     </div>
-                    <div className={showGuildRosterDrawer ? "space-y-6" : "grid grid-cols-2 gap-6"}>
+                    <div className={showGuildRosterDrawer ? "space-y-6" : "grid grid-cols-1 sm:grid-cols-2 gap-6"}>
                       {parties.map((party, partyIdx) => (
                         <div
                           key={partyIdx}
@@ -1250,7 +1250,7 @@ export function PlanRaid() {
                               )}
                             </div>
                           </div>
-                          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>
+                          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(200px, 100%), 1fr))" }}>
                             {party.map((slot, slotIdx) => (
                               <RaidSlotCard
                                 key={slotIdx}
@@ -1419,8 +1419,8 @@ export function PlanRaid() {
                   onClick={() => setShowLoadFromModal(false)}
                   aria-hidden
                 />
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-                  <div className="pointer-events-auto w-full max-w-md rk-card-panel-bordered shadow-xl">
+                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 pb-safe pointer-events-none">
+                  <div className="pointer-events-auto w-full max-w-md max-h-[85vh] overflow-hidden flex flex-col rk-card-panel-bordered shadow-xl rounded-t-xl sm:rounded-xl">
                     <div className="flex items-center justify-between p-4 border-b border-slate-700">
                       <h3 className="text-slate-200 font-semibold">Load from Team or Previous Raid</h3>
                       <button
@@ -1630,7 +1630,7 @@ function BackupDropZone({
               <button
                 type="button"
                 onClick={() => onRemoveBackup(b.characterName)}
-                className="ml-1 w-5 h-5 flex items-center justify-center rounded text-slate-500 hover:text-red-400 hover:bg-red-500/20 text-xs"
+                className="ml-1 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 w-9 h-9 sm:w-5 sm:h-5 flex items-center justify-center rounded text-slate-500 hover:text-red-400 hover:bg-red-500/20 text-xs shrink-0"
                 title="Remove from backups"
               >
                 ×
@@ -1676,7 +1676,7 @@ function RosterAddButton({
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") setShowMenu((s) => !s);
         }}
-        className="w-full text-left rounded-lg px-3 py-1.5 h-9 border border-slate-600/80 bg-slate-800/60 hover:border-slate-500 hover:bg-slate-700/40 hover:shadow-sm transition-all duration-150 flex items-center gap-2 cursor-grab active:cursor-grabbing"
+        className="w-full text-left rounded-lg px-3 py-2 min-h-[44px] border border-slate-600/80 bg-slate-800/60 hover:border-slate-500 hover:bg-slate-700/40 hover:shadow-sm transition-all duration-150 flex items-center gap-2 cursor-grab active:cursor-grabbing"
         style={{
           borderLeftWidth: 4,
           borderLeftColor: classColor,
@@ -1836,7 +1836,7 @@ function RaidSlotCard({
 
   return (
     <div
-      className={`rounded-lg border min-h-[76px] min-w-[200px] flex flex-col transition-all duration-150 shrink-0 ${
+      className={`rounded-lg border min-h-[76px] min-w-0 sm:min-w-[200px] flex flex-col transition-all duration-150 shrink-0 ${
         slot
           ? `border-slate-600/80 ${dragOver ? "ring-2 ring-sky-500 ring-inset bg-sky-500/10" : "hover:shadow-md hover:border-slate-500 hover:ring-1 hover:ring-slate-500/50"}`
           : dragOver
@@ -1902,12 +1902,12 @@ function RaidSlotCard({
                 )}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={onClear}
-              className="shrink-0 w-5 h-5 flex items-center justify-center rounded text-slate-500 hover:text-red-400 hover:bg-red-500/20 transition text-xs leading-none"
-              title="Remove"
-            >
+              <button
+                type="button"
+                onClick={onClear}
+                className="shrink-0 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 w-9 h-9 sm:w-5 sm:h-5 flex items-center justify-center rounded text-slate-500 hover:text-red-400 hover:bg-red-500/20 transition text-xs leading-none"
+                title="Remove"
+              >
               ×
             </button>
           </div>

@@ -76,9 +76,20 @@
   min-width: 44px;
 }
 
+/* Touch targets for button groups – ensure children meet 44px min */
+.rk-touch-targets > button,
+.rk-touch-targets > a[role="button"] {
+  min-height: 44px;
+  min-width: 44px;
+}
+
 /* Safe area for notched devices */
 .safe-area-inset-top {
   padding-top: env(safe-area-inset-top);
+}
+
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }
 
 /* Horizontal scroll container for wide tables on mobile */
