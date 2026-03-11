@@ -449,7 +449,14 @@ export function PlanRaid() {
       newParties.push(party);
     }
     if (newParties.length === 0) newParties.push(Array(SLOTS_PER_PARTY).fill(null));
-    setParties(newParties);
+    setParties((prev) => {
+      const minCount = Math.max(prev.length, newParties.length);
+      const result = [...newParties];
+      while (result.length < minCount) {
+        result.push(Array(SLOTS_PER_PARTY).fill(null));
+      }
+      return result;
+    });
   };
 
   const loadFromPreviousRaid = async (raidIdToLoad: number) => {
