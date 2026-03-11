@@ -1,15 +1,9 @@
 import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { GuildBreadcrumbs } from "../components/GuildBreadcrumbs";
-
-function capitalizeRealm(realm: string): string {
-  if (!realm) return "";
-  return realm
-    .split(/[- ]/)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ");
-}
+import { capitalizeRealm } from "../utils/realm";
+import { useGuildParams } from "../hooks/useGuildParams";
+import { guildQueryStringFromSlug } from "../utils/guildApi";
 
 export type GuildPermissionKey =
   | "view_guild_dashboard"
@@ -34,6 +28,18 @@ export const GUILD_PERMISSION_LABELS: Record<GuildPermissionKey, string> = {
 
 export type GuildPermissions = Record<GuildPermissionKey, boolean>;
 
+/** Default permissions when none are loaded (e.g. fallback for API errors) */
+export const DEFAULT_PERMISSIONS: GuildPermissions = {
+  view_guild_dashboard: true,
+  view_guild_roster: true,
+  view_raid_roster: true,
+  view_raid_schedule: true,
+  manage_raids: true,
+  manage_raid_roster: true,
+  manage_permissions: true,
+  manage_guild_crafters: true,
+};
+
 export type GuildPermissionConfig = Record<string, GuildPermissions>;
 
 const RANK_LABELS: Record<string, string> = {
@@ -50,11 +56,7 @@ const RANK_LABELS: Record<string, string> = {
 };
 
 export function GuildPermissions() {
-  const [searchParams] = useSearchParams();
-  const realm = searchParams.get("realm") ?? "";
-  const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
-  const guildName = searchParams.get("guild_name") ?? "";
-  const serverType = searchParams.get("server_type") ?? "TBC Anniversary";
+  const { realm, guildName, serverType, realmSlug, isValid } = useGuildParams();
 
   const [config, setConfig] = useState<GuildPermissionConfig | null>(null);
   const [savedConfig, setSavedConfig] = useState<GuildPermissionConfig | null>(null);
@@ -67,12 +69,13 @@ export function GuildPermissions() {
   const [selectedChar, setSelectedChar] = useState("");
 
   const fetchConfig = () => {
-    if (!realm || !guildName) return;
+    if (!isValid) return;
     setLoading(true);
     setError(null);
+    const qs = guildQueryStringFromSlug({ realmSlug, guildName, serverType });
     api
       .get<{ config: GuildPermissionConfig; character_overrides?: Array<{ character_name: string; permissions: Record<string, boolean> }> }>(
-        `/auth/me/guild-permissions-config?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
+        `/auth/me/guild-permissions-config?${qs}`
       )
       .then((r) => {
         setConfig(r.config);
@@ -89,19 +92,18 @@ export function GuildPermissions() {
   };
 
   useEffect(() => {
-    if (!realm || !guildName) return;
+    if (!isValid) return;
     fetchConfig();
-  }, [realm, realmSlug, guildName, serverType]);
+  }, [realm, realmSlug, guildName, serverType, isValid]);
 
   useEffect(() => {
-    if (!realm || !guildName) return;
+    if (!isValid) return;
+    const qs = guildQueryStringFromSlug({ realmSlug, guildName, serverType });
     api
-      .get<{ members: Array<{ name: string }> }>(
-        `/auth/me/guild-roster?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
-      )
+      .get<{ members: Array<{ name: string }> }>(`/auth/me/guild-roster?${qs}`)
       .then((r) => setGuildMembers(r.members ?? []))
       .catch(() => setGuildMembers([]));
-  }, [realmSlug, guildName, serverType]);
+  }, [realmSlug, guildName, serverType, isValid]);
 
   const handleToggle = (rankKey: string, permKey: GuildPermissionKey, value: boolean) => {
     if (!config) return;
@@ -186,8 +188,8 @@ export function GuildPermissions() {
 
   if (!realm || !guildName) {
     return (
-      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-        <main className="max-w-6xl mx-auto px-4 py-8">
+      <div className="rk-page-bg text-slate-100" >
+        <main className="rk-page-main">
           <p className="text-amber-500">Missing realm or guild name.</p>
         </main>
       </div>
@@ -198,8 +200,8 @@ export function GuildPermissions() {
   const rankKeys = ["rank_0", "rank_1", "rank_2", "rank_3", "rank_4", "rank_5", "rank_6", "rank_7", "rank_8", "rank_9"];
 
   return (
-    <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-      <main className="max-w-6xl mx-auto px-4 py-8">
+    <div className="rk-page-bg text-slate-100" >
+      <main className="rk-page-main">
         <GuildBreadcrumbs guildName={guildName} realm={realm} serverType={serverType} currentPage="Guild Permissions" />
 
         <header className="mb-8">
@@ -218,13 +220,7 @@ export function GuildPermissions() {
         ) : error ? (
           <p className="text-amber-500">{error}</p>
         ) : config ? (
-          <div
-            className="rounded-xl border border-white/[0.05] overflow-hidden"
-            style={{
-              background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-            }}
-          >
+          <div className="rounded-xl border border-white/[0.05] overflow-hidden rk-card-panel">
             <div className="p-6 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>

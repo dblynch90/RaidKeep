@@ -1,0 +1,64 @@
+/**
+ * RaidKeep visual theme – shared tokens for consistency across the UI.
+ * Use these classes/variables instead of inline styles.
+ */
+
+:root {
+  /* Page background – radial gradient (used on all main pages) */
+  --page-bg: radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%);
+
+  /* Card/panel gradient – primary surface for cards, sections, modals */
+  --card-panel-bg: linear-gradient(180deg, #1b2a44 0%, #162338 100%);
+
+  /* Card shadow */
+  --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+
+  /* Hover shadow for interactive cards */
+  --card-shadow-hover: 0 8px 20px rgba(0, 0, 0, 0.4);
+
+  /* Standard content width */
+  --content-max-width: 72rem; /* max-w-6xl */
+}
+
+/* Page background – apply to root page wrappers */
+.rk-page-bg {
+  min-height: 100vh;
+  color: rgb(241 245 249); /* slate-100 */
+  background: var(--page-bg);
+}
+
+/* Card/panel surface – for cards, modals, collapsible sections */
+.rk-card-panel {
+  background: var(--card-panel-bg);
+  box-shadow: var(--card-shadow);
+}
+
+/* Card panel with standard border */
+.rk-card-panel-bordered {
+  background: var(--card-panel-bg);
+  box-shadow: var(--card-shadow);
+  border: 1px solid rgb(51 65 85); /* border-slate-700 */
+  border-radius: 0.75rem; /* rounded-xl */
+}
+
+/* Main content area – centered, padded */
+.rk-page-main {
+  max-width: var(--content-max-width);
+  margin-left: auto;
+  margin-right: auto;
+  padding: 2rem 1rem; /* py-8 px-4 */
+}
+
+/* Section header – muted, uppercase (e.g. "Member", "Administrative") */
+.rk-section-header {
+  color: rgb(148 163 184); /* slate-400 */
+  font-weight: 500;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Error text */
+.rk-error {
+  color: rgb(245 158 11); /* amber-500 */
+}

@@ -1,22 +1,18 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { api } from "../api";
 import type { GuildPermissions } from "./GuildPermissions";
+import { capitalizeRealm } from "../utils/realm";
+import { useGuildParams } from "../hooks/useGuildParams";
+import { guildQueryStringFromSlug, guildRealmQueryString } from "../utils/guildApi";
 
-function capitalizeRealm(realm: string): string {
-  if (!realm) return "";
-  return realm
-    .split(/[- ]/)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ");
+function guildPageUrl(path: string, realm: string, guildName: string, serverType: string): string {
+  return `${path}?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
 }
 
 export function GuildLoading() {
-  const [searchParams] = useSearchParams();
+  const { realm, guildName, serverType, realmSlug, isValid } = useGuildParams();
   const navigate = useNavigate();
-  const realm = searchParams.get("realm") ?? "";
-  const guildName = searchParams.get("guild_name") ?? "";
-  const serverType = searchParams.get("server_type") ?? "TBC Anniversary";
 
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [guildDataLoaded, setGuildDataLoaded] = useState(false);
@@ -24,13 +20,11 @@ export function GuildLoading() {
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
-  const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
-  const guildDashboardUrl = `/guild-dashboard?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
-
-  const permissionsUrl = `/auth/me/guild-permissions?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
+  const guildDashboardUrl = guildPageUrl("/guild-dashboard", realm, guildName, serverType);
+  const permissionsUrl = `/auth/me/guild-permissions?${guildQueryStringFromSlug({ realmSlug, guildName, serverType })}`;
 
   useEffect(() => {
-    if (!realm || !guildName) {
+    if (!isValid) {
       setError("Missing realm or guild name");
       return;
     }
@@ -38,11 +32,11 @@ export function GuildLoading() {
     setPermissionsLoaded(false);
     setGuildDataLoaded(false);
     setRetryCount(0);
-  }, [realm, realmSlug, guildName, serverType]);
+  }, [isValid]);
 
   // Step 1: Load permissions (with retries for post-login sync race)
   useEffect(() => {
-    if (!realm || !guildName) return;
+    if (!isValid) return;
 
     const maxRetries = 3;
     const retryDelayMs = 1500;
@@ -75,16 +69,15 @@ export function GuildLoading() {
       cancelled = true;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [realm, realmSlug, guildName, serverType, permissionsUrl]);
+  }, [realmSlug, guildName, serverType, permissionsUrl, isValid]);
 
   // Step 2: Load guild data (saved raids - lightweight check that guild is accessible)
   useEffect(() => {
-    if (!permissionsLoaded || !realm || !guildName) return;
+    if (!permissionsLoaded || !isValid) return;
 
+    const qs = guildRealmQueryString({ realm, guildName, serverType });
     api
-      .get<{ raids: unknown[] }>(
-        `/auth/me/saved-raids?guild_realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
-      )
+      .get<{ raids: unknown[] }>(`/auth/me/saved-raids?${qs}`)
       .then(() => {
         setGuildDataLoaded(true);
       })
@@ -92,7 +85,7 @@ export function GuildLoading() {
         // Saved-raids can fail for new guilds; still allow access if we have permissions
         setGuildDataLoaded(true);
       });
-  }, [permissionsLoaded, realm, realmSlug, guildName, serverType]);
+  }, [permissionsLoaded, realm, guildName, serverType, isValid]);
 
   // Navigate when both conditions are met
   useEffect(() => {
@@ -104,8 +97,8 @@ export function GuildLoading() {
 
   if (error) {
     return (
-      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-        <main className="max-w-6xl mx-auto px-4 py-8">
+      <div className="rk-page-bg text-slate-100">
+        <main className="rk-page-main">
           <p className="text-amber-500 mb-4">{error}</p>
           <Link to="/" className="text-sky-400 hover:text-sky-300">
             ← Back to Dashboard
@@ -117,8 +110,8 @@ export function GuildLoading() {
 
   if (permissionsLoaded && guildDataLoaded && permissions && !permissions.view_guild_dashboard) {
     return (
-      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-        <main className="max-w-6xl mx-auto px-4 py-8">
+      <div className="rk-page-bg text-slate-100">
+        <main className="rk-page-main">
           <p className="text-amber-500 mb-4">You do not have permission to view this guild dashboard.</p>
           <Link to="/" className="text-sky-400 hover:text-sky-300">
             ← Back to Dashboard
@@ -129,8 +122,8 @@ export function GuildLoading() {
   }
 
   return (
-    <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-      <main className="max-w-6xl mx-auto px-4 py-8">
+    <div className="rk-page-bg text-slate-100">
+      <main className="rk-page-main">
         <div className="max-w-md mx-auto mt-16 text-center">
           <h1 className="text-xl font-semibold text-sky-400 mb-2">
             {guildName}

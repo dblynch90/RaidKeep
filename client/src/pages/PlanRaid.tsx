@@ -5,6 +5,11 @@ import { api } from "../api";
 import { GuildBreadcrumbs } from "../components/GuildBreadcrumbs";
 import { formatRaidDateShort } from "../utils/raidDateTime";
 import type { GuildPermissions } from "./GuildPermissions";
+import { DEFAULT_PERMISSIONS } from "./GuildPermissions";
+import { getClassColor } from "../utils/classColors";
+import { capitalizeRealm } from "../utils/realm";
+import { useGuildParams } from "../hooks/useGuildParams";
+import { guildQueryStringFromSlug } from "../utils/guildApi";
 
 /** Raid instance with display name and size (used for default party count). Multi-size raids have separate entries. */
 export interface RaidInstanceOption {
@@ -44,26 +49,6 @@ type MainRole = (typeof MAIN_ROLES)[number];
 const RAID_ROLES = [...MAIN_ROLES, "Raid Lead", "Raid Assist"] as const;
 type RaidRole = (typeof RAID_ROLES)[number];
 
-const CLASS_COLORS: Record<string, string> = {
-  Warrior: "#C69B6D",
-  Paladin: "#F58CBA",
-  Hunter: "#AAD372",
-  Rogue: "#FFF569",
-  Priest: "#FFFFFF",
-  "Death Knight": "#C41E3A",
-  Shaman: "#0070DD",
-  Mage: "#3FC7EB",
-  Warlock: "#8788EE",
-  Monk: "#00FF98",
-  Druid: "#FF7D0A",
-  "Demon Hunter": "#A330C9",
-  Evoker: "#33937F",
-};
-
-function getClassColor(className: string): string {
-  return CLASS_COLORS[className] ?? "#6B7280";
-}
-
 interface RosterMember {
   name: string;
   class: string;
@@ -88,22 +73,9 @@ interface GuildRosterData {
 
 const SLOTS_PER_PARTY = 5;
 
-const DEFAULT_PERMISSIONS: GuildPermissions = {
-  view_guild_dashboard: true,
-  view_guild_roster: true,
-  view_raid_roster: true,
-  view_raid_schedule: true,
-  manage_raids: true,
-  manage_raid_roster: true,
-  manage_permissions: true,
-  manage_guild_crafters: true,
-};
-
 export function PlanRaid() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const realm = searchParams.get("realm") ?? "";
-  const guildName = searchParams.get("guild_name") ?? "";
-  const serverType = searchParams.get("server_type") ?? "TBC Anniversary";
+  const { realm, guildName, serverType, realmSlug, isValid } = useGuildParams();
   const raidIdParam = searchParams.get("raidId");
   const raidId = raidIdParam ? parseInt(raidIdParam, 10) : null;
   const isEdit = !!raidId && !isNaN(raidId);
@@ -147,23 +119,18 @@ export function PlanRaid() {
   const [unavailableExpanded, setUnavailableExpanded] = useState(false);
   const [showLoadFromModal, setShowLoadFromModal] = useState(false);
 
-  const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
-
   useEffect(() => {
-    if (!realm || !guildName) {
+    if (!isValid) {
       setLoading(false);
       setError("Missing realm or guild name");
       return;
     }
     setLoading(true);
     setError(null);
+    const qs = guildQueryStringFromSlug({ realmSlug, guildName, serverType });
     Promise.all([
-      api.get<GuildRosterData>(
-        `/auth/me/guild-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
-      ),
-      api.get<{ permissions: GuildPermissions }>(
-        `/auth/me/guild-permissions?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
-      ).then((r) => r.permissions).catch(() => DEFAULT_PERMISSIONS),
+      api.get<GuildRosterData>(`/auth/me/guild-roster?${qs}`),
+      api.get<{ permissions: GuildPermissions }>(`/auth/me/guild-permissions?${qs}`).then((r) => r.permissions).catch(() => DEFAULT_PERMISSIONS),
     ])
       .then(([rosterData, perms]) => {
         setData(rosterData);
@@ -171,7 +138,7 @@ export function PlanRaid() {
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to fetch roster"))
       .finally(() => setLoading(false));
-  }, [realm, guildName, serverType]);
+  }, [realmSlug, guildName, serverType, isValid]);
 
   useEffect(() => {
     if (!isEdit || !raidId) {
@@ -373,12 +340,6 @@ export function PlanRaid() {
       a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
     );
   }, [availableMembers, minLevel, maxLevel, playerSearch, rosterClassFilter, rosterRoleFilter, raiderRoleMap]);
-
-  const capitalizeRealm = (r: string) =>
-    r
-      .split(/[- ]/)
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-      .join(" ");
 
   const setSlot = (partyIdx: number, slotIdx: number, slot: RaidSlot | null) => {
     setParties((prev) => {
@@ -808,8 +769,8 @@ export function PlanRaid() {
 
   if (error) {
     return (
-      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-        <main className="max-w-6xl mx-auto px-4 py-8">
+      <div className="rk-page-bg text-slate-100" >
+        <main className="rk-page-main">
           <p className="text-amber-500">{error}</p>
         </main>
       </div>
@@ -822,8 +783,8 @@ export function PlanRaid() {
       ? `/raid-schedule?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
       : "/";
     return (
-      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-        <main className="max-w-6xl mx-auto px-4 py-8">
+      <div className="rk-page-bg text-slate-100" >
+        <main className="rk-page-main">
           <p className="text-amber-500 mb-4">You do not have permission to create or edit raids.</p>
           <Link to={manageRaidsUrl} className="text-sky-400 hover:text-sky-300">← Back to Raid Schedule</Link>
         </main>
@@ -834,8 +795,8 @@ export function PlanRaid() {
   const sectionGap = "space-y-8";
 
   return (
-    <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-      <main className="max-w-6xl mx-auto px-4 py-8">
+    <div className="rk-page-bg text-slate-100" >
+      <main className="rk-page-main">
         {realm && guildName && (
           <GuildBreadcrumbs
             guildName={guildName}
@@ -1459,13 +1420,7 @@ export function PlanRaid() {
                   aria-hidden
                 />
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-                  <div
-                    className="pointer-events-auto w-full max-w-md rounded-xl border border-slate-600 bg-slate-800 shadow-xl"
-                    style={{
-                      background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)",
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-                    }}
-                  >
+                  <div className="pointer-events-auto w-full max-w-md rk-card-panel-bordered shadow-xl">
                     <div className="flex items-center justify-between p-4 border-b border-slate-700">
                       <h3 className="text-slate-200 font-semibold">Load from Team or Previous Raid</h3>
                       <button

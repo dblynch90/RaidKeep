@@ -1,49 +1,24 @@
 import { useState, useEffect } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { api } from "../api";
 import { GuildBreadcrumbs } from "../components/GuildBreadcrumbs";
 import type { GuildPermissions } from "./GuildPermissions";
-
-function capitalizeRealm(realm: string): string {
-  if (!realm) return "";
-  return realm
-    .split(/[- ]/)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ");
-}
+import { DEFAULT_PERMISSIONS } from "./GuildPermissions";
+import { capitalizeRealm } from "../utils/realm";
+import { useGuildParams } from "../hooks/useGuildParams";
+import { guildQueryStringFromSlug } from "../utils/guildApi";
 
 function DashboardCard({ to, title, description }: { to: string; title: string; description: string }) {
   return (
     <Link
       to={to}
-      className="block p-6 rounded-xl border border-white/[0.05] transition-all duration-200 hover:-translate-y-0.5"
-      style={{
-        background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.boxShadow = "0 8px 20px rgba(0,0,0,0.4)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.3)";
-      }}
+      className="rk-card-panel block p-6 rounded-xl border border-white/[0.05] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20"
     >
       <h3 className="font-semibold text-sky-400 mb-2">{title}</h3>
       <p className="text-slate-400 text-sm">{description}</p>
     </Link>
   );
 }
-
-const DEFAULT_PERMISSIONS: GuildPermissions = {
-  view_guild_dashboard: true,
-  view_guild_roster: true,
-  view_raid_roster: true,
-  view_raid_schedule: true,
-  manage_raids: true,
-  manage_raid_roster: true,
-  manage_permissions: true,
-  manage_guild_crafters: true,
-};
 
 /** Restrictive fallback while permissions are loading - prevents flash of admin cards */
 const LOADING_PERMISSIONS: GuildPermissions = {
@@ -57,32 +32,31 @@ const LOADING_PERMISSIONS: GuildPermissions = {
   manage_guild_crafters: false,
 };
 
+function guildPageUrl(path: string, realm: string, guildName: string, serverType: string): string {
+  return `${path}?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
+}
+
 export function GuildDashboard() {
-  const [searchParams] = useSearchParams();
-  const realm = searchParams.get("realm") ?? "";
-  const guildName = searchParams.get("guild_name") ?? "";
-  const serverType = searchParams.get("server_type") ?? "TBC Anniversary";
+  const { realm, guildName, serverType, realmSlug, isValid } = useGuildParams();
 
   const [permissions, setPermissions] = useState<GuildPermissions | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
-  const rosterUrl = `/guild-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
-  const professionsUrl = `/guild-professions?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
-  const raidScheduleUrl = `/raid-schedule?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
-  const raidRosterUrl = `/raid-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
-  const permissionsUrl = `/guild-permissions?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
+  const rosterUrl = guildPageUrl("/guild-roster", realm, guildName, serverType);
+  const professionsUrl = guildPageUrl("/guild-professions", realm, guildName, serverType);
+  const raidScheduleUrl = guildPageUrl("/raid-schedule", realm, guildName, serverType);
+  const raidRosterUrl = guildPageUrl("/raid-roster", realm, guildName, serverType);
+  const permissionsUrl = guildPageUrl("/guild-permissions", realm, guildName, serverType);
 
   useEffect(() => {
-    if (!realm || !guildName) {
+    if (!isValid) {
       setLoading(false);
       return;
     }
     setLoading(true);
+    const qs = guildQueryStringFromSlug({ realmSlug, guildName, serverType });
     api
-      .get<{ permissions: GuildPermissions }>(
-        `/auth/me/guild-permissions?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
-      )
+      .get<{ permissions: GuildPermissions }>(`/auth/me/guild-permissions?${qs}`)
       .then((r) => {
         setPermissions(r.permissions ?? DEFAULT_PERMISSIONS);
         setLoading(false);
@@ -91,14 +65,14 @@ export function GuildDashboard() {
         setPermissions(DEFAULT_PERMISSIONS);
         setLoading(false);
       });
-  }, [realm, realmSlug, guildName, serverType]);
+  }, [realmSlug, guildName, serverType, isValid]);
 
   const perms = permissions ?? LOADING_PERMISSIONS;
 
   if (loading) {
     return (
-      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-        <main className="max-w-6xl mx-auto px-4 py-8">
+      <div className="rk-page-bg text-slate-100">
+        <main className="rk-page-main">
           <p className="text-slate-500">Loading guild dashboard...</p>
         </main>
       </div>
@@ -107,8 +81,8 @@ export function GuildDashboard() {
 
   if (permissions && permissions.view_guild_dashboard === false) {
     return (
-      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-        <main className="max-w-6xl mx-auto px-4 py-8">
+      <div className="rk-page-bg text-slate-100">
+        <main className="rk-page-main">
           <p className="text-amber-500">You do not have permission to view this guild dashboard.</p>
         </main>
       </div>
@@ -117,8 +91,8 @@ export function GuildDashboard() {
 
   if (!realm || !guildName) {
     return (
-      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-        <main className="max-w-6xl mx-auto px-4 py-8">
+      <div className="rk-page-bg text-slate-100">
+        <main className="rk-page-main">
           <p className="text-amber-500">Missing realm or guild name.</p>
         </main>
       </div>
@@ -126,8 +100,8 @@ export function GuildDashboard() {
   }
 
   return (
-    <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-      <main className="max-w-6xl mx-auto px-4 py-8">
+    <div className="rk-page-bg text-slate-100">
+      <main className="rk-page-main">
         <GuildBreadcrumbs guildName={guildName} realm={realm} serverType={serverType} currentPage="Guild Dashboard" />
 
         <header className="mb-8">

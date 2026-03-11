@@ -9,6 +9,7 @@ import { getAuthorizeUrl, exchangeCodeForToken, decodeIdToken, fetchBattleNetUse
 import { syncGuildsFromBattleNet, syncCharacterGuild } from "../services/battlenet-sync.js";
 import { fetchCharacterProfessions, fetchCharacterProfileSummary, fetchGuildRoster } from "../services/blizzard.js";
 import { getRaidStatus, type RaidStatus } from "../utils/raidStatus.js";
+import { qaMockMiddleware } from "../qa-mock.js";
 
 export const authRoutes = Router();
 
@@ -38,21 +39,13 @@ function verifySignedState(signed: string): { state: string; region: string } | 
   return { state: payload.state, region: payload.region };
 }
 
-function enrichRaidWithSlotCounts(
-  db: Database.Database,
+function computeSlotCountsAndStatus(
+  slots: Array<{ role: string; availability_status: string; party_index?: number }>,
   raid: Record<string, unknown>
-): Record<string, unknown> & { slot_counts?: Record<string, number>; raid_status?: RaidStatus } {
-  const raidId = raid.id as number;
-  const slots = db
-    .prepare(
-      "SELECT role, availability_status FROM saved_raid_slots WHERE raid_id = ?"
-    )
-    .all(raidId) as Array<{ role: string; availability_status: string }>;
+): { slot_counts: Record<string, number>; raid_status: RaidStatus } {
   const filled = slots.length;
-  const partyRow = db
-    .prepare("SELECT COALESCE(MAX(party_index), -1) + 1 as cnt FROM saved_raid_slots WHERE raid_id = ?")
-    .get(raidId) as { cnt: number } | undefined;
-  const partyCountFromSlots = partyRow?.cnt ?? 0;
+  const partyCountFromSlots =
+    slots.length > 0 ? Math.max(0, ...slots.map((s) => s.party_index ?? -1)) + 1 : 0;
   const storedPartyCount = typeof raid.party_count === "number" ? raid.party_count : null;
   const partyCount = storedPartyCount ?? Math.max(partyCountFromSlots, 2);
   const total = partyCount * 5;
@@ -79,7 +72,56 @@ function enrichRaidWithSlotCounts(
     raid.finish_time as string | null,
     slot_counts
   );
+  return { slot_counts, raid_status };
+}
+
+function enrichRaidWithSlotCounts(
+  db: Database.Database,
+  raid: Record<string, unknown>
+): Record<string, unknown> & { slot_counts?: Record<string, number>; raid_status?: RaidStatus } {
+  const raidId = raid.id as number;
+  const slots = db
+    .prepare(
+      "SELECT role, availability_status, party_index FROM saved_raid_slots WHERE raid_id = ?"
+    )
+    .all(raidId) as Array<{ role: string; availability_status: string; party_index?: number }>;
+  const { slot_counts, raid_status } = computeSlotCountsAndStatus(slots, raid);
   return { ...raid, slot_counts, raid_status };
+}
+
+/** Batch-enrich raids to fix N+1: 1 query for all slots instead of 2 per raid. */
+function enrichRaidsBatch(
+  db: Database.Database,
+  raids: Array<Record<string, unknown>>
+): Array<Record<string, unknown> & { slot_counts?: Record<string, number>; raid_status?: RaidStatus }> {
+  if (raids.length === 0) return [];
+  const ids = raids.map((r) => r.id as number);
+  const placeholders = ids.map(() => "?").join(",");
+  const allSlots = db
+    .prepare(
+      `SELECT raid_id, role, availability_status, party_index FROM saved_raid_slots WHERE raid_id IN (${placeholders})`
+    )
+    .all(...ids) as Array<{
+    raid_id: number;
+    role: string;
+    availability_status: string;
+    party_index?: number;
+  }>;
+  const slotsByRaid = new Map<number, Array<{ role: string; availability_status: string; party_index?: number }>>();
+  for (const s of allSlots) {
+    let arr = slotsByRaid.get(s.raid_id);
+    if (!arr) {
+      arr = [];
+      slotsByRaid.set(s.raid_id, arr);
+    }
+    arr.push({ role: s.role, availability_status: s.availability_status, party_index: s.party_index });
+  }
+  return raids.map((raid) => {
+    const raidId = raid.id as number;
+    const slots = slotsByRaid.get(raidId) ?? [];
+    const { slot_counts, raid_status } = computeSlotCountsAndStatus(slots, raid);
+    return { ...raid, slot_counts, raid_status };
+  });
 }
 
 const BATTLE_NET_REGIONS = ["us", "eu", "kr", "tw"] as const;
@@ -149,7 +191,7 @@ authRoutes.post("/logout", (req, res) => {
   res.json({ ok: true });
 });
 
-authRoutes.get("/me/characters", requireAuth, (req, res) => {
+authRoutes.get("/me/characters", requireAuth, qaMockMiddleware("characters"), (req, res) => {
   const db = getDb();
   const userId = req.session!.user!.id;
   const serverType = (req.query.server_type as string)?.trim();
@@ -261,7 +303,7 @@ authRoutes.get("/me/characters/:id", requireAuth, (req, res) => {
 });
 
 // Fetch guild roster from Blizzard (when guild not in our DB - e.g. import failed)
-authRoutes.get("/me/guild-roster", requireAuth, async (req, res) => {
+authRoutes.get("/me/guild-roster", requireAuth, qaMockMiddleware("guild-roster"), async (req, res) => {
   const realm = (req.query.realm as string)?.trim();
   const guildName = (req.query.guild_name as string)?.trim();
   const serverType = (req.query.server_type as string) || "Retail";
@@ -418,12 +460,47 @@ authRoutes.get("/me/saved-raids/my-assignments", requireAuth, (req, res) => {
     )
     .all(...(serverType ? [...names, serverType] : names)) as Array<Record<string, unknown>>;
   const namesSet = new Set(names);
-  const enriched = raids.map((r) => {
-    const base = enrichRaidWithSlotCounts(db, r);
-    const raidId = r.id as number;
-    const myChars = new Map<string, { character_name: string; character_class: string; role?: string; is_raid_lead?: number; is_raid_assist?: number }>();
-    const slotChars = db.prepare("SELECT character_name, character_class, role, is_raid_lead, is_raid_assist FROM saved_raid_slots WHERE raid_id = ?").all(raidId) as Array<{ character_name: string; character_class: string; role: string; is_raid_lead: number; is_raid_assist: number }>;
-    const backupChars = db.prepare("SELECT character_name, character_class FROM saved_raid_backups WHERE raid_id = ?").all(raidId) as Array<{ character_name: string; character_class: string }>;
+  const baseEnriched = enrichRaidsBatch(db, raids);
+  if (raids.length === 0) {
+    res.json({ raids: [] });
+    return;
+  }
+  const raidIds = raids.map((r) => r.id as number);
+  const slotPlaceholders = raidIds.map(() => "?").join(",");
+  const backupPlaceholders = raidIds.map(() => "?").join(",");
+  const slotCharsAll = db
+    .prepare(
+      `SELECT raid_id, character_name, character_class, role, is_raid_lead, is_raid_assist FROM saved_raid_slots WHERE raid_id IN (${slotPlaceholders})`
+    )
+    .all(...raidIds) as Array<{ raid_id: number; character_name: string; character_class: string; role: string; is_raid_lead: number; is_raid_assist: number }>;
+  const backupCharsAll = db
+    .prepare(
+      `SELECT raid_id, character_name, character_class FROM saved_raid_backups WHERE raid_id IN (${backupPlaceholders})`
+    )
+    .all(...raidIds) as Array<{ raid_id: number; character_name: string; character_class: string }>;
+  const slotCharsByRaid = new Map<number, typeof slotCharsAll>();
+  for (const row of slotCharsAll) {
+    let arr = slotCharsByRaid.get(row.raid_id);
+    if (!arr) {
+      arr = [];
+      slotCharsByRaid.set(row.raid_id, arr);
+    }
+    arr.push(row);
+  }
+  const backupCharsByRaid = new Map<number, typeof backupCharsAll>();
+  for (const row of backupCharsAll) {
+    let arr = backupCharsByRaid.get(row.raid_id);
+    if (!arr) {
+      arr = [];
+      backupCharsByRaid.set(row.raid_id, arr);
+    }
+    arr.push(row);
+  }
+  const enriched = baseEnriched.map((base) => {
+    const raidId = base.id as number;
+    const myChars = new Map<string, { character_name: string; character_class: string; role?: string }>();
+    const slotChars = slotCharsByRaid.get(raidId) ?? [];
+    const backupChars = backupCharsByRaid.get(raidId) ?? [];
     for (const row of slotChars) {
       if (namesSet.has(row.character_name.toLowerCase())) {
         const parts: string[] = [];
@@ -445,7 +522,7 @@ authRoutes.get("/me/saved-raids/my-assignments", requireAuth, (req, res) => {
   res.json({ raids: enriched });
 });
 
-authRoutes.get("/me/saved-raids", requireAuth, (req, res) => {
+authRoutes.get("/me/saved-raids", requireAuth, qaMockMiddleware("saved-raids"), (req, res) => {
   const guildRealm = (req.query.guild_realm as string)?.trim();
   const guildName = (req.query.guild_name as string)?.trim();
   const serverType = (req.query.server_type as string) || "Retail";
@@ -492,7 +569,7 @@ authRoutes.get("/me/saved-raids", requireAuth, (req, res) => {
       )
       .all(userId) as Array<Record<string, unknown>>;
   }
-  const enriched = raids.map((r) => enrichRaidWithSlotCounts(db, r));
+  const enriched = enrichRaidsBatch(db, raids);
   res.json({ raids: enriched });
 });
 
@@ -878,7 +955,7 @@ function getUserBestRankInGuild(db: ReturnType<typeof getDb>, userId: number, re
   return best;
 }
 
-authRoutes.get("/me/guild-permissions", requireAuth, (req, res) => {
+authRoutes.get("/me/guild-permissions", requireAuth, qaMockMiddleware("guild-permissions"), (req, res) => {
   const realm = (req.query.realm as string)?.trim();
   const guildName = (req.query.guild_name as string)?.trim();
   const serverType = (req.query.server_type as string) || "Retail";
@@ -1535,7 +1612,7 @@ function normalizeAvailability(s: string | undefined): string {
 }
 
 // Raider roster
-authRoutes.get("/me/raider-roster", requireAuth, (req, res) => {
+authRoutes.get("/me/raider-roster", requireAuth, qaMockMiddleware("raider-roster"), (req, res) => {
   const guildRealm = (req.query.guild_realm as string)?.trim();
   const guildName = (req.query.guild_name as string)?.trim();
   const serverType = (req.query.server_type as string) || "Retail";
@@ -1991,7 +2068,7 @@ authRoutes.put("/me/raider-roster", requireAuth, (req, res) => {
   res.json({ raiders: saved });
 });
 
-authRoutes.get("/me/character-search", requireAuth, async (req, res) => {
+authRoutes.get("/me/character-search", requireAuth, qaMockMiddleware("character-search"), async (req, res) => {
   const realm = (req.query.realm as string)?.trim();
   const characterName = (req.query.character_name as string)?.trim();
   const serverType = (req.query.server_type as string) || "Retail";
@@ -2312,7 +2389,7 @@ authRoutes.delete("/me/saved-raids/:id", requireAuth, (req, res) => {
 });
 
 // On-demand sync when user selects a game version (e.g. new user, or adding another version)
-authRoutes.post("/me/sync", requireAuth, async (req, res) => {
+authRoutes.post("/me/sync", requireAuth, qaMockMiddleware("sync"), async (req, res) => {
   const serverType = (req.body?.server_type ?? req.query?.server_type) as string | undefined;
   if (!serverType || !serverType.trim()) {
     res.status(400).json({ error: "server_type is required (TBC Anniversary)" });

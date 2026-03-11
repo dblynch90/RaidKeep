@@ -35,14 +35,8 @@ export function AdminLogin() {
   };
 
   return (
-    <div className="min-h-screen text-slate-100 flex flex-col items-center justify-center p-4" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-      <div
-        className="w-full max-w-sm p-8 rounded-xl border border-slate-700"
-        style={{
-          background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)",
-          boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
-        }}
-      >
+    <div className="rk-page-bg text-slate-100 flex flex-col items-center justify-center p-4">
+      <div className="w-full max-w-sm p-8 rk-card-panel-bordered shadow-xl">
         <h1 className="text-xl font-semibold text-amber-400 mb-2">Admin Login</h1>
         <p className="text-slate-500 text-sm mb-6">RaidKeep Site Administration</p>
         <form onSubmit={handleSubmit} className="space-y-4">

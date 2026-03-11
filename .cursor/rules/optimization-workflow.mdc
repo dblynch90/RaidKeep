@@ -1,0 +1,26 @@
+---
+description: Optimization workflow for performance, reliability, and scalability
+alwaysApply: false
+---
+
+# RaidKeep Optimization Workflow
+
+When the user asks to optimize RaidKeep (performance, reliability, scalability), follow the phased workflow in `OPTIMIZATION.md` in the project root.
+
+## Model assignments (user must switch in Cursor before each phase)
+
+| Phase | Model | Focus |
+|-------|-------|-------|
+| 1 | Sonnet 4.6 | Architecture & bottleneck analysis |
+| 2–3, 5 | GPT-5.4 | Reliability, performance, scalability planning |
+| 4, 6 | GPT-5.3 Codex | Implementation, refactoring, tests |
+| Debug | Opus 4.6 | Complex async/concurrency issues |
+| Quick | Haiku 4.5 | Minor edits, validation, test runs |
+
+## Key objectives
+
+- **Reliability:** Fix race conditions, cancellation-safe async, transactions for multi-step writes
+- **Performance:** Code splitting, memoization, N+1 fixes, indexes, caching
+- **Scalability:** Extension points, modular structure, documented patterns
+
+Read `OPTIMIZATION.md` for the full phase details and project context.

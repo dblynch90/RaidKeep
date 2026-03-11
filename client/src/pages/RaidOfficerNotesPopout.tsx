@@ -54,7 +54,7 @@ export function RaidOfficerNotesPopout() {
 
   if (error) {
     return (
-      <div className="min-h-screen text-slate-100 flex items-center justify-center p-8" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
+      <div className="rk-page-bg text-slate-100 flex items-center justify-center p-8" >
         <p className="text-amber-500">{error}</p>
       </div>
     );
@@ -62,7 +62,7 @@ export function RaidOfficerNotesPopout() {
 
   if (loading) {
     return (
-      <div className="min-h-screen text-slate-100 flex items-center justify-center p-8" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
+      <div className="rk-page-bg text-slate-100 flex items-center justify-center p-8" >
         <p className="text-slate-500">Loading raid...</p>
       </div>
     );
@@ -71,7 +71,7 @@ export function RaidOfficerNotesPopout() {
   const hasChanges = notes !== originalNotes;
 
   return (
-    <div className="min-h-screen text-slate-100 flex flex-col" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
+    <div className="rk-page-bg text-slate-100 flex flex-col" >
       <div className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur border-b border-slate-700/60 px-4 py-3">
         <div className="flex items-center justify-between gap-4">
           <h1 className="text-lg font-semibold text-sky-400 truncate" title={raidName}>

@@ -1,20 +1,13 @@
 import { useState, useEffect, useRef } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { api } from "../api";
 import { GuildBreadcrumbs } from "../components/GuildBreadcrumbs";
 import { RaidCard, type RaidCardData } from "../components/RaidCard";
 import type { GuildPermissions } from "./GuildPermissions";
-
-const DEFAULT_PERMISSIONS: GuildPermissions = {
-  view_guild_dashboard: true,
-  view_guild_roster: true,
-  view_raid_roster: true,
-  view_raid_schedule: true,
-  manage_raids: true,
-  manage_raid_roster: true,
-  manage_permissions: true,
-  manage_guild_crafters: true,
-};
+import { DEFAULT_PERMISSIONS } from "./GuildPermissions";
+import { capitalizeRealm } from "../utils/realm";
+import { useGuildParams } from "../hooks/useGuildParams";
+import { guildQueryStringFromSlug, guildRealmQueryString } from "../utils/guildApi";
 
 interface SavedRaid extends RaidCardData {
   guild_name: string;
@@ -23,12 +16,8 @@ interface SavedRaid extends RaidCardData {
   server_type: string;
 }
 
-function capitalizeRealm(realm: string): string {
-  if (!realm) return "";
-  return realm
-    .split(/[- ]/)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ");
+function guildPageUrl(path: string, realm: string, guildName: string, serverType: string): string {
+  return `${path}?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
 }
 
 function CollapsibleSection({
@@ -47,13 +36,7 @@ function CollapsibleSection({
     prevDefaultOpen.current = defaultOpen;
   }, [defaultOpen]);
   return (
-    <div
-      className="rounded-xl border border-white/[0.05] overflow-hidden"
-      style={{
-        background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-      }}
-    >
+    <div className="rounded-xl overflow-hidden rk-card-panel border border-white/[0.05]">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -70,12 +53,7 @@ function CollapsibleSection({
 }
 
 export function RaidSchedule() {
-  const [searchParams] = useSearchParams();
-  const realm = searchParams.get("realm") ?? "";
-  const guildName = searchParams.get("guild_name") ?? "";
-  const serverType = searchParams.get("server_type") ?? "TBC Anniversary";
-
-  const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
+  const { realm, guildName, serverType, realmSlug, isValid } = useGuildParams();
 
   const [raids, setRaids] = useState<SavedRaid[]>([]);
   const [permissions, setPermissions] = useState<GuildPermissions | null>(null);
@@ -86,23 +64,21 @@ export function RaidSchedule() {
   const perms = permissions ?? DEFAULT_PERMISSIONS;
   const canManageRaids = perms.manage_raids;
 
-  const planRaidUrl = `/plan-raid?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`;
+  const planRaidUrl = guildPageUrl("/plan-raid", realm, guildName, serverType);
 
   useEffect(() => {
-    if (!realm || !guildName) {
+    if (!isValid) {
       setLoading(false);
       setError("Missing realm or guild name");
       return;
     }
     setLoading(true);
     setError(null);
+    const permsQs = guildQueryStringFromSlug({ realmSlug, guildName, serverType });
+    const raidsQs = guildRealmQueryString({ realm, guildName, serverType });
     Promise.all([
-      api.get<{ permissions: GuildPermissions }>(
-        `/auth/me/guild-permissions?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
-      ).then((r) => r.permissions).catch(() => DEFAULT_PERMISSIONS),
-      api.get<{ raids: SavedRaid[] }>(
-        `/auth/me/saved-raids?guild_realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
-      ).then((r) => r.raids),
+      api.get<{ permissions: GuildPermissions }>(`/auth/me/guild-permissions?${permsQs}`).then((r) => r.permissions).catch(() => DEFAULT_PERMISSIONS),
+      api.get<{ raids: SavedRaid[] }>(`/auth/me/saved-raids?${raidsQs}`).then((r) => r.raids),
     ])
       .then(([perms, r]) => {
         setPermissions(perms);
@@ -110,7 +86,7 @@ export function RaidSchedule() {
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load raids"))
       .finally(() => setLoading(false));
-  }, [realm, realmSlug, guildName, serverType]);
+  }, [realmSlug, guildName, serverType, realm, isValid]);
 
   const handleDelete = async (id: number) => {
     if (!confirm("Delete this raid?")) return;
@@ -135,8 +111,8 @@ export function RaidSchedule() {
 
   if (error) {
     return (
-      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-        <main className="max-w-6xl mx-auto px-4 py-8">
+      <div className="rk-page-bg text-slate-100" >
+        <main className="rk-page-main">
           <p className="text-amber-500">{error}</p>
         </main>
       </div>
@@ -145,8 +121,8 @@ export function RaidSchedule() {
 
   if (!loading && !perms.view_raid_schedule) {
     return (
-      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-        <main className="max-w-6xl mx-auto px-4 py-8">
+      <div className="rk-page-bg text-slate-100" >
+        <main className="rk-page-main">
           <p className="text-amber-500">You do not have permission to view the raid schedule.</p>
         </main>
       </div>
@@ -154,8 +130,8 @@ export function RaidSchedule() {
   }
 
   return (
-    <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-      <main className="max-w-6xl mx-auto px-4 py-8">
+    <div className="rk-page-bg text-slate-100" >
+      <main className="rk-page-main">
         <GuildBreadcrumbs guildName={guildName} realm={realm} serverType={serverType} currentPage="Raid Schedule" />
 
         <header className="mb-8">
@@ -181,13 +157,7 @@ export function RaidSchedule() {
         {loading ? (
           <p className="text-slate-500">Loading raids...</p>
         ) : raids.length === 0 ? (
-          <div
-            className="rounded-xl border border-white/[0.05] p-12 text-center"
-            style={{
-              background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-            }}
-          >
+          <div className="rounded-xl border border-white/[0.05] p-12 text-center rk-card-panel">
             <div className="text-4xl mb-4">📅</div>
             <p className="text-slate-400 font-medium mb-1">No raids scheduled yet</p>
             <p className="text-slate-500 text-sm mb-6">

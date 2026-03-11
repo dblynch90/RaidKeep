@@ -1,27 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { GuildBreadcrumbs } from "../components/GuildBreadcrumbs";
-
-const CLASS_COLORS: Record<string, string> = {
-  Warrior: "#C69B6D",
-  Paladin: "#F58CBA",
-  Hunter: "#AAD372",
-  Rogue: "#FFF569",
-  Priest: "#FFFFFF",
-  "Death Knight": "#C41E3A",
-  Shaman: "#0070DD",
-  Mage: "#3FC7EB",
-  Warlock: "#8788EE",
-  Monk: "#00FF98",
-  Druid: "#FF7D0A",
-  "Demon Hunter": "#A330C9",
-  Evoker: "#33937F",
-};
-
-function getClassColor(className: string): string {
-  return CLASS_COLORS[className] ?? "#6B7280";
-}
+import { getClassColor } from "../utils/classColors";
+import { capitalizeRealm } from "../utils/realm";
+import { useGuildParams } from "../hooks/useGuildParams";
+import { guildQueryStringFromSlug } from "../utils/guildApi";
 
 function isGuildMaster(rank: string | undefined): boolean {
   if (!rank) return false;
@@ -45,10 +28,7 @@ interface GuildRosterData {
 type SortKey = "rank" | "name" | "level" | "race" | "class";
 
 export function GuildRoster() {
-  const [searchParams] = useSearchParams();
-  const realm = searchParams.get("realm") ?? "";
-  const guildName = searchParams.get("guild_name") ?? "";
-  const serverType = searchParams.get("server_type") ?? "TBC Anniversary";
+  const { realm, guildName, serverType, realmSlug, isValid } = useGuildParams();
 
   const [data, setData] = useState<GuildRosterData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,37 +40,30 @@ export function GuildRoster() {
   const [classFilter, setClassFilter] = useState<string>("");
 
   useEffect(() => {
-    if (!realm || !guildName) {
+    if (!isValid) {
       setLoading(false);
       setError("Missing realm or guild name");
       return;
     }
     setLoading(true);
     setError(null);
+    const qs = guildQueryStringFromSlug({ realmSlug, guildName, serverType });
     api
-      .get<GuildRosterData>(
-        `/auth/me/guild-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
-      )
+      .get<GuildRosterData>(`/auth/me/guild-roster?${qs}`)
       .then(setData)
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to fetch roster"))
       .finally(() => setLoading(false));
-  }, [realm, guildName, serverType]);
+  }, [realmSlug, guildName, serverType, isValid]);
 
   if (error) {
     return (
-      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-        <main className="max-w-6xl mx-auto px-4 py-8">
+      <div className="rk-page-bg text-slate-100" >
+        <main className="rk-page-main">
           <p className="text-amber-500">{error}</p>
         </main>
       </div>
     );
   }
-
-  const capitalizeRealm = (r: string) =>
-    r
-      .split(/[- ]/)
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-      .join(" ");
 
   const uniqueClasses = useMemo(() => {
     const classes = new Set<string>();
@@ -167,8 +140,8 @@ export function GuildRoster() {
   );
 
   return (
-    <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-      <main className="max-w-6xl mx-auto px-4 py-8">
+    <div className="rk-page-bg text-slate-100" >
+      <main className="rk-page-main">
         {realm && guildName && (
           <GuildBreadcrumbs guildName={guildName} realm={realm} serverType={serverType} currentPage="Guild Roster" />
         )}
@@ -234,13 +207,7 @@ export function GuildRoster() {
                 </select>
               </div>
             </div>
-            <div
-              className="rounded-xl border border-white/[0.05] overflow-hidden"
-              style={{
-                background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-              }}
-            >
+            <div className="rounded-xl border border-white/[0.05] overflow-hidden rk-card-panel">
             <table className="w-full text-sm">
               <thead className="bg-slate-800/80">
                 <tr>
@@ -291,13 +258,7 @@ export function GuildRoster() {
           )}
           </>
         ) : (
-          <div
-            className="rounded-xl border border-white/[0.05] p-12 text-center"
-            style={{
-              background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-            }}
-          >
+          <div className="rounded-xl border border-white/[0.05] p-12 text-center rk-card-panel">
             <p className="text-slate-400">No members in roster.</p>
           </div>
         )}

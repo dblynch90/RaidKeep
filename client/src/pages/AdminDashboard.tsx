@@ -83,7 +83,7 @@ export function AdminDashboard() {
   if (!admin) return null;
 
   return (
-    <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
+    <div className="rk-page-bg text-slate-100" >
       <header className="border-b border-slate-700 bg-slate-800/50">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-lg font-semibold text-sky-400">Admin · RaidKeep</h1>
@@ -98,7 +98,7 @@ export function AdminDashboard() {
           </div>
         </div>
       </header>
-      <main className="max-w-6xl mx-auto px-4 py-8">
+      <main className="rk-page-main">
         <h2 className="text-xl font-semibold text-slate-200 mb-6">Active Guilds</h2>
         {loading ? (
           <p className="text-slate-500">Loading...</p>
@@ -109,10 +109,7 @@ export function AdminDashboard() {
             {guilds.map((g) => (
               <div
                 key={`${g.realm_slug}-${g.guild_name}-${g.server_type}`}
-                className="flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-700 hover:border-sky-600/50 transition"
-                style={{
-                  background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)",
-                }}
+                className="flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-700 hover:border-sky-600/50 transition rk-card-panel"
               >
                 <Link
                   to={`/admin/guild/${g.realm_slug}/${encodeURIComponent(g.guild_name)}?server_type=${encodeURIComponent(g.server_type)}`}
@@ -144,10 +141,7 @@ export function AdminDashboard() {
             {users.map((u) => (
               <div
                 key={u.id}
-                className="flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-700 hover:border-sky-600/50 transition"
-                style={{
-                  background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)",
-                }}
+                className="flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-700 hover:border-sky-600/50 transition rk-card-panel"
               >
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sky-400">{u.username}</div>

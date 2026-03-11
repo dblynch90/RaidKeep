@@ -4,6 +4,8 @@ import { api } from "../api";
 import type { MyCharacter } from "../api";
 import { LoadingOverlay } from "../components/LoadingOverlay";
 import { RaidCard } from "../components/RaidCard";
+import { getClassColor } from "../utils/classColors";
+import { capitalizeRealm } from "../utils/realm";
 
 const DEFAULT_GAME_VERSION = "TBC Anniversary";
 
@@ -15,34 +17,6 @@ function getFactionFromRace(race: string | undefined): "Alliance" | "Horde" | "O
   if (ALLIANCE_RACES.includes(race)) return "Alliance";
   if (HORDE_RACES.includes(race)) return "Horde";
   return "Other";
-}
-
-const CLASS_COLORS: Record<string, string> = {
-  Warrior: "#C69B6D",
-  Paladin: "#F58CBA",
-  Hunter: "#AAD372",
-  Rogue: "#FFF569",
-  Priest: "#FFFFFF",
-  "Death Knight": "#C41E3A",
-  Shaman: "#0070DD",
-  Mage: "#3FC7EB",
-  Warlock: "#8788EE",
-  Monk: "#00FF98",
-  Druid: "#FF7D0A",
-  "Demon Hunter": "#A330C9",
-  Evoker: "#33937F",
-};
-
-function getClassColor(className: string): string {
-  return CLASS_COLORS[className] ?? "#6B7280";
-}
-
-function capitalizeRealm(realm: string): string {
-  if (!realm) return "";
-  return realm
-    .split(/[- ]/)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ");
 }
 
 interface SavedRaid {
@@ -120,11 +94,7 @@ function GuildCard({
           onCardClick();
         }
       }}
-      className="w-full block rounded-xl border border-white/[0.05] hover:border-sky-600/50 transition overflow-hidden relative cursor-pointer"
-      style={{
-        background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-      }}
+      className="w-full block rk-card-panel rounded-xl border border-white/[0.05] hover:border-sky-600/50 transition overflow-hidden relative cursor-pointer"
       aria-label={`Open ${guildName} dashboard`}
     >
       <div className="p-4 relative">
@@ -517,18 +487,15 @@ export function Dashboard() {
 
   const hasSelection = !!gameVersion;
 
-  const cardBaseStyle = {
-    background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-  };
+  const cardBaseClassName = "rk-card-panel rounded-xl border border-white/[0.05] overflow-hidden";
 
   if (!initialLoadDone) {
     return <LoadingOverlay message="Loading Data from Battle.net" />;
   }
 
   return (
-    <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-      <main className="max-w-6xl mx-auto px-4 py-8">
+    <div className="rk-page-bg text-slate-100">
+      <main className="rk-page-main">
         {/* My Guilds */}
         <section className="mb-10">
           <h2 className="text-lg font-semibold text-slate-200 mb-4">
@@ -633,10 +600,7 @@ export function Dashboard() {
                   </select>
                 </div>
               </div>
-              <div
-                className="rounded-xl border border-white/[0.05] overflow-hidden"
-                style={cardBaseStyle}
-              >
+              <div className={cardBaseClassName}>
                 {filteredCharactersForList.length === 0 ? (
                   <p className="text-slate-500 text-sm p-4">No characters match the filters.</p>
                 ) : (

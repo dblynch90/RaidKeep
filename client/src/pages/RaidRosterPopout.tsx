@@ -1,26 +1,14 @@
 import { useState, useEffect, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import type { GuildPermissions } from "./GuildPermissions";
 import type { MyCharacter } from "../api";
-
-const DEFAULT_PERMISSIONS: GuildPermissions = {
-  view_guild_dashboard: true,
-  view_guild_roster: true,
-  view_raid_roster: true,
-  view_raid_schedule: true,
-  manage_raids: true,
-  manage_raid_roster: true,
-  manage_permissions: true,
-  manage_guild_crafters: true,
-};
-
-const RAID_ROLES = [
-  { value: "", label: "—" },
-  { value: "tank", label: "Tank" },
-  { value: "healer", label: "Healer" },
-  { value: "dps", label: "DPS" },
-] as const;
+import { DEFAULT_PERMISSIONS } from "./GuildPermissions";
+import { getClassColor } from "../utils/classColors";
+import { capitalizeRealm } from "../utils/realm";
+import { useGuildParams } from "../hooks/useGuildParams";
+import { guildQueryStringFromSlug, guildRealmQueryString } from "../utils/guildApi";
+import type { RaiderEntry, RaidTeam } from "../types/raid";
+import { DEFAULT_AVAILABILITY, RAID_ROLES, DAYS } from "../constants/raid";
 
 interface GuildMember {
   name: string;
@@ -28,63 +16,9 @@ interface GuildMember {
   level: number;
 }
 
-const CLASS_COLORS: Record<string, string> = {
-  Warrior: "#C69B6D",
-  Paladin: "#F58CBA",
-  Hunter: "#AAD372",
-  Rogue: "#FFF569",
-  Priest: "#FFFFFF",
-  "Death Knight": "#C41E3A",
-  Shaman: "#0070DD",
-  Mage: "#3FC7EB",
-  Warlock: "#8788EE",
-  Monk: "#00FF98",
-  Druid: "#FF7D0A",
-  "Demon Hunter": "#A330C9",
-  Evoker: "#33937F",
-};
-
-function getClassColor(className: string): string {
-  return CLASS_COLORS[className] ?? "#6B7280";
-}
-
-function capitalizeRealm(realm: string): string {
-  if (!realm) return "";
-  return realm.split(/[- ]/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
-}
-
-const DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"] as const;
-const DEFAULT_AVAILABILITY = "0000000";
-
-interface RaiderEntry {
-  character_name: string;
-  character_class: string;
-  primary_spec?: string;
-  off_spec?: string;
-  secondary_spec?: string;
-  notes?: string;
-  officer_notes?: string;
-  notes_public?: boolean;
-  raid_role?: string;
-  raid_lead?: boolean;
-  raid_assist?: boolean;
-  availability?: string;
-}
-
-interface RaidTeam {
-  id: number;
-  team_name: string;
-  members: Array<{ character_name: string; character_class: string }>;
-}
-
 /** Editable Excel-like roster table for a separate window. */
 export function RaidRosterPopout() {
-  const [searchParams] = useSearchParams();
-  const realm = searchParams.get("realm") ?? "";
-  const guildName = searchParams.get("guild_name") ?? "";
-  const serverType = searchParams.get("server_type") ?? "TBC Anniversary";
-
-  const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
+  const { realm, guildName, serverType, realmSlug, isValid } = useGuildParams();
 
   const [raiders, setRaiders] = useState<RaiderEntry[]>([]);
   const [teams, setTeams] = useState<RaidTeam[]>([]);
@@ -114,20 +48,20 @@ export function RaidRosterPopout() {
   const [maxLevel, setMaxLevel] = useState("");
 
   useEffect(() => {
-    if (!realm || !guildName) {
+    if (!isValid) {
       setLoading(false);
       setError("Missing realm or guild name");
       return;
     }
     setLoading(true);
     setError(null);
+    const permsQs = guildQueryStringFromSlug({ realmSlug, guildName, serverType });
+    const rosterQs = guildRealmQueryString({ realm, guildName, serverType });
     Promise.all([
-      api.get<{ permissions: GuildPermissions }>(
-        `/auth/me/guild-permissions?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
-      ).then((r) => r.permissions).catch(() => DEFAULT_PERMISSIONS),
+      api.get<{ permissions: GuildPermissions }>(`/auth/me/guild-permissions?${permsQs}`).then((r) => r.permissions).catch(() => DEFAULT_PERMISSIONS),
       api.get<{ characters: MyCharacter[] }>("/auth/me/characters").then((r) => r.characters ?? []).catch(() => []),
       api.get<{ raiders: Array<Omit<RaiderEntry, "notes_public"> & { notes_public?: number; raid_lead?: unknown; raid_assist?: unknown; availability?: string }> }>(
-        `/auth/me/raider-roster?guild_realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
+        `/auth/me/raider-roster?${rosterQs}`
       ).then((r) =>
         (r.raiders ?? []).map((x) => ({
           ...x,
@@ -137,9 +71,7 @@ export function RaidRosterPopout() {
           availability: typeof x.availability === "string" ? x.availability.padEnd(7, "0").slice(0, 7) : DEFAULT_AVAILABILITY,
         }))
       ),
-      api.get<{ teams: RaidTeam[] }>(
-        `/auth/me/raid-teams?guild_realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
-      ).then((r) => (r.teams ?? []) as RaidTeam[]),
+      api.get<{ teams: RaidTeam[] }>(`/auth/me/raid-teams?${rosterQs}`).then((r) => (r.teams ?? []) as RaidTeam[]),
     ])
       .then(([perms, chars, raidersList, teamsList]) => {
         setPermissions(perms);
@@ -154,12 +86,10 @@ export function RaidRosterPopout() {
       });
     // Fetch guild-roster in background for level filter - non-blocking
     api
-      .get<{ members?: GuildMember[] }>(
-        `/auth/me/guild-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
-      )
+      .get<{ members?: GuildMember[] }>(`/auth/me/guild-roster?${permsQs}`)
       .then((r) => setGuildMembers((r.members ?? []) as GuildMember[]))
       .catch(() => {});
-  }, [realm, realmSlug, guildName, serverType]);
+  }, [realmSlug, guildName, serverType, realm, isValid]);
 
   const characterToTeamId = useMemo(() => {
     const m = new Map<string, number>();
@@ -334,7 +264,7 @@ export function RaidRosterPopout() {
 
   if (error) {
     return (
-      <div className="min-h-screen text-slate-100 flex items-center justify-center p-8" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
+      <div className="rk-page-bg text-slate-100 flex items-center justify-center p-8" >
         <p className="text-amber-500">{error}</p>
       </div>
     );
@@ -342,7 +272,7 @@ export function RaidRosterPopout() {
 
   if (!loading && !perms.view_raid_roster) {
     return (
-      <div className="min-h-screen text-slate-100 flex items-center justify-center p-8" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
+      <div className="rk-page-bg text-slate-100 flex items-center justify-center p-8" >
         <p className="text-amber-500">You do not have permission to view the raid roster.</p>
       </div>
     );
@@ -350,14 +280,14 @@ export function RaidRosterPopout() {
 
   if (loading) {
     return (
-      <div className="min-h-screen text-slate-100 flex items-center justify-center p-8" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
+      <div className="rk-page-bg text-slate-100 flex items-center justify-center p-8" >
         <p className="text-slate-500">Loading roster...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
+    <div className="rk-page-bg text-slate-100" >
       {/* Header with filters - similar to Guild Roster in PlanRaid */}
       <div className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur border-b border-slate-700/60 px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3">

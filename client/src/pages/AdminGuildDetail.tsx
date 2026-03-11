@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { capitalizeRealm } from "../utils/realm";
 
 const API = "/api";
 
@@ -39,11 +40,6 @@ const RANK_LABELS: Record<string, string> = {
 
 const permKeys = Object.keys(GUILD_PERMISSION_LABELS) as GuildPermissionKey[];
 const rankKeys = ["rank_0", "rank_1", "rank_2", "rank_3", "rank_4", "rank_5", "rank_6", "rank_7", "rank_8", "rank_9"];
-
-function capitalizeRealm(s: string): string {
-  if (!s) return "";
-  return s.split(/[- ]/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
-}
 
 type SavedRaid = { id: number; raid_name: string; raid_date: string; raid_instance?: string; start_time?: string; finish_time?: string };
 type TeamMember = { character_name: string; character_class?: string };
@@ -250,14 +246,14 @@ export function AdminGuildDetail() {
 
   if (!realmSlug || !guildName) {
     return (
-      <div className="min-h-screen text-slate-100 p-4" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
+      <div className="rk-page-bg text-slate-100 p-4" >
         <p className="text-amber-500 mt-4">Invalid guild.</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
+    <div className="rk-page-bg text-slate-100" >
       <header className="border-b border-slate-700 bg-slate-800/50">
         <div className="max-w-6xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -297,7 +293,7 @@ export function AdminGuildDetail() {
         {loading ? (
           <p className="text-slate-500">Loading...</p>
         ) : tab === "permissions" && config ? (
-          <div className="rounded-xl border border-slate-700 overflow-hidden" style={{ background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)" }}>
+          <div className="rounded-xl overflow-hidden rk-card-panel-bordered">
             <div className="p-6 overflow-x-auto">
               <h3 className="font-semibold text-sky-400 mb-4">Rank Permissions</h3>
               <table className="w-full text-sm">
@@ -385,7 +381,7 @@ export function AdminGuildDetail() {
             </div>
           </div>
         ) : tab === "raids" ? (
-          <div className="rounded-xl border border-slate-700 p-6" style={{ background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)" }}>
+          <div className="rounded-xl p-6 rk-card-panel-bordered">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-sky-400">Saved Raids</h3>
               {!addingRaid && <button onClick={() => setAddingRaid(true)} className="text-sky-400 hover:text-sky-300 text-sm">+ Add</button>}
@@ -429,7 +425,7 @@ export function AdminGuildDetail() {
             )}
           </div>
         ) : tab === "teams" ? (
-          <div className="rounded-xl border border-slate-700 p-6" style={{ background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)" }}>
+          <div className="rounded-xl p-6 rk-card-panel-bordered">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-sky-400">Raid Teams</h3>
               {!addingTeam && <button onClick={() => setAddingTeam(true)} className="text-sky-400 hover:text-sky-300 text-sm">+ Add</button>}
@@ -482,7 +478,7 @@ export function AdminGuildDetail() {
             )}
           </div>
         ) : tab === "roster" ? (
-          <div className="rounded-xl border border-slate-700 p-6" style={{ background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)" }}>
+          <div className="rounded-xl p-6 rk-card-panel-bordered">
             <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
               <h3 className="font-semibold text-sky-400">Raider Roster</h3>
               <div className="flex gap-2">

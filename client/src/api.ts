@@ -1,17 +1,30 @@
 /** Base URL for API - uses /api (proxied in dev by Vite, proxied in prod by Vercel) */
 const API = "/api";
 
+function isQaTestMode(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return localStorage.getItem("qaTestMode") === "1" || new URLSearchParams(window.location.search).has("qa");
+  } catch {
+    return false;
+  }
+}
+
 async function fetchApi(
   path: string,
   options: RequestInit = {}
 ): Promise<Response> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string>),
+  };
+  if (isQaTestMode()) {
+    headers["X-QA-Test-Mode"] = "1";
+  }
   const res = await fetch(`${API}${path}`, {
     ...options,
     credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
+    headers,
   });
   return res;
 }

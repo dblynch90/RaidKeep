@@ -1,24 +1,17 @@
 import { useState, useEffect, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { Card } from "../components/Card";
 import { GuildBreadcrumbs } from "../components/GuildBreadcrumbs";
 import type { GuildPermissions } from "./GuildPermissions";
+import { getClassColor } from "../utils/classColors";
+import { capitalizeRealm } from "../utils/realm";
+import { useGuildParams } from "../hooks/useGuildParams";
+import { guildQueryStringFromSlug } from "../utils/guildApi";
 
 const PROFESSION_TYPES = [
   "Alchemy", "Blacksmithing", "Cooking", "Enchanting", "Engineering", "First Aid",
   "Fishing", "Herbalism", "Inscription", "Jewelcrafting", "Leatherworking", "Mining", "Skinning", "Tailoring",
 ];
-
-const CLASS_COLORS: Record<string, string> = {
-  Warrior: "#C69B6D", Paladin: "#F58CBA", Hunter: "#AAD372", Rogue: "#FFF569", Priest: "#FFFFFF",
-  "Death Knight": "#C41E3A", Shaman: "#0070DD", Mage: "#3FC7EB", Warlock: "#8788EE", Monk: "#00FF98",
-  Druid: "#FF7D0A", "Demon Hunter": "#A330C9", Evoker: "#33937F",
-};
-
-function getClassColor(className: string): string {
-  return CLASS_COLORS[className] ?? "#6B7280";
-}
 
 interface MemberProfession {
   profession_type: string;
@@ -47,16 +40,8 @@ interface GuildCraftersFullResponse {
   my_characters?: RosterMember[];
 }
 
-function capitalizeRealm(realm: string): string {
-  if (!realm) return "";
-  return realm.split(/[- ]/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
-}
-
 export function GuildCrafters() {
-  const [searchParams] = useSearchParams();
-  const realm = searchParams.get("realm") ?? "";
-  const guildName = searchParams.get("guild_name") ?? "";
-  const serverType = searchParams.get("server_type") ?? "TBC Anniversary";
+  const { realm, guildName, serverType, realmSlug, isValid } = useGuildParams();
 
   const [members, setMembers] = useState<Member[]>([]);
   const [guildRoster, setGuildRoster] = useState<RosterMember[]>([]);
@@ -79,8 +64,6 @@ export function GuildCrafters() {
   const [addProfessionFor, setAddProfessionFor] = useState<string | null>(null);
   const [editProfession, setEditProfession] = useState<{ member: string; profession: string; notes: string; profession_level: number | null } | null>(null);
 
-  const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
-
   const canManage = permissions?.manage_guild_crafters ?? false;
   const isOwnChar = (charName: string) => myCharacterNames.has(charName.toLowerCase());
   const canEditMember = (charName: string) => canManage || isOwnChar(charName);
@@ -93,11 +76,10 @@ export function GuildCrafters() {
   }, [members]);
 
   const fetchData = () => {
-    if (!realm || !guildName) return;
+    if (!isValid) return;
+    const qs = guildQueryStringFromSlug({ realmSlug, guildName, serverType });
     api
-      .get<GuildCraftersFullResponse>(
-        `/auth/me/guild-crafters-full?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
-      )
+      .get<GuildCraftersFullResponse>(`/auth/me/guild-crafters-full?${qs}`)
       .then((r) => {
         setMembers(r.members ?? []);
         setGuildRoster(r.guild_roster ?? []);
@@ -110,7 +92,7 @@ export function GuildCrafters() {
   };
 
   useEffect(() => {
-    if (!realm || !guildName) {
+    if (!isValid) {
       setLoading(false);
       setError("Missing realm or guild name");
       return;
@@ -118,7 +100,7 @@ export function GuildCrafters() {
     setLoading(true);
     setError(null);
     fetchData();
-  }, [realm, guildName, serverType, realmSlug]);
+  }, [realmSlug, guildName, serverType, isValid]);
 
   const maxLevelInRoster = useMemo(() => (guildRoster.length ? Math.max(...guildRoster.map((m) => m.level)) : 80), [guildRoster]);
   const effectiveLevelMin = levelMin ?? maxLevelInRoster;
@@ -250,8 +232,8 @@ export function GuildCrafters() {
 
   if (error) {
     return (
-      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-        <main className="max-w-6xl mx-auto px-4 py-8">
+      <div className="rk-page-bg text-slate-100" >
+        <main className="rk-page-main">
           <p className="text-amber-500">{error}</p>
         </main>
       </div>
@@ -259,8 +241,8 @@ export function GuildCrafters() {
   }
 
   return (
-    <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-      <main className="max-w-6xl mx-auto px-4 py-8">
+    <div className="rk-page-bg text-slate-100" >
+      <main className="rk-page-main">
         <GuildBreadcrumbs guildName={guildName} realm={realm} serverType={serverType} currentPage="Guild Professions" />
 
         <header className="mb-8">
@@ -709,8 +691,7 @@ function AddProfessionModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
       <div
-        className="rounded-xl border border-slate-600 p-6 w-full max-w-sm bg-slate-800 shadow-xl"
-        style={{ background: "linear-gradient(180deg, #1e293b 0%, #0f172a 100%)" }}
+        className="rk-card-panel-bordered p-6 w-full max-w-sm shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-lg font-semibold text-slate-200 mb-4">Add professions for {characterName}</h3>
@@ -765,8 +746,7 @@ function EditProfessionModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
       <div
-        className="rounded-xl border border-slate-600 p-6 w-full max-w-md bg-slate-800 shadow-xl"
-        style={{ background: "linear-gradient(180deg, #1e293b 0%, #0f172a 100%)" }}
+        className="rk-card-panel-bordered p-6 w-full max-w-md shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-lg font-semibold text-slate-200 mb-4">Edit {profession} · {member}</h3>

@@ -6,34 +6,8 @@ import { useToast } from "../context/ToastContext";
 import { formatRaidDateTime } from "../utils/raidDateTime";
 import { GuildBreadcrumbs } from "../components/GuildBreadcrumbs";
 import type { GuildPermissions } from "./GuildPermissions";
-
-const CLASS_COLORS: Record<string, string> = {
-  Warrior: "#C69B6D",
-  Paladin: "#F58CBA",
-  Hunter: "#AAD372",
-  Rogue: "#FFF569",
-  Priest: "#FFFFFF",
-  "Death Knight": "#C41E3A",
-  Shaman: "#0070DD",
-  Mage: "#3FC7EB",
-  Warlock: "#8788EE",
-  Monk: "#00FF98",
-  Druid: "#FF7D0A",
-  "Demon Hunter": "#A330C9",
-  Evoker: "#33937F",
-};
-
-function getClassColor(className: string): string {
-  return CLASS_COLORS[className] ?? "#6B7280";
-}
-
-function capitalizeRealm(realm: string): string {
-  if (!realm) return "";
-  return realm
-    .split(/[- ]/)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ");
-}
+import { getClassColor } from "../utils/classColors";
+import { capitalizeRealm } from "../utils/realm";
 
 interface RaidSlotRow {
   id: number;
@@ -144,8 +118,8 @@ export function RaidView() {
 
   if (error) {
     return (
-      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-        <main className="max-w-6xl mx-auto px-4 py-8">
+      <div className="rk-page-bg text-slate-100" >
+        <main className="rk-page-main">
           <p className="text-amber-500">{error}</p>
         </main>
       </div>
@@ -154,8 +128,8 @@ export function RaidView() {
 
   if (loading || !raid) {
     return (
-      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-        <main className="max-w-6xl mx-auto px-4 py-8">
+      <div className="rk-page-bg text-slate-100" >
+        <main className="rk-page-main">
           <p className="text-slate-500">Loading raid...</p>
         </main>
       </div>
@@ -228,8 +202,8 @@ export function RaidView() {
   const raidScheduleUrl = `/raid-schedule?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(raid.guild_name)}&server_type=${encodeURIComponent(raid.server_type ?? "TBC Anniversary")}`;
 
   return (
-    <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-      <main className="max-w-6xl mx-auto px-4 py-8">
+    <div className="rk-page-bg text-slate-100" >
+      <main className="rk-page-main">
         <GuildBreadcrumbs
           guildName={raid.guild_name}
           realm={realmSlug}

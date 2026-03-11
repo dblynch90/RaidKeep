@@ -40,8 +40,8 @@ export function BattleNetCallback() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4 text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-        <div className="w-full max-w-sm bg-slate-800 rounded-xl p-8 shadow-xl border border-amber-900/50 text-center">
+      <div className="rk-page-bg flex items-center justify-center px-4 text-slate-100">
+        <div className="w-full max-w-sm rk-card-panel-bordered p-8 shadow-xl text-center">
           <div className="mb-6 flex justify-center">
             <Logo variant="full" link={false} />
           </div>

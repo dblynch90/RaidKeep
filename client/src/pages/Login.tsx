@@ -2,12 +2,7 @@ import { Logo } from "../components/Logo";
 
 export function Login() {
   return (
-    <div className="min-h-screen relative overflow-hidden" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-      {/* Background: radial gradient + subtle texture */}
-      <div
-        className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_0%,#1e293b_0%,#0f172a_40%,#020617_100%)] pointer-events-none"
-        aria-hidden
-      />
+    <div className="rk-page-bg relative overflow-hidden">
       <div
         className="absolute inset-0 opacity-[0.03] pointer-events-none"
         style={{

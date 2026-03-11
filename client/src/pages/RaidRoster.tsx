@@ -1,8 +1,14 @@
 import { useState, useEffect, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { GuildBreadcrumbs } from "../components/GuildBreadcrumbs";
 import type { GuildPermissions } from "./GuildPermissions";
+import { DEFAULT_PERMISSIONS } from "./GuildPermissions";
+import { getClassColor } from "../utils/classColors";
+import { capitalizeRealm } from "../utils/realm";
+import { useGuildParams } from "../hooks/useGuildParams";
+import { guildQueryStringFromSlug, guildRealmQueryString } from "../utils/guildApi";
+import type { RaiderEntry, RaidTeam } from "../types/raid";
+import { RAID_ROLES, DAYS, DEFAULT_AVAILABILITY } from "../constants/raid";
 
 interface RosterMember {
   name: string;
@@ -12,78 +18,8 @@ interface RosterMember {
   race?: string;
 }
 
-const CLASS_COLORS: Record<string, string> = {
-  Warrior: "#C69B6D",
-  Paladin: "#F58CBA",
-  Hunter: "#AAD372",
-  Rogue: "#FFF569",
-  Priest: "#FFFFFF",
-  "Death Knight": "#C41E3A",
-  Shaman: "#0070DD",
-  Mage: "#3FC7EB",
-  Warlock: "#8788EE",
-  Monk: "#00FF98",
-  Druid: "#FF7D0A",
-  "Demon Hunter": "#A330C9",
-  Evoker: "#33937F",
-};
-
-function getClassColor(className: string): string {
-  return CLASS_COLORS[className] ?? "#6B7280";
-}
-
-function capitalizeRealm(realm: string): string {
-  if (!realm) return "";
-  return realm.split(/[- ]/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
-}
-
-const DEFAULT_PERMISSIONS: GuildPermissions = {
-  view_guild_dashboard: true,
-  view_guild_roster: true,
-  view_raid_roster: true,
-  view_raid_schedule: true,
-  manage_raids: true,
-  manage_raid_roster: true,
-  manage_permissions: true,
-  manage_guild_crafters: true,
-};
-
-const RAID_ROLES = [
-  { value: "", label: "—" },
-  { value: "tank", label: "Tank" },
-  { value: "healer", label: "Healer" },
-  { value: "dps", label: "DPS" },
-] as const;
-
-const DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"] as const;
-const DEFAULT_AVAILABILITY = "0000000";
-
-interface RaiderEntry {
-  character_name: string;
-  character_class: string;
-  primary_spec?: string;
-  off_spec?: string;
-  secondary_spec?: string;
-  notes?: string;
-  officer_notes?: string;
-  notes_public?: boolean;
-  raid_role?: string;
-  raid_lead?: boolean;
-  raid_assist?: boolean;
-  availability?: string;
-}
-
-interface RaidTeam {
-  id: number;
-  team_name: string;
-  members: Array<{ character_name: string; character_class: string }>;
-}
-
 export function RaidRoster() {
-  const [searchParams] = useSearchParams();
-  const realm = searchParams.get("realm") ?? "";
-  const guildName = searchParams.get("guild_name") ?? "";
-  const serverType = searchParams.get("server_type") ?? "TBC Anniversary";
+  const { realm, guildName, serverType, realmSlug, isValid } = useGuildParams();
 
   const [permissions, setPermissions] = useState<GuildPermissions | null>(null);
   const [raiders, setRaiders] = useState<RaiderEntry[]>([]);
@@ -111,7 +47,6 @@ export function RaidRoster() {
   const [teamNameDrafts, setTeamNameDrafts] = useState<Record<number, string>>({});
   const [rosterTab, setRosterTab] = useState<"roster" | "guild" | "realm" | "teams">("roster");
 
-  const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
   const perms = permissions ?? (loading ? { ...DEFAULT_PERMISSIONS, manage_raid_roster: false } : DEFAULT_PERMISSIONS);
   const canEdit = perms.manage_raid_roster;
   const canEditOwnAvailabilityAndNotes =
@@ -124,20 +59,20 @@ export function RaidRoster() {
     canEdit || (canEditOwnAvailabilityAndNotes && myCharacterNames.has(characterName.toLowerCase()));
 
   useEffect(() => {
-    if (!realm || !guildName) {
+    if (!isValid) {
       setLoading(false);
       setError("Missing realm or guild name");
       return;
     }
     setLoading(true);
     setError(null);
+    const permsQs = guildQueryStringFromSlug({ realmSlug, guildName, serverType });
+    const rosterQs = guildRealmQueryString({ realm, guildName, serverType });
     Promise.all([
-      api.get<{ permissions: GuildPermissions }>(
-        `/auth/me/guild-permissions?realm=${encodeURIComponent(realmSlug)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
-      ).then((r) => r.permissions).catch(() => DEFAULT_PERMISSIONS),
+      api.get<{ permissions: GuildPermissions }>(`/auth/me/guild-permissions?${permsQs}`).then((r) => r.permissions).catch(() => DEFAULT_PERMISSIONS),
       api.get<{ characters: import("../api").MyCharacter[] }>("/auth/me/characters").then((r) => r.characters ?? []).catch(() => []),
       api.get<{ raiders: Array<Omit<RaiderEntry, "notes_public"> & { notes_public?: number; raid_lead?: unknown; raid_assist?: unknown; availability?: string }> }>(
-        `/auth/me/raider-roster?guild_realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
+        `/auth/me/raider-roster?${rosterQs}`
       ).then((r) =>
         (r.raiders ?? []).map((x) => ({
           ...x,
@@ -147,12 +82,8 @@ export function RaidRoster() {
           availability: typeof x.availability === "string" ? x.availability.padEnd(7, "0").slice(0, 7) : DEFAULT_AVAILABILITY,
         })
       )),
-      api.get<{ teams: RaidTeam[] }>(
-        `/auth/me/raid-teams?guild_realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
-      ).then((r) => r.teams ?? []),
-      api.get<{ members: RosterMember[] }>(
-        `/auth/me/guild-roster?realm=${encodeURIComponent(realm)}&guild_name=${encodeURIComponent(guildName)}&server_type=${encodeURIComponent(serverType)}`
-      ).then((r) => r.members ?? []).catch(() => []),
+      api.get<{ teams: RaidTeam[] }>(`/auth/me/raid-teams?${rosterQs}`).then((r) => r.teams ?? []),
+      api.get<{ members: RosterMember[] }>(`/auth/me/guild-roster?${permsQs}`).then((r) => r.members ?? []).catch(() => []),
     ])
       .then(([perms, chars, raidersList, teamsList, guildList]) => {
         setPermissions(perms);
@@ -163,7 +94,7 @@ export function RaidRoster() {
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
       .finally(() => setLoading(false));
-  }, [realm, realmSlug, guildName, serverType]);
+  }, [realmSlug, guildName, serverType, realm, isValid]);
 
   const characterToTeamId = useMemo(() => {
     const m = new Map<string, number>();
@@ -559,8 +490,8 @@ export function RaidRoster() {
 
   if (error) {
     return (
-      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-        <main className="max-w-6xl mx-auto px-4 py-8">
+      <div className="rk-page-bg text-slate-100" >
+        <main className="rk-page-main">
           <p className="text-amber-500">{error}</p>
         </main>
       </div>
@@ -569,8 +500,8 @@ export function RaidRoster() {
 
   if (!loading && !perms.view_raid_roster) {
     return (
-      <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-        <main className="max-w-6xl mx-auto px-4 py-8">
+      <div className="rk-page-bg text-slate-100" >
+        <main className="rk-page-main">
           <p className="text-amber-500">You do not have permission to view the raider roster.</p>
         </main>
       </div>
@@ -578,8 +509,8 @@ export function RaidRoster() {
   }
 
   return (
-    <div className="min-h-screen text-slate-100" style={{ background: "radial-gradient(circle at 20% 10%, #1e3a5f 0%, #0b1628 60%)" }}>
-      <main className="max-w-6xl mx-auto px-4 py-8">
+    <div className="rk-page-bg text-slate-100" >
+      <main className="rk-page-main">
         <GuildBreadcrumbs guildName={guildName} realm={realm} serverType={serverType} currentPage="Raid Roster" />
 
         <header className="mb-6">
@@ -611,13 +542,7 @@ export function RaidRoster() {
         {loading ? (
           <p className="text-slate-500">Loading...</p>
         ) : (
-          <div
-            className="rounded-xl border border-white/[0.05] overflow-hidden"
-            style={{
-              background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-            }}
-          >
+          <div className="rounded-xl border border-white/[0.05] overflow-hidden rk-card-panel">
             {/* Tab nav (officers) + Filters (roster tab) */}
             <div className="p-3 border-b border-slate-700/60 space-y-3">
               {canEdit && (

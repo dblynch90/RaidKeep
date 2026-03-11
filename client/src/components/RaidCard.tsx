@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useToast } from "../context/ToastContext";
 import { formatRaidDateShort, formatTimeRange } from "../utils/raidDateTime";
+import { getClassColor } from "../utils/classColors";
 
 export type RaidStatus = "forming" | "formed" | "in-progress" | "complete";
 
@@ -24,26 +25,6 @@ export interface RaidCardData {
   raid_status?: RaidStatus | string;
   /** Your character(s) assigned to this raid (for My Raids cards) */
   my_characters?: Array<{ character_name: string; character_class: string; role?: string }>;
-}
-
-const CLASS_COLORS: Record<string, string> = {
-  Warrior: "#C69B6D",
-  Paladin: "#F58CBA",
-  Hunter: "#AAD372",
-  Rogue: "#FFF569",
-  Priest: "#FFFFFF",
-  "Death Knight": "#C41E3A",
-  Shaman: "#0070DD",
-  Mage: "#3FC7EB",
-  Warlock: "#8788EE",
-  Monk: "#00FF98",
-  Druid: "#FF7D0A",
-  "Demon Hunter": "#A330C9",
-  Evoker: "#33937F",
-};
-
-function getClassColor(className: string): string {
-  return CLASS_COLORS[className] ?? "#6B7280";
 }
 
 function StatusBadge({ status }: { status?: RaidStatus }) {
@@ -93,13 +74,7 @@ export function RaidCard({
   };
 
   return (
-    <div
-      className="rounded-xl border border-white/[0.05] p-5 transition-all duration-200 hover:-translate-y-0.5"
-      style={{
-        background: "linear-gradient(180deg, #1b2a44 0%, #162338 100%)",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-      }}
-    >
+    <div className="rk-card-panel rounded-xl border border-white/[0.05] p-5 transition-all duration-200 hover:-translate-y-0.5">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
