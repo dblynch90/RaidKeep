@@ -315,9 +315,10 @@ export function RaiderRoster() {
 
   const toggleRaider = (member: RosterMember, add: boolean) => {
     if (!canEdit) return;
+    let newRaiders: RaiderEntry[];
     if (add) {
-      setRaiders((prev) => [
-        ...prev.filter((r) => r.character_name.toLowerCase() !== member.name.toLowerCase()),
+      newRaiders = [
+        ...raiders.filter((r) => r.character_name.toLowerCase() !== member.name.toLowerCase()),
         {
           character_name: member.name,
           character_class: member.class,
@@ -332,12 +333,12 @@ export function RaiderRoster() {
           raid_assist: false,
           availability: DEFAULT_AVAILABILITY,
         },
-      ]);
+      ];
     } else {
-      setRaiders((prev) =>
-        prev.filter((r) => r.character_name.toLowerCase() !== member.name.toLowerCase())
-      );
+      newRaiders = raiders.filter((r) => r.character_name.toLowerCase() !== member.name.toLowerCase());
     }
+    setRaiders(newRaiders);
+    saveRaiderRoster(newRaiders);
   };
 
   const addSelectedMembers = () => {
@@ -346,9 +347,10 @@ export function RaiderRoster() {
       (m) => !raiderMap.has(m.name.toLowerCase()) && selectedGuildMembers.has(m.name.toLowerCase())
     );
     if (toAdd.length === 0) return;
-    setRaiders((prev) => {
-      const existing = new Set(prev.map((r) => r.character_name.toLowerCase()));
-      const newRaiders = toAdd
+    const existing = new Set(raiders.map((r) => r.character_name.toLowerCase()));
+    const newRaiders = [
+      ...raiders,
+      ...toAdd
         .filter((m) => !existing.has(m.name.toLowerCase()))
         .map((m) => ({
           character_name: m.name,
@@ -363,10 +365,11 @@ export function RaiderRoster() {
           raid_lead: false,
           raid_assist: false,
           availability: DEFAULT_AVAILABILITY,
-        }));
-      return [...prev, ...newRaiders];
-    });
+        })),
+    ];
+    setRaiders(newRaiders);
     setSelectedGuildMembers(new Set());
+    saveRaiderRoster(newRaiders);
   };
 
   const toggleGuildMemberSelection = (name: string) => {
@@ -483,7 +486,8 @@ export function RaiderRoster() {
     );
   };
 
-  const handleSave = async () => {
+  const saveRaiderRoster = async (raidersToSave?: RaiderEntry[]) => {
+    const list = raidersToSave ?? raiders;
     if (!canEdit && !canEditOwnAvailabilityAndNotes) return;
     setSaving(true);
     setSaveMsg(null);
@@ -494,7 +498,7 @@ export function RaiderRoster() {
           guild_realm: realm,
           guild_realm_slug: realm,
           server_type: serverType,
-          raiders: raiders.map((r) => ({
+          raiders: list.map((r) => ({
             character_name: r.character_name,
             character_class: r.character_class,
             primary_spec: r.primary_spec || null,
@@ -543,13 +547,15 @@ export function RaiderRoster() {
           );
         }
       }
-      setSaveMsg("Raid team saved.");
+      setSaveMsg("Raid Roster Saved");
     } catch (err) {
       setSaveMsg(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setSaving(false);
     }
   };
+
+  const handleSave = () => saveRaiderRoster();
 
   const createTeam = async () => {
     if (!canEdit) return;
