@@ -15,13 +15,24 @@ interface RosterMember {
 function CollapsibleSection({
   title,
   defaultOpen = false,
+  open: controlledOpen,
+  onOpenChange,
   children,
 }: {
   title: string;
   defaultOpen?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = (v: boolean | ((prev: boolean) => boolean)) => {
+    const next = typeof v === "function" ? v(open) : v;
+    if (!isControlled) setInternalOpen(next);
+    onOpenChange?.(next);
+  };
   return (
     <div className="rounded-lg border border-slate-700 overflow-hidden">
       <button
@@ -135,6 +146,7 @@ export function RaidRoster() {
   const [guildMemberFilter, setGuildMemberFilter] = useState<"all" | "raider" | "non-raider">("all");
   const [selectedGuildMembers, setSelectedGuildMembers] = useState<Set<string>>(new Set());
   const [teamNameDrafts, setTeamNameDrafts] = useState<Record<number, string>>({});
+  const [addFromGuildOpen, setAddFromGuildOpen] = useState(false);
 
   const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
   const perms = permissions ?? (loading ? { ...DEFAULT_PERMISSIONS, manage_raid_roster: false } : DEFAULT_PERMISSIONS);
@@ -629,16 +641,6 @@ export function RaidRoster() {
               >
                 ⧉ Open Fullscreen Roster
               </button>
-              {canEdit && (
-                <button
-                  type="button"
-                  onClick={() => setCharacterSearchModalOpen(true)}
-                  className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 border border-slate-600 text-slate-200 text-sm font-medium transition flex items-center gap-2"
-                  title="Search for a character on the realm"
-                >
-                  🔍 Realm Search
-                </button>
-              )}
             </div>
           </div>
           <div className="mt-4 h-px bg-slate-700/60" />
@@ -774,6 +776,25 @@ export function RaidRoster() {
                 ))}
               </select>
               <div className="flex-1" />
+              {canEdit && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setAddFromGuildOpen((o) => !o)}
+                    className={`h-8 px-3 rounded text-sm font-medium border shrink-0 ${addFromGuildOpen ? "bg-sky-600/80 text-white border-sky-500/50" : "bg-slate-700 hover:bg-slate-600 text-slate-200 border-slate-600"}`}
+                  >
+                    Add from Guild
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCharacterSearchModalOpen(true)}
+                    className="h-8 px-3 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-medium border border-slate-600 shrink-0"
+                    title="Search for a character on the realm"
+                  >
+                    Add from Realm
+                  </button>
+                </>
+              )}
               {(canEdit || canEditOwnAvailabilityAndNotes) && (
                 <button
                   type="button"
@@ -970,7 +991,7 @@ export function RaidRoster() {
 
         {canEdit && (
           <div className="mt-6 space-y-4">
-            <CollapsibleSection title="Add from Guild" defaultOpen={false}>
+            <CollapsibleSection title="Add from Guild" open={addFromGuildOpen} onOpenChange={setAddFromGuildOpen}>
               <div className="p-4">
                 <p className="text-slate-500 text-sm mb-3">
                   Add guild members to your raid roster. Select multiple and add at once, or add individually.

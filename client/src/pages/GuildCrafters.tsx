@@ -421,9 +421,16 @@ export function GuildCrafters() {
                             ) : canAdd ? (
                               <button
                                 type="button"
-                                onClick={() => setAddProfessionFor(m.name)}
+                                onClick={() => {
+                                  api.post("/auth/me/guild-crafter-list", {
+                                    realm: realmSlug,
+                                    guild_name: guildName,
+                                    server_type: serverType,
+                                    character_names: [m.name],
+                                  }).catch(() => {}).then(() => fetchData());
+                                }}
                                 className="shrink-0 h-7 px-2 flex items-center justify-center rounded bg-sky-600/90 hover:bg-sky-500 text-white text-sm font-medium border border-sky-500/50"
-                                title="Add professions"
+                                title="Add to professions list"
                               >
                                 Add
                               </button>
@@ -485,11 +492,11 @@ export function GuildCrafters() {
                         No members match the current filters.
                       </p>
                     ) : (
-                      <table className="w-full border-collapse text-sm">
+                      <table className="w-full border-collapse text-sm table-fixed">
                         <thead>
                           <tr className="text-left text-slate-400 text-xs font-medium uppercase tracking-wider border-b border-slate-600">
-                            <th className="py-2 pr-4">Character</th>
-                            <th className="py-2">Professions</th>
+                            <th className="py-1.5 pr-3 w-36 shrink-0">Character</th>
+                            <th className="py-1.5">Professions</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -500,31 +507,31 @@ export function GuildCrafters() {
                                 key={m.name}
                                 className="border-b border-slate-700/60 hover:bg-slate-800/50"
                               >
-                                <td className="py-2 pr-4 pl-3 align-middle border-l-4" style={{ borderLeftColor: classColor }}>
-                                  <div className="flex items-center gap-2">
+                                <td className="py-1 pr-3 pl-2 align-top border-l-4" style={{ borderLeftColor: classColor }}>
+                                  <div className="flex items-center gap-1.5 min-w-0">
                                     {canRemoveMember(m.name) && (
                                       <button
                                         type="button"
                                         onClick={() => removeCrafterFromList(m.name)}
-                                        className="w-6 h-6 flex items-center justify-center rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 shrink-0"
+                                        className="w-5 h-5 flex items-center justify-center rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 shrink-0 text-sm"
                                         title="Remove from list"
                                         aria-label="Remove from list"
                                       >
                                         ×
                                       </button>
                                     )}
-                                    <span className="font-medium" style={{ color: classColor }}>{m.name}</span>
+                                    <span className="font-medium truncate block" style={{ color: classColor }}>{m.name}</span>
                                   </div>
                                 </td>
-                                <td className="py-2 align-middle">
-                                  <div className="flex flex-wrap gap-1.5 items-center">
+                                <td className="py-1 align-top">
+                                  <div className="flex flex-wrap gap-1 items-center leading-tight">
                                     {m.professions.length === 0 ? (
-                                      <span className="text-slate-500">—</span>
+                                      <span className="text-slate-500 text-xs">—</span>
                                     ) : (
                                       m.professions.map((p) => (
                                         <span
                                           key={p.profession_type}
-                                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border transition ${canEditMember(m.name) ? "hover:bg-slate-700/80 cursor-pointer group" : "cursor-default"} bg-slate-800/60 border-slate-600 text-slate-200`}
+                                          className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] border shrink-0 transition ${canEditMember(m.name) ? "hover:bg-slate-700/80 cursor-pointer group" : "cursor-default"} bg-slate-800/60 border-slate-600 text-slate-200`}
                                           title={p.notes ? `${p.profession_type}: ${p.notes}` : p.profession_type}
                                         >
                                           <button
@@ -539,7 +546,7 @@ export function GuildCrafters() {
                                             {p.profession_level != null ? (
                                               <span className="text-slate-500">({p.profession_level})</span>
                                             ) : null}
-                                            {canEditMember(m.name) && <span className="text-sky-400 text-[10px] ml-0.5">✎</span>}
+                                            {canEditMember(m.name) && <span className="text-sky-400 text-[9px]">✎</span>}
                                           </button>
                                           {canEditMember(m.name) && (
                                             <button
@@ -548,7 +555,7 @@ export function GuildCrafters() {
                                                 e.stopPropagation();
                                                 deleteProfession(m.name, p.profession_type);
                                               }}
-                                              className="w-4 h-4 flex items-center justify-center rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 shrink-0 -mr-0.5"
+                                              className="w-3.5 h-3.5 flex items-center justify-center rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 shrink-0 -mr-0.5 text-[10px]"
                                               title={`Remove ${p.profession_type}`}
                                               aria-label={`Remove ${p.profession_type}`}
                                             >
