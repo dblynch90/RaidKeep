@@ -11,7 +11,6 @@ import { Dashboard } from "./pages/Dashboard";
 import { GuildRoster } from "./pages/GuildRoster";
 import { RaidView } from "./pages/RaidView";
 import { RaidRoster } from "./pages/RaidRoster";
-import { RaiderRoster } from "./pages/RaiderRoster";
 import { RaidRosterPopout } from "./pages/RaidRosterPopout";
 import { RaidOfficerNotesPopout } from "./pages/RaidOfficerNotesPopout";
 import { GuildDashboard } from "./pages/GuildDashboard";
