@@ -148,11 +148,21 @@ export function GuildLoading() {
               )}
               <span className={permissionsLoaded ? "text-slate-300" : "text-slate-400"}>
                 Loading Permissions
-                {retryCount > 0 && (
-                  <span className="ml-2 text-slate-500 text-sm">(syncing characters…)</span>
-                )}
               </span>
             </div>
+
+            {retryCount > 0 && (
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                {permissionsLoaded ? (
+                  <span className="text-emerald-400 text-lg" aria-hidden>✓</span>
+                ) : (
+                  <div className="h-5 w-5 rounded-full border-2 border-slate-500 border-t-sky-500 animate-spin" aria-hidden />
+                )}
+                <span className={permissionsLoaded ? "text-slate-300" : "text-slate-400"}>
+                  Syncing characters…
+                </span>
+              </div>
+            )}
 
             <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700/50">
               {guildDataLoaded ? (
