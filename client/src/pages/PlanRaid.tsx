@@ -139,6 +139,11 @@ export function PlanRaid() {
   const [signedUp, setSignedUp] = useState<Array<{ character_name: string; character_class: string }>>([]);
   const [unavailableSlots, setUnavailableSlots] = useState<RaidSlot[]>([]);
   const [showGuildRosterDrawer, setShowGuildRosterDrawer] = useState(false);
+  const [rosterDrawerTab, setRosterDrawerTab] = useState<"guild" | "realm">("guild");
+  const [characterSearchName, setCharacterSearchName] = useState("");
+  const [characterSearchResult, setCharacterSearchResult] = useState<{ name: string; class: string; level: number } | null>(null);
+  const [characterSearching, setCharacterSearching] = useState(false);
+  const [characterSearchError, setCharacterSearchError] = useState<string | null>(null);
   const [unavailableExpanded, setUnavailableExpanded] = useState(false);
   const [showLoadFromModal, setShowLoadFromModal] = useState(false);
 
@@ -388,6 +393,38 @@ export function PlanRaid() {
 
   const addParty = () => {
     setParties((prev) => [...prev, Array(SLOTS_PER_PARTY).fill(null)]);
+  };
+
+  const searchCharacter = async () => {
+    const name = characterSearchName.trim();
+    if (!name) return;
+    setCharacterSearchError(null);
+    setCharacterSearchResult(null);
+    setCharacterSearching(true);
+    try {
+      const result = await api.get<{ name: string; class: string; level: number }>(
+        `/auth/me/character-search?realm=${encodeURIComponent(realmSlug)}&character_name=${encodeURIComponent(name)}&server_type=${encodeURIComponent(serverType)}`
+      );
+      setCharacterSearchResult(result);
+    } catch (err: unknown) {
+      setCharacterSearchError(err instanceof Error ? err.message : "Character not found");
+    } finally {
+      setCharacterSearching(false);
+    }
+  };
+
+  const addRealmCharacterToRaid = () => {
+    if (!characterSearchResult) return;
+    const member: RosterMember = {
+      name: characterSearchResult.name,
+      class: characterSearchResult.class,
+      level: characterSearchResult.level,
+      role: "",
+    };
+    assignToFirstEmptySlot(member);
+    setCharacterSearchResult(null);
+    setCharacterSearchName("");
+    setCharacterSearchError(null);
   };
 
   const loadFromTeam = (teamId: number) => {
@@ -955,7 +992,9 @@ export function PlanRaid() {
                 <div className="absolute left-0 top-0 bottom-0 w-[340px] border-r border-slate-700 bg-slate-800/95 flex flex-col overflow-hidden rounded-l-xl z-10">
                   <div className="p-4 border-b border-slate-700 shrink-0">
                     <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-slate-300 font-medium text-sm">Guild Roster</h3>
+                      <h3 className="text-slate-300 font-medium text-sm">
+                        {rosterDrawerTab === "guild" ? "Add From Guild" : "Add From Realm"}
+                      </h3>
                       <button
                         type="button"
                         onClick={() => setShowGuildRosterDrawer(false)}
@@ -965,7 +1004,23 @@ export function PlanRaid() {
                         ×
                       </button>
                     </div>
-                    {realm && guildName && (
+                    <div className="flex gap-2 mb-3">
+                      <button
+                        type="button"
+                        onClick={() => setRosterDrawerTab("guild")}
+                        className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium transition ${rosterDrawerTab === "guild" ? "bg-sky-600 text-white border border-sky-500/50" : "bg-slate-700/80 text-slate-400 border border-slate-600 hover:border-slate-500 hover:text-slate-300"}`}
+                      >
+                        Guild
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRosterDrawerTab("realm")}
+                        className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium transition ${rosterDrawerTab === "realm" ? "bg-amber-600 text-white border border-amber-500/50" : "bg-slate-700/80 text-slate-400 border border-slate-600 hover:border-slate-500 hover:text-slate-300"}`}
+                      >
+                        Realm
+                      </button>
+                    </div>
+                    {rosterDrawerTab === "guild" && realm && guildName && (
                       <button
                         type="button"
                         onClick={() => {
@@ -980,6 +1035,53 @@ export function PlanRaid() {
                     )}
                   </div>
                   <div className="p-4 flex-1 min-h-0 overflow-y-auto">
+                    {rosterDrawerTab === "realm" ? (
+                      <>
+                        <p className="text-slate-500 text-sm mb-3">
+                          Search for any character on {capitalizeRealm(realm)} to add to the raid.
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2 mb-4">
+                          <input
+                            type="text"
+                            placeholder="Character name..."
+                            value={characterSearchName}
+                            onChange={(e) => {
+                              setCharacterSearchName(e.target.value);
+                              setCharacterSearchError(null);
+                            }}
+                            onKeyDown={(e) => e.key === "Enter" && searchCharacter()}
+                            className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-500 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                          />
+                          <button
+                            type="button"
+                            onClick={searchCharacter}
+                            disabled={characterSearching || !characterSearchName.trim()}
+                            className="w-full px-3 py-2 rounded bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-sm font-medium"
+                          >
+                            {characterSearching ? "Searching..." : "Search"}
+                          </button>
+                        </div>
+                        {characterSearchResult && (
+                          <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg bg-slate-700/50 border border-slate-600">
+                            <span className="text-sm" style={{ color: getClassColor(characterSearchResult.class) }}>
+                              {characterSearchResult.name} – {characterSearchResult.level} – {characterSearchResult.class}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={addRealmCharacterToRaid}
+                              disabled={assignedNames.has(characterSearchResult.name.toLowerCase()) || backupNames.has(characterSearchResult.name.toLowerCase())}
+                              className="px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-sm font-medium"
+                            >
+                              Add to Raid
+                            </button>
+                          </div>
+                        )}
+                        {characterSearchError && (
+                          <p className="text-amber-500 text-sm mt-2">{characterSearchError}</p>
+                        )}
+                      </>
+                    ) : (
+                      <>
                     <input
                       type="text"
                       placeholder="Search player..."
@@ -1084,6 +1186,8 @@ export function PlanRaid() {
                         ))
                       )}
                     </div>
+                      </>
+                    )}
                   </div>
                 </div>
               )}
@@ -1094,13 +1198,28 @@ export function PlanRaid() {
                       <h3 className="text-slate-400 font-normal text-sm uppercase tracking-wider">Raid Composition</h3>
                       <div className="flex items-center gap-2">
                         {!showGuildRosterDrawer && (
-                          <button
-                            type="button"
-                            onClick={() => setShowGuildRosterDrawer(true)}
-                            className="text-sm px-3 py-1.5 rounded-lg font-medium border transition bg-slate-700/80 text-slate-300 border-slate-600 hover:border-slate-500 hover:bg-slate-600/80"
-                          >
-                            Add From Guild
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRosterDrawerTab("guild");
+                                setShowGuildRosterDrawer(true);
+                              }}
+                              className="text-sm px-3 py-1.5 rounded-lg font-medium border transition bg-slate-700/80 text-slate-300 border-slate-600 hover:border-slate-500 hover:bg-slate-600/80"
+                            >
+                              Add From Guild
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRosterDrawerTab("realm");
+                                setShowGuildRosterDrawer(true);
+                              }}
+                              className="text-sm px-3 py-1.5 rounded-lg font-medium border transition bg-amber-700/60 text-amber-200 border-amber-600/60 hover:border-amber-500/60 hover:bg-amber-600/50"
+                            >
+                              Add From Realm
+                            </button>
+                          </>
                         )}
                         {(teams.length > 0 || raidsForCopy.length > 0) && (
                           <button
