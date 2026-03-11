@@ -45,6 +45,7 @@ export function RaidRoster() {
   const [guildMemberFilter, setGuildMemberFilter] = useState<"all" | "raider" | "non-raider">("all");
   const [selectedGuildMembers, setSelectedGuildMembers] = useState<Set<string>>(new Set());
   const [teamNameDrafts, setTeamNameDrafts] = useState<Record<number, string>>({});
+  const [teamsToDelete, setTeamsToDelete] = useState<Set<number>>(new Set());
   const [rosterTab, setRosterTab] = useState<"roster" | "guild" | "realm" | "teams">("roster");
 
   const perms = permissions ?? (loading ? { ...DEFAULT_PERMISSIONS, manage_raid_roster: false } : DEFAULT_PERMISSIONS);
@@ -376,31 +377,26 @@ export function RaidRoster() {
     }
   };
 
-  const updateTeamMembers = async (teamId: number, members: Array<{ character_name: string; character_class: string }>) => {
+  const updateTeamMembersLocal = (teamId: number, members: Array<{ character_name: string; character_class: string }>) => {
     if (!canEdit) return;
-    try {
-      await api.put(`/auth/me/raid-teams/${teamId}/members`, { members });
-      setTeams((prev) => prev.map((t) => (t.id === teamId ? { ...t, members } : t)));
-    } catch {
-      // ignore
-    }
+    setTeams((prev) => prev.map((t) => (t.id === teamId ? { ...t, members } : t)));
   };
 
-  const assignRaiderToTeam = async (characterName: string, characterClass: string, newTeamId: number | null) => {
+  const assignRaiderToTeam = (characterName: string, characterClass: string, newTeamId: number | null) => {
     if (!canEdit) return;
     const currentTeamId = characterToTeamId.get(characterName.toLowerCase());
     if (currentTeamId) {
       const team = teams.find((t) => t.id === currentTeamId);
       if (team) {
         const next = team.members.filter((m) => m.character_name.toLowerCase() !== characterName.toLowerCase());
-        await updateTeamMembers(currentTeamId, next);
+        updateTeamMembersLocal(currentTeamId, next);
       }
     }
     if (newTeamId) {
       const team = teams.find((t) => t.id === newTeamId);
       if (team) {
         const next = [...team.members, { character_name: characterName, character_class: characterClass }];
-        await updateTeamMembers(newTeamId, next);
+        updateTeamMembersLocal(newTeamId, next);
       }
     }
   };
@@ -423,28 +419,59 @@ export function RaidRoster() {
     }
   };
 
-  const updateTeamName = async (teamId: number, teamName: string) => {
-    if (!canEdit || !teamName.trim()) return;
-    try {
-      await api.patch(`/auth/me/raid-teams/${teamId}`, { team_name: teamName.trim() });
-      setTeams((prev) => prev.map((t) => (t.id === teamId ? { ...t, team_name: teamName.trim() } : t)));
-      setTeamNameDrafts((d) => {
-        const next = { ...d };
-        delete next[teamId];
-        return next;
-      });
-    } catch {
-      // ignore
-    }
+  const deleteTeamLocal = (teamId: number) => {
+    if (!canEdit || !confirm("Delete this team?")) return;
+    setTeamsToDelete((prev) => new Set(prev).add(teamId));
+    setTeams((prev) => prev.filter((t) => t.id !== teamId));
+    setTeamNameDrafts((d) => {
+      const next = { ...d };
+      delete next[teamId];
+      return next;
+    });
   };
 
-  const deleteTeam = async (teamId: number) => {
-    if (!canEdit || !confirm("Delete this team?")) return;
+  const saveTeams = async () => {
+    if (!canEdit) return;
+    setSaving(true);
+    setSaveMsg(null);
     try {
-      await api.delete(`/auth/me/raid-teams/${teamId}`);
-      setTeams((prev) => prev.filter((t) => t.id !== teamId));
-    } catch {
-      // ignore
+      const teamsToSave = teams.filter((t) => !teamsToDelete.has(t.id));
+      for (const teamId of teamsToDelete) {
+        try {
+          await api.delete(`/auth/me/raid-teams/${teamId}`);
+        } catch (err) {
+          setSaveMsg(err instanceof Error ? err.message : "Failed to delete team");
+          setSaving(false);
+          return;
+        }
+      }
+      setTeamsToDelete(new Set());
+      for (const team of teamsToSave) {
+        const name = (teamNameDrafts[team.id] ?? team.team_name).trim();
+        if (name && name !== team.team_name) {
+          try {
+            await api.patch(`/auth/me/raid-teams/${team.id}`, { team_name: name });
+            setTeams((prev) => prev.map((t) => (t.id === team.id ? { ...t, team_name: name } : t)));
+          } catch (err) {
+            setSaveMsg(err instanceof Error ? err.message : "Failed to update team name");
+            setSaving(false);
+            return;
+          }
+        }
+        try {
+          await api.put(`/auth/me/raid-teams/${team.id}/members`, { members: team.members });
+        } catch (err) {
+          setSaveMsg(err instanceof Error ? err.message : "Failed to update team members");
+          setSaving(false);
+          return;
+        }
+      }
+      setTeamNameDrafts({});
+      setSaveMsg("Saved.");
+    } catch (err) {
+      setSaveMsg(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -1002,6 +1029,14 @@ export function RaidRoster() {
                   >
                     + Create Team
                   </button>
+                  <button
+                    type="button"
+                    onClick={saveTeams}
+                    disabled={saving}
+                    className="px-4 py-2 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-sm font-medium border border-sky-500/50"
+                  >
+                    {saving ? "Saving..." : "Save"}
+                  </button>
                 </div>
                 {teams.length === 0 ? (
                   <p className="text-slate-500 text-sm">No teams yet. Create one to get started.</p>
@@ -1016,13 +1051,6 @@ export function RaidRoster() {
                             onChange={(e) => setTeamNameDrafts((d) => ({ ...d, [team.id]: e.target.value }))}
                             className="px-2 py-1 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm w-40 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
                           />
-                          <button
-                            type="button"
-                            onClick={() => updateTeamName(team.id, teamNameDrafts[team.id] ?? team.team_name)}
-                            className="px-2 py-1 rounded bg-sky-600/90 hover:bg-sky-500 text-white text-sm"
-                          >
-                            Update name
-                          </button>
                           <select
                             className="px-2 py-1 rounded bg-slate-700 border border-slate-600 text-sm"
                             onChange={(e) => {
@@ -1032,7 +1060,7 @@ export function RaidRoster() {
                               const [name, cls] = val.split("|");
                               const current = team.members.map((x) => ({ character_name: x.character_name, character_class: x.character_class }));
                               if (current.some((c) => c.character_name === name)) return;
-                              updateTeamMembers(team.id, [...current, { character_name: name, character_class: cls }]);
+                              updateTeamMembersLocal(team.id, [...current, { character_name: name, character_class: cls }]);
                             }}
                           >
                             <option value="">+ Add raider</option>
@@ -1047,10 +1075,10 @@ export function RaidRoster() {
                           </select>
                           <button
                             type="button"
-                            onClick={() => deleteTeam(team.id)}
+                            onClick={() => deleteTeamLocal(team.id)}
                             className="text-red-400 hover:text-red-300 text-sm"
                           >
-                            Delete team
+                            Delete Team
                           </button>
                         </div>
                         <ul className="space-y-2">
@@ -1064,7 +1092,7 @@ export function RaidRoster() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  updateTeamMembers(
+                                  updateTeamMembersLocal(
                                     team.id,
                                     team.members.filter((x) => x.character_name !== m.character_name)
                                   );
