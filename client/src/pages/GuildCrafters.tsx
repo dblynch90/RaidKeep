@@ -245,9 +245,9 @@ export function GuildCrafters() {
       <main className="rk-page-main">
         <GuildBreadcrumbs guildName={guildName} realm={realm} serverType={serverType} currentPage="Guild Professions" />
 
-        <header className="mb-8">
-          <h1 className="text-lg font-semibold text-slate-200">Guild Professions</h1>
-          <p className="text-slate-400 text-sm mt-1">
+        <header className="mb-6 sm:mb-8">
+          <h1 className="text-xl sm:text-2xl font-semibold text-sky-400">Guild Professions</h1>
+          <p className="text-slate-400 text-xs sm:text-sm mt-1 truncate">
             {capitalizeRealm(realm)} / {guildName} / {serverType}
           </p>
           <div className="mt-4 h-px bg-slate-700/60" />
@@ -256,14 +256,14 @@ export function GuildCrafters() {
         {loading ? (
           <p className="text-slate-500">Loading...</p>
         ) : (
-          <Card>
-            <div className="p-4">
+          <Card className="min-w-0 overflow-hidden">
+            <div className="p-4 sm:p-5">
               <div className="flex items-center justify-between mb-3">
-                <nav className="flex rounded-lg bg-slate-800/60 p-1 border border-slate-700/50">
+                <nav className="flex rounded-lg bg-slate-800/60 p-1 border border-slate-700/50 w-full sm:w-auto">
                   <button
                     type="button"
                     onClick={() => setActiveTab("crafters")}
-                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
+                    className={`flex-1 sm:flex-initial min-h-[44px] sm:min-h-0 px-3 py-2 sm:py-1.5 rounded-md text-sm font-medium transition ${
                       activeTab === "crafters" ? "text-slate-200 bg-[#223657] border-b-2 border-sky-500" : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
                     }`}
                   >
@@ -273,7 +273,7 @@ export function GuildCrafters() {
                     <button
                       type="button"
                       onClick={() => setActiveTab("guild")}
-                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
+                      className={`flex-1 sm:flex-initial min-h-[44px] sm:min-h-0 px-3 py-2 sm:py-1.5 rounded-md text-sm font-medium transition ${
                         activeTab === "guild" ? "text-slate-200 bg-[#223657] border-b-2 border-sky-500" : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
                       }`}
                     >
@@ -288,18 +288,18 @@ export function GuildCrafters() {
                   <p className="text-slate-500 text-sm mb-3">
                     Add members with professions. Select multiple and add at once, or add individually. Members with professions are marked with ✓.
                   </p>
-                  <div className="flex flex-wrap gap-3 mb-3">
+                  <div className="flex flex-col sm:flex-row flex-wrap gap-3 mb-3">
                     <input
                       type="text"
                       placeholder="Search by name..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-500 text-sm w-full min-w-0 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                      className="flex-1 min-w-0 px-3 py-2.5 sm:py-2 min-h-[44px] rounded-lg bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-500 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500/50"
                     />
                     <select
                       value={classFilter}
                       onChange={(e) => setClassFilter(e.target.value)}
-                      className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 text-sm w-full focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                      className="w-full sm:w-auto px-3 py-2.5 sm:py-2 min-h-[44px] rounded-lg bg-slate-700 border border-slate-600 text-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500/50 [color-scheme:dark]"
                     >
                       <option value="">All classes</option>
                       {classList.map((c) => (
@@ -314,7 +314,7 @@ export function GuildCrafters() {
                         max={maxLevelInRoster}
                         value={effectiveLevelMin}
                         onChange={(e) => setLevelMin(e.target.value === "" ? null : Math.max(1, Math.min(maxLevelInRoster, +e.target.value)))}
-                        className="w-14 px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm"
+                        className="w-16 sm:w-14 px-2 py-2 sm:py-1.5 min-h-[44px] sm:min-h-0 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm [color-scheme:dark]"
                       />
                       <span className="text-slate-500">–</span>
                       <input
@@ -323,18 +323,18 @@ export function GuildCrafters() {
                         max={maxLevelInRoster}
                         value={effectiveLevelMax}
                         onChange={(e) => setLevelMax(e.target.value === "" ? null : Math.max(1, Math.min(maxLevelInRoster, +e.target.value)))}
-                        className="w-14 px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm"
+                        className="w-16 sm:w-14 px-2 py-2 sm:py-1.5 min-h-[44px] sm:min-h-0 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm [color-scheme:dark]"
                       />
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-slate-500 text-sm shrink-0">Show:</span>
-                      <div className="flex rounded-lg bg-slate-800/60 p-0.5 border border-slate-700/50">
+                      <div className="flex rounded-lg bg-slate-800/60 p-0.5 border border-slate-700/50 flex-1 sm:flex-initial">
                         {(["all", "crafter", "non-crafter"] as const).map((f) => (
                           <button
                             key={f}
                             type="button"
                             onClick={() => setGuildMemberFilter(f)}
-                            className={`px-2 py-0.5 rounded text-xs font-medium transition ${
+                            className={`flex-1 sm:flex-initial min-h-[36px] sm:min-h-0 px-2 py-1.5 sm:py-0.5 rounded text-xs font-medium transition ${
                               guildMemberFilter === f ? "text-slate-200 bg-[#223657] border-b-2 border-sky-500" : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
                             }`}
                           >
@@ -348,7 +348,7 @@ export function GuildCrafters() {
                         <button
                           type="button"
                           onClick={clearGuildMemberSelection}
-                          className="px-2 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 border border-slate-600"
+                          className="min-h-[44px] px-3 py-2 rounded text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 border border-slate-600"
                         >
                           Clear selection
                         </button>
@@ -356,7 +356,7 @@ export function GuildCrafters() {
                           type="button"
                           onClick={addSelectedAsCrafters}
                           disabled={selectedNonCrafterCount === 0}
-                          className="px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium border border-sky-500/50"
+                          className="min-h-[44px] px-4 py-2 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium border border-sky-500/50"
                         >
                           Add selected {selectedNonCrafterCount > 0 ? `(${selectedNonCrafterCount})` : ""}
                         </button>
@@ -377,27 +377,27 @@ export function GuildCrafters() {
                         return (
                           <div
                             key={m.name}
-                            className="flex items-center gap-2 rounded-lg border border-slate-600 p-2 hover:bg-slate-800/50"
+                            className="flex items-center gap-2 rounded-lg border border-slate-600 p-3 sm:p-2 min-h-[52px] hover:bg-slate-800/50"
                             style={{ borderLeftWidth: 4, borderLeftColor: classColor }}
                           >
                             {canAdd ? (
-                              <label className="shrink-0 flex items-center cursor-pointer">
+                              <label className="shrink-0 flex items-center cursor-pointer min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0">
                                 <input
                                   type="checkbox"
                                   checked={isSelected}
                                   onChange={() => toggleGuildMemberSelection(m.name)}
-                                  className="rounded border-slate-600 bg-slate-700 text-sky-500 focus:ring-sky-500/50"
+                                  className="rounded border-slate-600 bg-slate-700 text-sky-500 focus:ring-sky-500/50 w-5 h-5"
                                 />
                               </label>
                             ) : (
-                              <span className="w-4 shrink-0" />
+                              <span className="w-5 sm:w-4 shrink-0" />
                             )}
                             <span className="truncate flex-1 min-w-0 text-sm">
                               <span className="font-medium text-sm" style={{ color: classColor }}>{m.name}</span>
                               <span className="text-slate-500"> – {m.level} – {m.class}</span>
                             </span>
                             {isCrafter ? (
-                              <span className="shrink-0 h-7 flex items-center text-emerald-400 text-sm font-medium">
+                              <span className="shrink-0 h-9 sm:h-7 flex items-center text-emerald-400 text-sm font-medium">
                                 ✓
                               </span>
                             ) : canAdd ? (
@@ -411,7 +411,7 @@ export function GuildCrafters() {
                                     character_names: [m.name],
                                   }).catch(() => {}).then(() => fetchData());
                                 }}
-                                className="shrink-0 h-7 px-2 flex items-center justify-center rounded bg-sky-600/90 hover:bg-sky-500 text-white text-sm font-medium border border-sky-500/50"
+                                className="shrink-0 min-h-[44px] sm:min-h-0 h-9 sm:h-7 px-3 sm:px-2 flex items-center justify-center rounded bg-sky-600/90 hover:bg-sky-500 text-white text-sm font-medium border border-sky-500/50"
                                 title="Add to professions list"
                               >
                                 Add
@@ -431,18 +431,18 @@ export function GuildCrafters() {
                     View guild members and their professions. Officers can manage all. Members can edit their own.
                   </p>
                   {members.length > 0 && (
-                    <div className="flex flex-wrap gap-3 mb-3">
+                    <div className="flex flex-col sm:flex-row flex-wrap gap-3 mb-3">
                       <input
                         type="text"
                         placeholder="Search by name..."
                         value={crafterSearchQuery}
                         onChange={(e) => setCrafterSearchQuery(e.target.value)}
-                        className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-500 text-sm flex-1 min-w-[120px] focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                        className="flex-1 min-w-0 px-3 py-2.5 sm:py-2 min-h-[44px] rounded-lg bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-500 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500/50"
                       />
                       <select
                         value={crafterClassFilter}
                         onChange={(e) => setCrafterClassFilter(e.target.value)}
-                        className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                        className="w-full sm:w-auto px-3 py-2.5 sm:py-2 min-h-[44px] rounded-lg bg-slate-700 border border-slate-600 text-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500/50 [color-scheme:dark]"
                       >
                         <option value="">All classes</option>
                         {crafterClassList.map((c) => (
@@ -452,7 +452,7 @@ export function GuildCrafters() {
                       <select
                         value={professionFilter}
                         onChange={(e) => setProfessionFilter(e.target.value)}
-                        className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                        className="w-full sm:w-auto px-3 py-2.5 sm:py-2 min-h-[44px] rounded-lg bg-slate-700 border border-slate-600 text-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500/50 [color-scheme:dark]"
                         title="Filter by profession"
                       >
                         <option value="">All professions</option>
@@ -462,7 +462,8 @@ export function GuildCrafters() {
                       </select>
                     </div>
                   )}
-                  <div className="max-h-[420px] overflow-y-auto">
+                  {/* Desktop: table layout */}
+                  <div className="hidden sm:block max-h-[420px] overflow-y-auto">
                     {members.length === 0 ? (
                       <p className="text-slate-500 text-sm py-8 text-center">
                         {canManage
@@ -562,6 +563,98 @@ export function GuildCrafters() {
                       </table>
                     )}
                   </div>
+
+                  {/* Mobile: card layout */}
+                  <div className="sm:hidden max-h-[420px] overflow-y-auto space-y-3 pb-4">
+                    {members.length === 0 ? (
+                      <p className="text-slate-500 text-sm py-8 text-center">
+                        {canManage
+                          ? "No members with professions yet. Switch to Add From Guild to add them."
+                          : "No members with professions yet. Add your characters below to get started."}
+                      </p>
+                    ) : filteredCrafters.length === 0 ? (
+                      <p className="text-slate-500 text-sm py-8 text-center">
+                        No members match the current filters.
+                      </p>
+                    ) : (
+                      filteredCrafters.map((m) => {
+                        const classColor = getClassColor(m.class);
+                        return (
+                          <div
+                            key={m.name}
+                            className="rounded-xl border border-slate-700/80 bg-slate-800/60 p-4"
+                            style={{ borderLeftWidth: 4, borderLeftColor: classColor }}
+                          >
+                            <div className="flex items-start justify-between gap-2 mb-3">
+                              <span className="font-medium" style={{ color: classColor }}>
+                                {m.name}
+                              </span>
+                              <span className="text-slate-500 text-xs shrink-0">{m.class}</span>
+                              {canRemoveMember(m.name) && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeCrafterFromList(m.name)}
+                                  className="min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 w-10 h-10 flex items-center justify-center rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 shrink-0 -mr-2"
+                                  title="Remove from list"
+                                  aria-label="Remove from list"
+                                >
+                                  ×
+                                </button>
+                              )}
+                            </div>
+                            <div>
+                              <span className="text-slate-500 text-xs uppercase block mb-2">Professions</span>
+                              <div className="flex flex-wrap gap-2">
+                                {m.professions.length === 0 ? (
+                                  <span className="text-slate-500 text-sm">—</span>
+                                ) : (
+                                  m.professions.map((p) => (
+                                    <span
+                                      key={p.profession_type}
+                                      className={`inline-flex items-center gap-1 px-2 py-1.5 rounded text-xs border min-h-[36px] ${canEditMember(m.name) ? "cursor-pointer" : ""} bg-slate-800/80 border-slate-600 text-slate-200`}
+                                      title={p.notes ? `${p.profession_type}: ${p.notes}` : p.profession_type}
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={() => canEditMember(m.name) && setEditProfession({ member: m.name, profession: p.profession_type, notes: p.notes, profession_level: p.profession_level })}
+                                        className="text-left min-w-0"
+                                      >
+                                        <span>{p.profession_type}</span>
+                                        {p.profession_level != null && (
+                                          <span className="text-slate-500"> ({p.profession_level})</span>
+                                        )}
+                                        {canEditMember(m.name) && <span className="text-sky-400 text-[10px] ml-0.5">✎</span>}
+                                      </button>
+                                      {canEditMember(m.name) && (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            deleteProfession(m.name, p.profession_type);
+                                          }}
+                                          className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 shrink-0"
+                                          title={`Remove ${p.profession_type}`}
+                                          aria-label={`Remove ${p.profession_type}`}
+                                        >
+                                          ×
+                                        </button>
+                                      )}
+                                    </span>
+                                  ))
+                                )}
+                                {canEditMember(m.name) && (
+                                  <AddProfessionRow
+                                    existingProfs={m.professions.map((p) => p.profession_type)}
+                                    onAdd={(profs) => addProfessions(m.name, profs)}
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                   {!canManage && myCharacters.length > 0 && (() => {
                     const myNotInTable = myCharacters.filter((c) => !crafterMap.has(c.name.toLowerCase()));
                     if (myNotInTable.length === 0) return null;
@@ -572,15 +665,15 @@ export function GuildCrafters() {
                           {myNotInTable.map((m) => (
                             <div
                               key={m.name}
-                              className="flex items-center gap-2 rounded-lg border border-slate-600 px-3 py-2"
+                              className="flex items-center gap-2 rounded-lg border border-slate-600 px-3 py-3 sm:py-2 min-h-[52px]"
                               style={{ borderLeftWidth: 4, borderLeftColor: getClassColor(m.class) }}
                             >
-                              <span className="font-medium text-sm" style={{ color: getClassColor(m.class) }}>{m.name}</span>
-                              <span className="text-slate-500 text-sm">– {m.level} – {m.class}</span>
+                              <span className="font-medium text-sm flex-1 min-w-0 truncate" style={{ color: getClassColor(m.class) }}>{m.name}</span>
+                              <span className="text-slate-500 text-sm shrink-0">– {m.level} – {m.class}</span>
                               <button
                                 type="button"
                                 onClick={() => setAddProfessionFor(m.name)}
-                                className="shrink-0 h-7 px-2 flex items-center justify-center rounded bg-sky-600/90 hover:bg-sky-500 text-white text-sm font-medium border border-sky-500/50"
+                                className="shrink-0 min-h-[44px] sm:min-h-0 h-9 sm:h-7 px-3 sm:px-2 flex items-center justify-center rounded bg-sky-600/90 hover:bg-sky-500 text-white text-sm font-medium border border-sky-500/50"
                                 title="Add professions"
                               >
                                 Add
@@ -640,28 +733,28 @@ function AddProfessionRow({ existingProfs, onAdd }: { existingProfs: string[]; o
     }
   };
   return (
-    <span className="inline-flex flex-wrap gap-1 items-center">
+    <span className="inline-flex flex-wrap gap-2 items-center">
       {!open ? (
-        <button type="button" onClick={() => setOpen(true)} className="text-sky-400 hover:text-sky-300 text-xs">
+        <button type="button" onClick={() => setOpen(true)} className="min-h-[36px] px-2 py-1.5 rounded text-sky-400 hover:text-sky-300 hover:bg-slate-700/50 text-xs font-medium">
           + Add
         </button>
       ) : (
         <>
           {available.map((p) => (
-            <label key={p} className="inline-flex items-center gap-1 cursor-pointer">
+            <label key={p} className="inline-flex items-center gap-1.5 cursor-pointer min-h-[36px]">
               <input
                 type="checkbox"
                 checked={selected.has(p)}
                 onChange={() => toggle(p)}
-                className="rounded border-slate-600 bg-slate-700 text-sky-500"
+                className="rounded border-slate-600 bg-slate-700 text-sky-500 w-4 h-4"
               />
               <span className="text-slate-200 text-xs">{p}</span>
             </label>
           ))}
-          <button type="button" onClick={handleAdd} disabled={selected.size === 0} className="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs">
+          <button type="button" onClick={handleAdd} disabled={selected.size === 0} className="min-h-[36px] px-2.5 py-1 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-medium">
             Add ({selected.size})
           </button>
-          <button type="button" onClick={() => { setOpen(false); setSelected(new Set()); }} className="text-slate-500 hover:text-slate-300 text-xs">
+          <button type="button" onClick={() => { setOpen(false); setSelected(new Set()); }} className="min-h-[36px] px-2 py-1 text-slate-500 hover:text-slate-300 text-xs">
             Cancel
           </button>
         </>
@@ -689,34 +782,39 @@ function AddProfessionModal({
     });
   };
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 pb-safe bg-black/60"
+      onClick={onClose}
+      onPointerDown={onClose}
+    >
       <div
-        className="rk-card-panel-bordered p-6 w-full max-w-sm shadow-xl"
+        className="rk-card-panel-bordered p-6 w-full max-w-sm max-h-[85vh] overflow-y-auto shadow-xl rounded-t-xl sm:rounded-xl"
         onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
       >
         <h3 className="text-lg font-semibold text-slate-200 mb-4">Add professions for {characterName}</h3>
         <div className="space-y-2 max-h-60 overflow-y-auto">
           {PROFESSION_TYPES.map((p) => (
-            <label key={p} className="flex items-center gap-2 cursor-pointer py-1">
+            <label key={p} className="flex items-center gap-3 cursor-pointer py-2 min-h-[44px]">
               <input
                 type="checkbox"
                 checked={selected.has(p)}
                 onChange={() => toggle(p)}
-                className="rounded border-slate-600 bg-slate-700 text-sky-500"
+                className="rounded border-slate-600 bg-slate-700 text-sky-500 w-5 h-5"
               />
               <span className="text-slate-200 text-sm">{p}</span>
             </label>
           ))}
         </div>
         <div className="flex justify-end gap-2 mt-6">
-          <button type="button" onClick={onClose} className="px-3 py-1.5 rounded bg-slate-600 text-slate-300 text-sm hover:bg-slate-500">
+          <button type="button" onClick={onClose} className="min-h-[44px] px-4 py-2 rounded bg-slate-600 text-slate-300 text-sm hover:bg-slate-500">
             Cancel
           </button>
           <button
             type="button"
             onClick={() => onAdd([...selected])}
             disabled={selected.size === 0}
-            className="px-3 py-1.5 rounded bg-sky-600 text-white text-sm hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="min-h-[44px] px-4 py-2 rounded bg-sky-600 text-white text-sm hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Add ({selected.size})
           </button>
@@ -744,10 +842,15 @@ function EditProfessionModal({
   const [notesVal, setNotesVal] = useState(notes);
   const [levelVal, setLevelVal] = useState(professionLevel != null ? String(professionLevel) : "");
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 pb-safe bg-black/60"
+      onClick={onClose}
+      onPointerDown={onClose}
+    >
       <div
-        className="rk-card-panel-bordered p-6 w-full max-w-md shadow-xl"
+        className="rk-card-panel-bordered p-6 w-full max-w-md max-h-[85vh] overflow-y-auto shadow-xl rounded-t-xl sm:rounded-xl"
         onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
       >
         <h3 className="text-lg font-semibold text-slate-200 mb-4">Edit {profession} · {member}</h3>
         <div className="space-y-4">
@@ -759,7 +862,7 @@ function EditProfessionModal({
               max={525}
               value={levelVal}
               onChange={(e) => setLevelVal(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 text-sm"
+              className="w-full px-3 py-2.5 min-h-[44px] rounded-lg bg-slate-700 border border-slate-600 text-slate-100 text-sm [color-scheme:dark]"
               placeholder="e.g. 375"
             />
           </div>
@@ -775,14 +878,14 @@ function EditProfessionModal({
           </div>
         </div>
         <div className="flex justify-end gap-2 mt-6">
-          <button type="button" onClick={onClose} className="px-3 py-1.5 rounded bg-slate-600 text-slate-300 text-sm hover:bg-slate-500">Cancel</button>
+          <button type="button" onClick={onClose} className="min-h-[44px] px-4 py-2 rounded bg-slate-600 text-slate-300 text-sm hover:bg-slate-500">Cancel</button>
           <button
             type="button"
             onClick={() => {
               const parsed = levelVal.trim() === "" ? null : Math.min(525, Math.max(0, parseInt(levelVal, 10) || 0));
               onSave({ notes: notesVal, profession_level: parsed });
             }}
-            className="px-3 py-1.5 rounded bg-sky-600 text-white text-sm hover:bg-sky-500"
+            className="min-h-[44px] px-4 py-2 rounded bg-sky-600 text-white text-sm hover:bg-sky-500"
           >
             Save
           </button>
