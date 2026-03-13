@@ -12,6 +12,15 @@ export function formatRaidDateShort(dateStr: string): string {
   return `${weekday} ${day}`;
 }
 
+/** Compact time slot: "Fri 7pm" from date + military time */
+export function formatRaidSlot(dateStr: string, militaryTime?: string | null): string {
+  const d = new Date(dateStr + "T12:00:00");
+  const weekday = d.toLocaleDateString("en-US", { weekday: "short" });
+  const time = militaryTo12Hour(militaryTime ?? "19:00");
+  const compact = time.replace(/:00 /, " ").replace(/\s*AM$/, "am").replace(/\s*PM$/, "pm");
+  return `${weekday} ${compact}`;
+}
+
 /** Convert military time (HH:mm or HH:mm:ss) to 12-hour: "5:00 PM" */
 export function militaryTo12Hour(military: string): string {
   if (!military) return "";

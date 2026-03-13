@@ -2410,7 +2410,7 @@ authRoutes.post("/me/smart-raid/parse-availability", requireAuth, async (req, re
     res.status(400).json({ error: "guild_realm, guild_name, raids, raiders, and text required" });
     return;
   }
-  const raidList = raids as Array<{ id: string; date: string; instance: string }>;
+  const raidList = raids as Array<{ id: string; date: string; instance: string; start_time?: string; end_time?: string }>;
   const raiderList = raiders as Array<{ character_name: string }>;
   const db = getDb();
   const userId = req.session!.user!.id;
@@ -2428,7 +2428,11 @@ authRoutes.post("/me/smart-raid/parse-availability", requireAuth, async (req, re
 
   const raidsCtx = raidList
     .filter((r) => r.date && r.instance)
-    .map((r) => `${r.date} (${r.instance})`)
+    .map((r) => {
+      const start = r.start_time?.trim() || "19:00";
+      const end = r.end_time?.trim() || "23:00";
+      return `${r.date} (${r.instance}) ${start}-${end}`;
+    })
     .join(", ");
   const raiderNames = raiderList.map((r) => r.character_name).join(", ");
 
@@ -2443,7 +2447,7 @@ Pasted text:
 ${text.trim()}
 """
 
-Parse the text. For each raider mentioned, extract which raid dates they're available and their time window (start-end). Times can be in various formats (7pm, 19:00, 7-11, etc). Normalize to HH:MM (24h). If no time given, use 19:00-23:00.
+Parse the text. For each raider mentioned, extract which raid dates they're available and their time window (start-end). Times can be in various formats (7pm, 19:00, 7-11, etc). Normalize to HH:MM (24h). If the person just says yes or available without specifying times, use that raid's scheduled start_time as their start_time and the raid's end_time as their end_time.
 Match raider names flexibly (e.g. "Aeloryx" matches "Aeloryx"). If a raider isn't in the raider list, skip them.
 Map dates to the raid dates provided - e.g. "Fri" or "3/14" or "Fri 3/14" -> use the matching YYYY-MM-DD date from the raids list.
 If the text mentions an instance (e.g. "Kara"), match to the raid with that instance.
@@ -2507,13 +2511,40 @@ authRoutes.post("/me/smart-raid/form", requireAuth, async (req, res) => {
     return;
   }
 
-  const raidsStr = raidList
-    .map((r) => `${r.date} ${r.instance}${r.start_time && r.end_time ? ` ${r.start_time}-${r.end_time}` : ""}`)
-    .join("; ");
-  const openai = new OpenAI({ apiKey });
-  const prompt = `You are a raid composition assistant for World of Warcraft. Given raids (date, instance, scheduled times) and raiders with their level, class, spec, role, and availability windows, form optimal raid parties.
+  // WoW week = Tuesday reset; same instance in same week = raider can only do one
+  const getWowWeekKey = (dateStr: string) => {
+    const d = new Date(dateStr + "T12:00:00");
+    const day = d.getDay();
+    const daysSinceTue = (day - 2 + 7) % 7;
+    d.setDate(d.getDate() - daysSinceTue);
+    return d.toISOString().slice(0, 10);
+  };
+  const raidConflicts: string[] = [];
+  for (let i = 0; i < raidList.length; i++) {
+    for (let j = i + 1; j < raidList.length; j++) {
+      const a = raidList[i];
+      const b = raidList[j];
+      if (!a?.instance || !b?.instance) continue;
+      const instA = a.instance.trim().toLowerCase();
+      const instB = b.instance.trim().toLowerCase();
+      if (instA === instB && getWowWeekKey(a.date) === getWowWeekKey(b.date)) {
+        raidConflicts.push(`Raids ${i} and ${j} (both ${a.instance} in same week)`);
+      }
+    }
+  }
 
-Raids (date, instance, scheduled time): ${raidsStr}
+  const raidsStr = raidList
+    .map((r, i) => `[${i}] ${r.date} ${r.instance}${r.start_time && r.end_time ? ` ${r.start_time}-${r.end_time}` : ""}`)
+    .join("; ");
+  const conflictStr = raidConflicts.length > 0
+    ? `\n\nCRITICAL: A raider cannot do the same instance twice in one week (Tuesday reset). These raid pairs conflict - assign each raider to at most one per pair:\n${raidConflicts.join("\n")}`
+    : "";
+
+  const openai = new OpenAI({ apiKey });
+  const prompt = `You are a raid composition assistant for World of Warcraft. Given raids (date, instance, scheduled times) and raiders with their availability, form ONE team per raid. Each raid gets exactly one team. Team i corresponds to raid [i].
+${conflictStr}
+
+Raids (index, date, instance, scheduled time): ${raidsStr}
 
 Raiders and their availability (character, level, class, spec, role, available raid+time windows):
 ${raidersWithSlots
@@ -2537,12 +2568,12 @@ ${raidersWithSlots
   )
   .join("\n")}
 
-Infer raid size from instance name (e.g. "Kara 10" = 10-man, "SSC" or "TK" often 25-man). Form balanced parties: 10-man typically 2 tank, 2-3 heal, 5-6 dps; 25-man typically 2 tank, 4-6 heal, rest dps. Each raider can only be in one party. Use level, class, spec, and role to form optimal compositions. Prioritize:
+Infer raid size from instance name (e.g. "Kara 10" = 10-man, "SSC" or "TK" often 25-man). Form balanced teams: 10-man typically 2 tank, 2-3 heal, 5-6 dps; 25-man typically 2 tank, 4-6 heal, rest dps. A raider can be in multiple teams for DIFFERENT raids, but if two raids are the same instance in the same week, a raider can only be in one of them. Prioritize:
 1. Role balance (tank, healer, dps)
 2. Raider availability overlapping with the raid's scheduled time
-3. Instance-appropriate party size
+3. Instance-appropriate team size
 
-Respond with ONLY valid JSON, no other text. Format:
+Respond with ONLY valid JSON, no other text. Return one party per raid in order (party_index 0 = raid 0, etc). Format:
 {"parties":[{"party_index":0,"slots":[{"slot_index":0,"character_name":"Name","character_class":"Class","role":"Tank"},...]},{"party_index":1,"slots":[...]},...]}
 role is Tank, Heal, or DPS. slot_index 0-based within each party.`;
 
@@ -2559,7 +2590,17 @@ role is Tank, Heal, or DPS. slot_index 0-based within each party.`;
     }
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(raw);
-    const parties = Array.isArray(parsed.parties) ? parsed.parties : [];
+    const rawParties = Array.isArray(parsed.parties) ? parsed.parties : [];
+    // Enrich each party with raid metadata for display (Raid Name - Time Slot)
+    const parties = rawParties.map((p: { party_index: number; slots: unknown[] }) => {
+      const raid = raidList[p.party_index];
+      return {
+        ...p,
+        raid_instance: raid?.instance?.trim() ?? "",
+        raid_date: raid?.date ?? "",
+        raid_start_time: raid?.start_time ?? "19:00",
+      };
+    });
     res.json({ parties });
   } catch (err) {
     console.error("Smart Raid AI error:", err);

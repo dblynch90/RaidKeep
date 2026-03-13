@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { Card } from "../components/Card";
 import { api } from "../api";
@@ -6,6 +6,7 @@ import { GuildBreadcrumbs } from "../components/GuildBreadcrumbs";
 import type { GuildPermissions } from "./GuildPermissions";
 import { DEFAULT_PERMISSIONS } from "./GuildPermissions";
 import { getClassColor } from "../utils/classColors";
+import { formatRaidSlot } from "../utils/raidDateTime";
 import { useGuildParams } from "../hooks/useGuildParams";
 import { guildRealmQueryString, guildQueryStringFromSlug } from "../utils/guildApi";
 import { RAID_ROLES } from "../constants/raid";
@@ -59,6 +60,9 @@ interface RaidEntry {
 
 interface FormedParty {
   party_index: number;
+  raid_instance?: string;
+  raid_date?: string;
+  raid_start_time?: string;
   slots: Array<{
     character_name: string;
     character_class: string;
@@ -84,6 +88,7 @@ export function SmartRaid() {
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
   const [orderBy, setOrderBy] = useState<"name" | "class" | "role">("name");
+  const [dragOverPartyIndex, setDragOverPartyIndex] = useState<number | null>(null);
 
   const perms = permissions ?? DEFAULT_PERMISSIONS;
   const canManage = perms.manage_raids ?? false;
@@ -217,7 +222,13 @@ export function SmartRaid() {
         guild_realm: realm,
         guild_name: guildName,
         server_type: serverType,
-        raids: validRaids.map((r) => ({ id: r.id, date: r.date, instance: r.instance.trim() })),
+        raids: validRaids.map((r) => ({
+          id: r.id,
+          date: r.date,
+          instance: r.instance.trim(),
+          start_time: r.startTime || "19:00",
+          end_time: getRaidEndTime(r),
+        })),
         raiders: raiders.map((r) => ({ character_name: r.character_name })),
         text: pasteText.trim(),
       });
@@ -262,6 +273,36 @@ export function SmartRaid() {
       setParsing(false);
     }
   };
+
+  const movePlayerBetweenTeams = useCallback(
+    (sourcePartyIndex: number, slotIndex: number, targetPartyIndex: number) => {
+      if (sourcePartyIndex === targetPartyIndex) return;
+      setFormedParties((prev) => {
+        if (!prev) return prev;
+        const sourceParty = prev[sourcePartyIndex];
+        const targetParty = prev[targetPartyIndex];
+        if (!sourceParty || !targetParty) return prev;
+        const slot = sourceParty.slots.find((s) => s.slot_index === slotIndex);
+        if (!slot) return prev;
+        const next = prev.map((p, i) => {
+          if (i === sourcePartyIndex) {
+            const newSlots = sourceParty.slots
+              .filter((s) => s.slot_index !== slotIndex)
+              .map((s, idx) => ({ ...s, slot_index: idx }));
+            return { ...p, slots: newSlots };
+          }
+          if (i === targetPartyIndex) {
+            const maxIdx = Math.max(-1, ...targetParty.slots.map((s) => s.slot_index));
+            const newSlot = { ...slot, slot_index: maxIdx + 1 };
+            return { ...p, slots: [...targetParty.slots, newSlot] };
+          }
+          return p;
+        });
+        return next;
+      });
+    },
+    []
+  );
 
   const handleFormRaids = async () => {
     if (!realm || !guildName || availability.length === 0 || validRaids.length === 0) {
@@ -568,17 +609,60 @@ export function SmartRaid() {
             {formedParties && formedParties.length > 0 && (
               <Card className="p-5">
                 <h2 className="text-slate-300 font-medium text-sm uppercase tracking-wider mb-4">Formed Teams</h2>
+                <p className="text-slate-500 text-sm mb-4">Drag players between teams to adjust.</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {formedParties.map((p) => (
-                    <div key={p.party_index} className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
-                      <h3 className="text-sky-400 font-medium mb-3">Team {p.party_index + 1}</h3>
-                      <div className="space-y-1">
+                  {formedParties.map((p) => {
+                    const teamName = p.raid_instance && p.raid_date
+                      ? `${p.raid_instance} – ${formatRaidSlot(p.raid_date, p.raid_start_time)}`
+                      : `Team ${p.party_index + 1}`;
+                    const isDropTarget = dragOverPartyIndex === p.party_index;
+                    return (
+                    <div
+                      key={p.party_index}
+                      className={`rounded-lg border p-4 transition-colors ${
+                        isDropTarget
+                          ? "border-sky-500 bg-sky-900/20"
+                          : "border-slate-700 bg-slate-800/50"
+                      }`}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = "move";
+                        setDragOverPartyIndex(p.party_index);
+                      }}
+                      onDragLeave={() => setDragOverPartyIndex(null)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setDragOverPartyIndex(null);
+                        const raw = e.dataTransfer.getData("application/json");
+                        if (!raw) return;
+                        try {
+                          const { sourcePartyIndex, slotIndex } = JSON.parse(raw);
+                          movePlayerBetweenTeams(sourcePartyIndex, slotIndex, p.party_index);
+                        } catch {
+                          // ignore invalid drop data
+                        }
+                      }}
+                    >
+                      <h3 className="text-sky-400 font-medium mb-3">{teamName}</h3>
+                      <div className="space-y-1 min-h-[2rem]">
                         {p.slots
                           .sort((a, b) => a.slot_index - b.slot_index)
                           .map((s) => (
                             <div
-                              key={`${s.character_name}-${s.slot_index}`}
-                              className="flex items-center gap-2 text-sm"
+                              key={`${s.character_name}-${s.slot_index}-${p.party_index}`}
+                              draggable
+                              onDragStart={(e) => {
+                                e.dataTransfer.effectAllowed = "move";
+                                e.dataTransfer.setData(
+                                  "application/json",
+                                  JSON.stringify({
+                                    sourcePartyIndex: p.party_index,
+                                    slotIndex: s.slot_index,
+                                  })
+                                );
+                                e.dataTransfer.setData("text/plain", s.character_name);
+                              }}
+                              className="flex items-center gap-2 text-sm cursor-grab active:cursor-grabbing rounded px-1 -mx-1 hover:bg-slate-700/50"
                               style={{ borderLeft: `3px solid ${getClassColor(s.character_class)}`, paddingLeft: 8 }}
                             >
                               <span className="font-medium" style={{ color: getClassColor(s.character_class) }}>
@@ -589,7 +673,8 @@ export function SmartRaid() {
                           ))}
                       </div>
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               </Card>
             )}
