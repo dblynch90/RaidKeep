@@ -323,8 +323,55 @@ export function SmartRaid() {
                 <p className="text-slate-500 text-sm mb-4">
                   For each raider and each raid, set whether they are available and their time window.
                 </p>
-                <table className="w-full border-collapse text-sm min-w-[600px]">
-                  <thead>
+                {(() => {
+                  const mid = Math.ceil(availability.length / 2);
+                  const left = availability.slice(0, mid);
+                  const right = availability.slice(mid);
+                  const RaiderRow = ({ a }: { a: RaiderAvailability }) => (
+                    <tr className="border-b border-slate-700/60">
+                      <td className="py-2 px-3">
+                        <span className="font-medium" style={{ color: getClassColor(a.character_class) }}>
+                          {a.character_name}
+                        </span>
+                        <span className="text-slate-500 text-xs ml-1">
+                          {RAID_ROLES.find((r) => r.value === (a.raid_role ?? "").toLowerCase())?.label ?? a.raid_role ?? "—"}
+                        </span>
+                      </td>
+                      {a.slots.map((s) => (
+                        <td key={s.raidId} className="py-1 px-2">
+                          <div className="flex flex-col gap-1">
+                            <label className="flex items-center gap-1">
+                              <input
+                                type="checkbox"
+                                checked={s.available}
+                                onChange={(e) => setRaiderSlot(a.character_name, s.raidId, { available: e.target.checked })}
+                                className="rounded border-slate-600 bg-slate-700 text-sky-500"
+                              />
+                              <span className="text-xs text-slate-400">Available</span>
+                            </label>
+                            {s.available && (
+                              <div className="flex gap-1 items-center">
+                                <input
+                                  type="time"
+                                  value={s.startTime}
+                                  onChange={(e) => setRaiderSlot(a.character_name, s.raidId, { startTime: e.target.value })}
+                                  className="w-20 px-1 py-0.5 rounded text-xs bg-slate-700 border border-slate-600 [color-scheme:dark]"
+                                />
+                                <span className="text-slate-600">–</span>
+                                <input
+                                  type="time"
+                                  value={s.endTime}
+                                  onChange={(e) => setRaiderSlot(a.character_name, s.raidId, { endTime: e.target.value })}
+                                  className="w-20 px-1 py-0.5 rounded text-xs bg-slate-700 border border-slate-600 [color-scheme:dark]"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                  const TableHeader = () => (
                     <tr className="border-b border-slate-600">
                       <th className="text-left py-2 px-3 text-slate-400 font-medium">Raider</th>
                       {raids.map((raid) => {
@@ -339,54 +386,20 @@ export function SmartRaid() {
                         );
                       })}
                     </tr>
-                  </thead>
-                  <tbody>
-                    {availability.map((a) => (
-                      <tr key={a.character_name} className="border-b border-slate-700/60">
-                        <td className="py-2 px-3">
-                          <span className="font-medium" style={{ color: getClassColor(a.character_class) }}>
-                            {a.character_name}
-                          </span>
-                          <span className="text-slate-500 text-xs ml-1">
-                            {RAID_ROLES.find((r) => r.value === (a.raid_role ?? "").toLowerCase())?.label ?? a.raid_role ?? "—"}
-                          </span>
-                        </td>
-                        {a.slots.map((s) => (
-                          <td key={s.raidId} className="py-1 px-2">
-                            <div className="flex flex-col gap-1">
-                              <label className="flex items-center gap-1">
-                                <input
-                                  type="checkbox"
-                                  checked={s.available}
-                                  onChange={(e) => setRaiderSlot(a.character_name, s.raidId, { available: e.target.checked })}
-                                  className="rounded border-slate-600 bg-slate-700 text-sky-500"
-                                />
-                                <span className="text-xs text-slate-400">Available</span>
-                              </label>
-                              {s.available && (
-                                <div className="flex gap-1 items-center">
-                                  <input
-                                    type="time"
-                                    value={s.startTime}
-                                    onChange={(e) => setRaiderSlot(a.character_name, s.raidId, { startTime: e.target.value })}
-                                    className="w-20 px-1 py-0.5 rounded text-xs bg-slate-700 border border-slate-600 [color-scheme:dark]"
-                                  />
-                                  <span className="text-slate-600">–</span>
-                                  <input
-                                    type="time"
-                                    value={s.endTime}
-                                    onChange={(e) => setRaiderSlot(a.character_name, s.raidId, { endTime: e.target.value })}
-                                    className="w-20 px-1 py-0.5 rounded text-xs bg-slate-700 border border-slate-600 [color-scheme:dark]"
-                                  />
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                  );
+                  return (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <table className="w-full border-collapse text-sm min-w-[400px]">
+                        <thead><TableHeader /></thead>
+                        <tbody>{left.map((a) => <RaiderRow key={a.character_name} a={a} />)}</tbody>
+                      </table>
+                      <table className="w-full border-collapse text-sm min-w-[400px]">
+                        <thead><TableHeader /></thead>
+                        <tbody>{right.map((a) => <RaiderRow key={a.character_name} a={a} />)}</tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
               </Card>
             )}
 
