@@ -8,11 +8,11 @@ import { capitalizeRealm } from "../utils/realm";
 import { useGuildParams } from "../hooks/useGuildParams";
 import { guildQueryStringFromSlug } from "../utils/guildApi";
 
-function DashboardCard({ to, title, description }: { to: string; title: string; description: string }) {
+function DashboardCard({ to, title, description, className }: { to: string; title: string; description: string; className?: string }) {
   return (
     <Link
       to={to}
-      className="rk-card-panel block p-5 sm:p-6 rounded-xl border border-white/[0.05] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20 min-h-[88px] sm:min-h-0 flex flex-col justify-center"
+      className={`rk-card-panel block p-5 sm:p-6 rounded-xl border border-white/[0.05] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20 min-h-[88px] sm:min-h-0 flex flex-col justify-center ${className ?? ""}`}
     >
       <h3 className="font-semibold text-sky-400 mb-1 sm:mb-2">{title}</h3>
       <p className="text-slate-400 text-xs sm:text-sm">{description}</p>
@@ -47,6 +47,7 @@ export function GuildDashboard() {
   const raidScheduleUrl = guildPageUrl("/raid-schedule", realm, guildName, serverType);
   const raidRosterUrl = guildPageUrl("/raid-roster", realm, guildName, serverType);
   const permissionsUrl = guildPageUrl("/guild-permissions", realm, guildName, serverType);
+  const smartRaidUrl = guildPageUrl("/smart-raid", realm, guildName, serverType);
 
   useEffect(() => {
     if (!isValid) {
@@ -135,11 +136,21 @@ export function GuildDashboard() {
           )}
 
           {/* Administrative Section */}
-          {perms.manage_permissions && (
+          {(perms.manage_permissions || perms.manage_raids) && (
             <section>
               <h2 className="text-slate-400 font-medium text-sm uppercase tracking-wider mb-4">Administrative</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <DashboardCard to={permissionsUrl} title="Guild Permissions" description="Control access to guild dashboard features." />
+                {perms.manage_permissions && (
+                  <DashboardCard to={permissionsUrl} title="Guild Permissions" description="Control access to guild dashboard features." />
+                )}
+                {perms.manage_raids && (
+                  <DashboardCard
+                    to={smartRaidUrl}
+                    title="Smart Raid"
+                    description="Set date range and raider availability, then use AI to form optimal raid parties."
+                    className="hidden sm:flex"
+                  />
+                )}
               </div>
             </section>
           )}

@@ -23,6 +23,7 @@ const RaidRoster = lazy(() => import("./pages/RaidRoster").then((m) => ({ defaul
 const RaidRosterPopout = lazy(() => import("./pages/RaidRosterPopout").then((m) => ({ default: m.RaidRosterPopout })));
 const RaidOfficerNotesPopout = lazy(() => import("./pages/RaidOfficerNotesPopout").then((m) => ({ default: m.RaidOfficerNotesPopout })));
 const RaidView = lazy(() => import("./pages/RaidView").then((m) => ({ default: m.RaidView })));
+const SmartRaid = lazy(() => import("./pages/SmartRaid").then((m) => ({ default: m.SmartRaid })));
 
 function ProtectedRoute({ children, bare }: { children: React.ReactNode; bare?: boolean }) {
   const { user, loading } = useAuth();
@@ -119,6 +120,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <PlanRaid />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/smart-raid"
+        element={
+          <ProtectedRoute>
+            <SmartRaid />
           </ProtectedRoute>
         }
       />

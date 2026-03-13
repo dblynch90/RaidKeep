@@ -18,10 +18,10 @@
     "cors": "^2.8.5",
     "dotenv": "^17.3.1",
     "express": "^4.21.1",
-    "express-session": "^1.18.1"
+    "express-session": "^1.18.1",
+    "openai": "^6.27.0"
   },
   "devDependencies": {
-    "vitest": "^2.1.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.11",
     "@types/cors": "^2.8.17",
@@ -29,6 +29,7 @@
     "@types/express-session": "^1.18.0",
     "@types/node": "^22.10.1",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.0"
   }
 }

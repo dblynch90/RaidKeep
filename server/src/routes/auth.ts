@@ -2,6 +2,7 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import type Database from "better-sqlite3";
+import OpenAI from "openai";
 import { getDb } from "../db/init.js";
 import { requireAuth } from "../middleware/auth.js";
 import { paramStr } from "../utils.js";
@@ -2391,6 +2392,78 @@ authRoutes.delete("/me/saved-raids/:id", requireAuth, (req, res) => {
   }
   db.prepare("DELETE FROM saved_raids WHERE id = ?").run(raidId);
   res.json({ ok: true });
+});
+
+// Smart Raid: AI-assisted party formation based on availability
+authRoutes.post("/me/smart-raid/form", requireAuth, async (req, res) => {
+  const { guild_realm, guild_name, server_type, raid_dates, availability } = req.body;
+  if (!guild_realm || !guild_name || !availability || !Array.isArray(availability) || !raid_dates || !Array.isArray(raid_dates)) {
+    res.status(400).json({ error: "guild_realm, guild_name, raid_dates, and availability (array) required" });
+    return;
+  }
+  const db = getDb();
+  const userId = req.session!.user!.id;
+  const realmSlug = (guild_realm as string).toLowerCase().replace(/\s+/g, "-");
+  const perms = getEffectiveGuildPermissions(db, userId, realmSlug, guild_name, (server_type as string) || "Retail");
+  if (!perms?.manage_raids) {
+    res.status(403).json({ error: "You do not have permission to use Smart Raid" });
+    return;
+  }
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    res.status(503).json({ error: "Smart Raid is not configured (OPENAI_API_KEY missing)" });
+    return;
+  }
+
+  const raidersWithSlots = availability.filter((a: { slots?: unknown[] }) => a.slots && a.slots.length > 0);
+  if (raidersWithSlots.length === 0) {
+    res.status(400).json({ error: "No raiders with availability. Set at least one raider as available for at least one date." });
+    return;
+  }
+
+  const openai = new OpenAI({ apiKey });
+  const prompt = `You are a raid composition assistant for World of Warcraft. Given raiders with their roles and availability windows, form optimal raid parties.
+
+Raid dates: ${raid_dates.join(", ")}
+
+Raiders and their availability (character, class, role, available date+time windows):
+${raidersWithSlots
+  .map(
+    (a: { character_name: string; character_class: string; raid_role?: string; slots: Array<{ date: string; start_time: string; end_time: string }> }) =>
+      `- ${a.character_name} (${a.character_class}, ${(a.raid_role || "dps").toLowerCase()}): ${a.slots.map((s: { date: string; start_time: string; end_time: string }) => `${s.date} ${s.start_time}-${s.end_time}`).join("; ")}`
+  )
+  .join("\n")}
+
+Form parties of 5 (1 tank, 1 healer, 3 dps per party when possible). Each raider can only be in one party. Prioritize:
+1. Role balance (tank, healer, dps)
+2. Overlapping availability - put raiders who can play at the same times together
+3. Fill parties to 5 when possible
+
+Respond with ONLY valid JSON, no other text. Format:
+{"parties":[{"party_index":0,"slots":[{"slot_index":0,"character_name":"Name","character_class":"Class","role":"Tank"},...]},{"party_index":1,"slots":[...]},...]}
+Each party has up to 5 slots. slot_index 0-4 within each party. role is Tank, Heal, or DPS.`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.3,
+    });
+    const raw = completion.choices[0]?.message?.content?.trim();
+    if (!raw) {
+      res.status(502).json({ error: "AI returned empty response" });
+      return;
+    }
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(raw);
+    const parties = Array.isArray(parsed.parties) ? parsed.parties : [];
+    res.json({ parties });
+  } catch (err) {
+    console.error("Smart Raid AI error:", err);
+    res.status(502).json({
+      error: err instanceof Error ? err.message : "Failed to form raids. Check OPENAI_API_KEY and try again.",
+    });
+  }
 });
 
 // On-demand sync when user selects a game version (e.g. new user, or adding another version)
