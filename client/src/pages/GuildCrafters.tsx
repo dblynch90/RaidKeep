@@ -514,7 +514,7 @@ export function GuildCrafters() {
                                       m.professions.map((p) => (
                                         <span
                                           key={p.profession_type}
-                                          className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] border shrink-0 transition ${canEditMember(m.name) ? "hover:bg-slate-700/80 cursor-pointer group" : "cursor-default"} bg-slate-800/60 border-slate-600 text-slate-200`}
+                                          className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[11px] border shrink-0 transition ${canEditMember(m.name) ? "hover:border-slate-500 cursor-pointer" : "cursor-default"} bg-slate-800/60 border-slate-600 text-slate-200`}
                                           title={p.notes ? `${p.profession_type}: ${p.notes}` : p.profession_type}
                                         >
                                           <button
@@ -523,12 +523,12 @@ export function GuildCrafters() {
                                               e.stopPropagation();
                                               if (canEditMember(m.name)) setEditProfession({ member: m.name, profession: p.profession_type, notes: p.notes, profession_level: p.profession_level });
                                             }}
-                                            className="text-left min-w-0"
+                                            className="text-left min-w-0 inline-flex items-center gap-0.5"
                                           >
                                             <span>{p.profession_type}</span>
-                                            {p.profession_level != null ? (
-                                              <span className="text-slate-500">({p.profession_level})</span>
-                                            ) : null}
+                                            {p.profession_level != null && (
+                                              <span className="text-slate-500">{p.profession_level}</span>
+                                            )}
                                             {canEditMember(m.name) && <span className="text-sky-400 text-[9px]">✎</span>}
                                           </button>
                                           {canEditMember(m.name) && (
@@ -538,7 +538,7 @@ export function GuildCrafters() {
                                                 e.stopPropagation();
                                                 deleteProfession(m.name, p.profession_type);
                                               }}
-                                              className="w-3.5 h-3.5 flex items-center justify-center rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 shrink-0 -mr-0.5 text-[10px]"
+                                              className="w-4 h-4 flex items-center justify-center rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 shrink-0 -mr-0.5 text-[10px]"
                                               title={`Remove ${p.profession_type}`}
                                               aria-label={`Remove ${p.profession_type}`}
                                             >
@@ -564,8 +564,8 @@ export function GuildCrafters() {
                     )}
                   </div>
 
-                  {/* Mobile: card layout */}
-                  <div className="sm:hidden max-h-[420px] overflow-y-auto space-y-3 pb-4">
+                  {/* Mobile: compact chip layout */}
+                  <div className="sm:hidden max-h-[420px] overflow-y-auto space-y-2 pb-4">
                     {members.length === 0 ? (
                       <p className="text-slate-500 text-sm py-8 text-center">
                         {canManage
@@ -582,19 +582,19 @@ export function GuildCrafters() {
                         return (
                           <div
                             key={m.name}
-                            className="rounded-xl border border-slate-700/80 bg-slate-800/60 p-4"
-                            style={{ borderLeftWidth: 4, borderLeftColor: classColor }}
+                            className="rounded-lg border border-slate-700/80 bg-slate-800/60 p-2 border-l-4"
+                            style={{ borderLeftColor: classColor }}
                           >
-                            <div className="flex items-start justify-between gap-2 mb-3">
-                              <span className="font-medium" style={{ color: classColor }}>
+                            <div className="flex items-center justify-between gap-2 mb-1.5">
+                              <span className="text-sm font-medium truncate" style={{ color: classColor }}>
                                 {m.name}
                               </span>
-                              <span className="text-slate-500 text-xs shrink-0">{m.class}</span>
+                              <span className="text-slate-500 text-xs shrink-0">({m.class})</span>
                               {canRemoveMember(m.name) && (
                                 <button
                                   type="button"
                                   onClick={() => removeCrafterFromList(m.name)}
-                                  className="min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 w-10 h-10 flex items-center justify-center rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 shrink-0 -mr-2"
+                                  className="min-w-[32px] min-h-[32px] flex items-center justify-center rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 shrink-0 -mr-1"
                                   title="Remove from list"
                                   aria-label="Remove from list"
                                 >
@@ -602,53 +602,50 @@ export function GuildCrafters() {
                                 </button>
                               )}
                             </div>
-                            <div>
-                              <span className="text-slate-500 text-xs uppercase block mb-2">Professions</span>
-                              <div className="flex flex-wrap gap-2">
-                                {m.professions.length === 0 ? (
-                                  <span className="text-slate-500 text-sm">—</span>
-                                ) : (
-                                  m.professions.map((p) => (
-                                    <span
-                                      key={p.profession_type}
-                                      className={`inline-flex items-center gap-1 px-2 py-1.5 rounded text-xs border min-h-[36px] ${canEditMember(m.name) ? "cursor-pointer" : ""} bg-slate-800/80 border-slate-600 text-slate-200`}
-                                      title={p.notes ? `${p.profession_type}: ${p.notes}` : p.profession_type}
+                            <div className="flex flex-wrap gap-1 items-center">
+                              {m.professions.length === 0 ? (
+                                <span className="text-slate-500 text-xs">—</span>
+                              ) : (
+                                m.professions.map((p) => (
+                                  <span
+                                    key={p.profession_type}
+                                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[11px] border shrink-0 ${canEditMember(m.name) ? "cursor-pointer hover:border-slate-500" : ""} bg-slate-800/80 border-slate-600 text-slate-200`}
+                                    title={p.notes ? `${p.profession_type}: ${p.notes}` : p.profession_type}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() => canEditMember(m.name) && setEditProfession({ member: m.name, profession: p.profession_type, notes: p.notes, profession_level: p.profession_level })}
+                                      className="text-left min-w-0 inline-flex items-center gap-0.5"
                                     >
+                                      <span>{p.profession_type}</span>
+                                      {p.profession_level != null && (
+                                        <span className="text-slate-500">{p.profession_level}</span>
+                                      )}
+                                      {canEditMember(m.name) && <span className="text-sky-400 text-[9px]">✎</span>}
+                                    </button>
+                                    {canEditMember(m.name) && (
                                       <button
                                         type="button"
-                                        onClick={() => canEditMember(m.name) && setEditProfession({ member: m.name, profession: p.profession_type, notes: p.notes, profession_level: p.profession_level })}
-                                        className="text-left min-w-0"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          deleteProfession(m.name, p.profession_type);
+                                        }}
+                                        className="w-4 h-4 flex items-center justify-center rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 shrink-0 -mr-0.5"
+                                        title={`Remove ${p.profession_type}`}
+                                        aria-label={`Remove ${p.profession_type}`}
                                       >
-                                        <span>{p.profession_type}</span>
-                                        {p.profession_level != null && (
-                                          <span className="text-slate-500"> ({p.profession_level})</span>
-                                        )}
-                                        {canEditMember(m.name) && <span className="text-sky-400 text-[10px] ml-0.5">✎</span>}
+                                        ×
                                       </button>
-                                      {canEditMember(m.name) && (
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            deleteProfession(m.name, p.profession_type);
-                                          }}
-                                          className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 shrink-0"
-                                          title={`Remove ${p.profession_type}`}
-                                          aria-label={`Remove ${p.profession_type}`}
-                                        >
-                                          ×
-                                        </button>
-                                      )}
-                                    </span>
-                                  ))
-                                )}
-                                {canEditMember(m.name) && (
-                                  <AddProfessionRow
-                                    existingProfs={m.professions.map((p) => p.profession_type)}
-                                    onAdd={(profs) => addProfessions(m.name, profs)}
-                                  />
-                                )}
-                              </div>
+                                    )}
+                                  </span>
+                                ))
+                              )}
+                              {canEditMember(m.name) && (
+                                <AddProfessionRow
+                                  existingProfs={m.professions.map((p) => p.profession_type)}
+                                  onAdd={(profs) => addProfessions(m.name, profs)}
+                                />
+                              )}
                             </div>
                           </div>
                         );
@@ -733,28 +730,28 @@ function AddProfessionRow({ existingProfs, onAdd }: { existingProfs: string[]; o
     }
   };
   return (
-    <span className="inline-flex flex-wrap gap-2 items-center">
+    <span className="inline-flex flex-wrap gap-1 items-center">
       {!open ? (
-        <button type="button" onClick={() => setOpen(true)} className="min-h-[36px] px-2 py-1.5 rounded text-sky-400 hover:text-sky-300 hover:bg-slate-700/50 text-xs font-medium">
+        <button type="button" onClick={() => setOpen(true)} className="px-1.5 py-0.5 rounded-md text-sky-400 hover:text-sky-300 hover:bg-slate-700/50 text-[11px] font-medium border border-dashed border-slate-600">
           + Add
         </button>
       ) : (
         <>
           {available.map((p) => (
-            <label key={p} className="inline-flex items-center gap-1.5 cursor-pointer min-h-[36px]">
+            <label key={p} className="inline-flex items-center gap-1 cursor-pointer">
               <input
                 type="checkbox"
                 checked={selected.has(p)}
                 onChange={() => toggle(p)}
-                className="rounded border-slate-600 bg-slate-700 text-sky-500 w-4 h-4"
+                className="rounded border-slate-600 bg-slate-700 text-sky-500 w-3.5 h-3.5"
               />
-              <span className="text-slate-200 text-xs">{p}</span>
+              <span className="text-slate-200 text-[11px]">{p}</span>
             </label>
           ))}
-          <button type="button" onClick={handleAdd} disabled={selected.size === 0} className="min-h-[36px] px-2.5 py-1 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-medium">
+          <button type="button" onClick={handleAdd} disabled={selected.size === 0} className="px-1.5 py-0.5 rounded-md bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-[11px] font-medium">
             Add ({selected.size})
           </button>
-          <button type="button" onClick={() => { setOpen(false); setSelected(new Set()); }} className="min-h-[36px] px-2 py-1 text-slate-500 hover:text-slate-300 text-xs">
+          <button type="button" onClick={() => { setOpen(false); setSelected(new Set()); }} className="px-1.5 py-0.5 text-slate-500 hover:text-slate-300 text-[11px]">
             Cancel
           </button>
         </>
