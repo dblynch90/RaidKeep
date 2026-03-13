@@ -530,7 +530,7 @@ export function SmartRaid() {
                     <tr className="border-b border-slate-600">
                       <th className="text-left py-2 px-3 text-slate-400 font-medium">Raider</th>
                       {raids.map((raid) => {
-                        const date = raid.date ? new Date(raid.date) : null;
+                        const date = raid.date ? new Date(raid.date + "T12:00:00") : null;
                         const start = raid.startTime || "19:00";
                         const end = getRaidEndTime(raid);
                         return (
