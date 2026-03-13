@@ -1,17 +1,17 @@
 /** Spec entry: display label (with role) and stored value (spec name only) */
 export type SpecOption = { label: string; value: string };
 
-/** Retail: current WoW specs with hybrid role labels where useful */
+/** Retail: current WoW specs */
 const RETAIL_SPECS: Record<string, SpecOption[]> = {
   Warrior: [
-    { label: "Arms (DPS)", value: "Arms" },
-    { label: "Fury (DPS)", value: "Fury" },
-    { label: "Protection (Tank)", value: "Protection" },
+    { label: "Arms", value: "Arms" },
+    { label: "Fury", value: "Fury" },
+    { label: "Protection", value: "Protection" },
   ],
   Paladin: [
-    { label: "Holy (Heal)", value: "Holy" },
-    { label: "Protection (Tank)", value: "Protection" },
-    { label: "Retribution (DPS)", value: "Retribution" },
+    { label: "Holy", value: "Holy" },
+    { label: "Protection", value: "Protection" },
+    { label: "Retribution", value: "Retribution" },
   ],
   Hunter: [
     { label: "Beast Mastery", value: "Beast Mastery" },
@@ -24,19 +24,19 @@ const RETAIL_SPECS: Record<string, SpecOption[]> = {
     { label: "Subtlety", value: "Subtlety" },
   ],
   Priest: [
-    { label: "Discipline (Heal)", value: "Discipline" },
-    { label: "Holy (Heal)", value: "Holy" },
-    { label: "Shadow (DPS)", value: "Shadow" },
+    { label: "Discipline", value: "Discipline" },
+    { label: "Holy", value: "Holy" },
+    { label: "Shadow", value: "Shadow" },
   ],
   "Death Knight": [
-    { label: "Blood (Tank)", value: "Blood" },
-    { label: "Frost (DPS)", value: "Frost" },
-    { label: "Unholy (DPS)", value: "Unholy" },
+    { label: "Blood", value: "Blood" },
+    { label: "Frost", value: "Frost" },
+    { label: "Unholy", value: "Unholy" },
   ],
   Shaman: [
-    { label: "Elemental (DPS)", value: "Elemental" },
-    { label: "Enhancement (DPS)", value: "Enhancement" },
-    { label: "Restoration (Heal)", value: "Restoration" },
+    { label: "Elemental", value: "Elemental" },
+    { label: "Enhancement", value: "Enhancement" },
+    { label: "Restoration", value: "Restoration" },
   ],
   Mage: [
     { label: "Arcane", value: "Arcane" },
@@ -49,38 +49,38 @@ const RETAIL_SPECS: Record<string, SpecOption[]> = {
     { label: "Destruction", value: "Destruction" },
   ],
   Monk: [
-    { label: "Brewmaster (Tank)", value: "Brewmaster" },
-    { label: "Mistweaver (Heal)", value: "Mistweaver" },
-    { label: "Windwalker (DPS)", value: "Windwalker" },
+    { label: "Brewmaster", value: "Brewmaster" },
+    { label: "Mistweaver", value: "Mistweaver" },
+    { label: "Windwalker", value: "Windwalker" },
   ],
   Druid: [
-    { label: "Balance (DPS)", value: "Balance" },
-    { label: "Feral (DPS)", value: "Feral" },
-    { label: "Guardian (Tank)", value: "Guardian" },
-    { label: "Restoration (Heal)", value: "Restoration" },
+    { label: "Balance", value: "Balance" },
+    { label: "Feral", value: "Feral" },
+    { label: "Guardian", value: "Guardian" },
+    { label: "Restoration", value: "Restoration" },
   ],
   "Demon Hunter": [
-    { label: "Havoc (DPS)", value: "Havoc" },
-    { label: "Vengeance (Tank)", value: "Vengeance" },
+    { label: "Havoc", value: "Havoc" },
+    { label: "Vengeance", value: "Vengeance" },
   ],
   Evoker: [
-    { label: "Augmentation (DPS)", value: "Augmentation" },
-    { label: "Devastation (DPS)", value: "Devastation" },
-    { label: "Preservation (Heal)", value: "Preservation" },
+    { label: "Augmentation", value: "Augmentation" },
+    { label: "Devastation", value: "Devastation" },
+    { label: "Preservation", value: "Preservation" },
   ],
 };
 
 /** TBC Classic: classes and specs available in TBC. No DK, Monk, DH, Evoker. Rogue uses Combat. Druid has Feral (cat+bear). */
 const TBC_SPECS: Record<string, SpecOption[]> = {
   Warrior: [
-    { label: "Arms (DPS)", value: "Arms" },
-    { label: "Fury (DPS)", value: "Fury" },
-    { label: "Protection (Tank)", value: "Protection" },
+    { label: "Arms", value: "Arms" },
+    { label: "Fury", value: "Fury" },
+    { label: "Protection", value: "Protection" },
   ],
   Paladin: [
-    { label: "Holy (Heal)", value: "Holy" },
-    { label: "Protection (Tank)", value: "Protection" },
-    { label: "Retribution (DPS)", value: "Retribution" },
+    { label: "Holy", value: "Holy" },
+    { label: "Protection", value: "Protection" },
+    { label: "Retribution", value: "Retribution" },
   ],
   Hunter: [
     { label: "Beast Mastery", value: "Beast Mastery" },
@@ -93,14 +93,14 @@ const TBC_SPECS: Record<string, SpecOption[]> = {
     { label: "Subtlety", value: "Subtlety" },
   ],
   Priest: [
-    { label: "Discipline (Heal)", value: "Discipline" },
-    { label: "Holy (Heal)", value: "Holy" },
-    { label: "Shadow (DPS)", value: "Shadow" },
+    { label: "Discipline", value: "Discipline" },
+    { label: "Holy", value: "Holy" },
+    { label: "Shadow", value: "Shadow" },
   ],
   Shaman: [
-    { label: "Elemental (DPS)", value: "Elemental" },
-    { label: "Enhancement (DPS)", value: "Enhancement" },
-    { label: "Restoration (Heal)", value: "Restoration" },
+    { label: "Elemental", value: "Elemental" },
+    { label: "Enhancement", value: "Enhancement" },
+    { label: "Restoration", value: "Restoration" },
   ],
   Mage: [
     { label: "Arcane", value: "Arcane" },
@@ -113,9 +113,9 @@ const TBC_SPECS: Record<string, SpecOption[]> = {
     { label: "Destruction", value: "Destruction" },
   ],
   Druid: [
-    { label: "Balance (DPS)", value: "Balance" },
-    { label: "Feral (Tank/DPS)", value: "Feral" },
-    { label: "Restoration (Heal)", value: "Restoration" },
+    { label: "Balance", value: "Balance" },
+    { label: "Feral", value: "Feral" },
+    { label: "Restoration", value: "Restoration" },
   ],
 };
 
