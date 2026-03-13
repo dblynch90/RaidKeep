@@ -1,11 +1,13 @@
-import "dotenv/config";
 import { config } from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// Load .env from server dir so OPENAI_API_KEY etc. are found regardless of cwd
+// Load .env from server dir and project root (whichever exists)
 const __dirnameServer = path.dirname(fileURLToPath(import.meta.url));
-config({ path: path.resolve(__dirnameServer, "..", ".env") });
+const serverEnv = path.resolve(__dirnameServer, "..", ".env");
+const rootEnv = path.resolve(__dirnameServer, "..", "..", ".env");
+config({ path: serverEnv });
+config({ path: rootEnv });
 
 import express from "express";
 import cors from "cors";
@@ -71,4 +73,7 @@ app.get("/api/health", (_req, res) => {
 
 app.listen(PORT, () => {
   console.log(`RaidKeep API running at http://localhost:${PORT}`);
+  if (!process.env.OPENAI_API_KEY) {
+    console.warn("OPENAI_API_KEY not set — Smart Raid will be unavailable. Add it to server/.env");
+  }
 });

@@ -1677,6 +1677,15 @@ authRoutes.get("/me/raider-roster", requireAuth, qaMockMiddleware("raider-roster
       }
     })(),
   }));
+  // Deduplicate by character name (fallback queries can return same char from multiple users)
+  const seen = new Set<string>();
+  raiders = raiders.filter((r) => {
+    const name = (r as { character_name?: string }).character_name || "";
+    const key = name.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   // Hide officer_notes and optionally player notes from view-only users
   if (!perms?.manage_raid_roster) {
     const myCharRows = db.prepare(

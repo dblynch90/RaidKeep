@@ -88,7 +88,15 @@ export function SmartRaid() {
       api.get<{ permissions: GuildPermissions }>(`/auth/me/guild-permissions?${permsQs}`).then((r) => r.permissions ?? DEFAULT_PERMISSIONS),
     ])
       .then(([raidersList, permsData]) => {
-        setRaiders(raidersList);
+        // Deduplicate by character name (API can return same char from multiple users in fallback)
+        const seen = new Set<string>();
+        const unique = raidersList.filter((r) => {
+          const key = r.character_name.toLowerCase();
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        setRaiders(unique);
         setPermissions(permsData);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
