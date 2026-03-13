@@ -1,9 +1,15 @@
 import "dotenv/config";
+import { config } from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
+
+// Load .env from server dir so OPENAI_API_KEY etc. are found regardless of cwd
+const __dirnameServer = path.dirname(fileURLToPath(import.meta.url));
+config({ path: path.resolve(__dirnameServer, "..", ".env") });
+
 import express from "express";
 import cors from "cors";
 import session from "express-session";
-import path from "path";
-import { fileURLToPath } from "url";
 
 import { initDb } from "./db/init.js";
 import { authRoutes } from "./routes/auth.js";
@@ -13,8 +19,6 @@ import { guildRoutes } from "./routes/guilds.js";
 import { characterRoutes } from "./routes/characters.js";
 import { raidRoutes } from "./routes/raids.js";
 import { signUpRoutes } from "./routes/signups.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Ensure DB is initialized
 initDb();
