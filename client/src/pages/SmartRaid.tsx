@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Card } from "../components/Card";
 import { api } from "../api";
@@ -79,6 +79,10 @@ export function SmartRaid() {
   const [forming, setForming] = useState(false);
   const [formedParties, setFormedParties] = useState<FormedParty[] | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [pasteText, setPasteText] = useState("");
+  const [parsing, setParsing] = useState(false);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [orderBy, setOrderBy] = useState<"name" | "class" | "role">("name");
 
   const perms = permissions ?? DEFAULT_PERMISSIONS;
   const canManage = perms.manage_raids ?? false;
@@ -173,6 +177,90 @@ export function SmartRaid() {
   };
 
   const validRaids = raids.filter((r) => r.date && r.instance.trim());
+
+  const sortedAvailability = useMemo(() => {
+    const arr = [...availability];
+    if (orderBy === "name") {
+      arr.sort((a, b) => a.character_name.localeCompare(b.character_name, undefined, { sensitivity: "base" }));
+    } else if (orderBy === "class") {
+      arr.sort((a, b) => {
+        const c = (a.character_class || "").localeCompare(b.character_class || "", undefined, { sensitivity: "base" });
+        return c !== 0 ? c : a.character_name.localeCompare(b.character_name, undefined, { sensitivity: "base" });
+      });
+    } else {
+      const roleOrder = { tank: 0, healer: 1, dps: 2 };
+      arr.sort((a, b) => {
+        const ra = roleOrder[(a.raid_role || "dps").toLowerCase() as keyof typeof roleOrder] ?? 2;
+        const rb = roleOrder[(b.raid_role || "dps").toLowerCase() as keyof typeof roleOrder] ?? 2;
+        if (ra !== rb) return ra - rb;
+        return a.character_name.localeCompare(b.character_name, undefined, { sensitivity: "base" });
+      });
+    }
+    return arr;
+  }, [availability, orderBy]);
+
+  const handleParseAvailability = async () => {
+    if (!realm || !guildName || pasteText.trim().length === 0 || validRaids.length === 0 || availability.length === 0) {
+      setParseError("Add raids first, then paste availability text.");
+      return;
+    }
+    setParsing(true);
+    setParseError(null);
+    try {
+      const res = await api.post<{
+        availability: Array<{
+          character_name: string;
+          slots: Array<{ date: string; start_time: string; end_time: string }>;
+        }>;
+      }>("/auth/me/smart-raid/parse-availability", {
+        guild_realm: realm,
+        guild_name: guildName,
+        server_type: serverType,
+        raids: validRaids.map((r) => ({ id: r.id, date: r.date, instance: r.instance.trim() })),
+        raiders: raiders.map((r) => ({ character_name: r.character_name })),
+        text: pasteText.trim(),
+      });
+      const parsed = res.availability ?? [];
+      const dateToRaidId = new Map(validRaids.map((r) => [r.date, r.id]));
+      const raiderNames = new Map(availability.map((a) => [a.character_name.toLowerCase(), a.character_name]));
+      const parsedByChar = new Map<string, Map<string, { startTime: string; endTime: string }>>();
+      for (const p of parsed) {
+        const canonName = raiderNames.get(p.character_name.toLowerCase());
+        if (!canonName) continue;
+        const key = canonName.toLowerCase();
+        const slotMap = parsedByChar.get(key) ?? new Map();
+        for (const slot of p.slots) {
+          const raidId = dateToRaidId.get(slot.date);
+          if (raidId) {
+            slotMap.set(raidId, {
+              startTime: slot.start_time || "19:00",
+              endTime: slot.end_time || "23:00",
+            });
+          }
+        }
+        parsedByChar.set(key, slotMap);
+      }
+      setAvailability((prev) =>
+        prev.map((a) => {
+          const slotMap = parsedByChar.get(a.character_name.toLowerCase());
+          if (!slotMap || slotMap.size === 0) return a;
+          return {
+            ...a,
+            slots: a.slots.map((s) => {
+              const parsedSlot = slotMap.get(s.raidId);
+              if (!parsedSlot) return s;
+              return { ...s, available: true, ...parsedSlot };
+            }),
+          };
+        })
+      );
+      setPasteText("");
+    } catch (err) {
+      setParseError(err instanceof Error ? err.message : "Failed to parse availability");
+    } finally {
+      setParsing(false);
+    }
+  };
 
   const handleFormRaids = async () => {
     if (!realm || !guildName || availability.length === 0 || validRaids.length === 0) {
@@ -338,14 +426,54 @@ export function SmartRaid() {
 
             {raids.length > 0 && raiders.length > 0 && (
               <Card className="p-5 overflow-x-auto">
-                <h2 className="text-slate-300 font-medium text-sm uppercase tracking-wider mb-4">Raider Availability</h2>
-                <p className="text-slate-500 text-sm mb-4">
-                  For each raider and each raid, set whether they are available and their time window.
-                </p>
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                  <div>
+                    <h2 className="text-slate-300 font-medium text-sm uppercase tracking-wider">Raider Availability</h2>
+                    <p className="text-slate-500 text-sm mt-1">
+                      For each raider and each raid, set whether they are available and their time window.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-slate-400 text-sm">Order by</label>
+                    <select
+                      value={orderBy}
+                      onChange={(e) => setOrderBy(e.target.value as "name" | "class" | "role")}
+                      className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 text-sm [color-scheme:dark]"
+                    >
+                      <option value="name">Name</option>
+                      <option value="class">Class</option>
+                      <option value="role">Primary Role</option>
+                    </select>
+                  </div>
+                </div>
+                {validRaids.length > 0 && (
+                  <div className="mb-4 p-3 rounded-lg bg-slate-800/50 border border-slate-700">
+                    <label className="block text-slate-400 text-xs font-medium mb-1">Paste availability to auto-fill</label>
+                    <p className="text-slate-500 text-xs mb-2">
+                      Paste a list like &quot;Aeloryx: Fri 7-11pm, Sat 7-11pm&quot; or similar. AI will parse and fill the table.
+                    </p>
+                    <textarea
+                      value={pasteText}
+                      onChange={(e) => { setPasteText(e.target.value); setParseError(null); }}
+                      placeholder={"Aeloryx: Fri 7-11pm, Sat 7-11pm\nBeefygeek: Fri 7-11pm only\nCelestellar: Sat 8pm-midnight"}
+                      rows={4}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 text-sm placeholder-slate-500 focus:ring-1 focus:ring-sky-500/50 resize-y"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleParseAvailability}
+                      disabled={parsing || !pasteText.trim()}
+                      className="mt-2 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium"
+                    >
+                      {parsing ? "Parsing..." : "Parse & fill"}
+                    </button>
+                    {parseError && <p className="text-amber-500 text-sm mt-2">{parseError}</p>}
+                  </div>
+                )}
                 {(() => {
-                  const mid = Math.ceil(availability.length / 2);
-                  const left = availability.slice(0, mid);
-                  const right = availability.slice(mid);
+                  const mid = Math.ceil(sortedAvailability.length / 2);
+                  const left = sortedAvailability.slice(0, mid);
+                  const right = sortedAvailability.slice(mid);
                   const RaiderRow = ({ a }: { a: RaiderAvailability }) => (
                     <tr className="border-b border-slate-700/60">
                       <td className="py-2 px-3">

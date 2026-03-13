@@ -2403,6 +2403,78 @@ authRoutes.delete("/me/saved-raids/:id", requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// Smart Raid: Parse pasted availability text and return structured data
+authRoutes.post("/me/smart-raid/parse-availability", requireAuth, async (req, res) => {
+  const { guild_realm, guild_name, server_type, raids, raiders, text } = req.body;
+  if (!guild_realm || !guild_name || !raids || !Array.isArray(raids) || !raiders || !Array.isArray(raiders) || typeof text !== "string" || !text.trim()) {
+    res.status(400).json({ error: "guild_realm, guild_name, raids, raiders, and text required" });
+    return;
+  }
+  const raidList = raids as Array<{ id: string; date: string; instance: string }>;
+  const raiderList = raiders as Array<{ character_name: string }>;
+  const db = getDb();
+  const userId = req.session!.user!.id;
+  const realmSlug = (guild_realm as string).toLowerCase().replace(/\s+/g, "-");
+  const perms = getEffectiveGuildPermissions(db, userId, realmSlug, guild_name, (server_type as string) || "Retail");
+  if (!perms?.manage_raids) {
+    res.status(403).json({ error: "You do not have permission to use Smart Raid" });
+    return;
+  }
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    res.status(503).json({ error: "Smart Raid is not configured (OPENAI_API_KEY missing)" });
+    return;
+  }
+
+  const raidsCtx = raidList
+    .filter((r) => r.date && r.instance)
+    .map((r) => `${r.date} (${r.instance})`)
+    .join(", ");
+  const raiderNames = raiderList.map((r) => r.character_name).join(", ");
+
+  const openai = new OpenAI({ apiKey });
+  const prompt = `You are parsing a pasted availability list for a WoW raid. Extract each raider's availability.
+
+Raids (date and instance): ${raidsCtx}
+Raider names (match loosely, case-insensitive): ${raiderNames}
+
+Pasted text:
+"""
+${text.trim()}
+"""
+
+Parse the text. For each raider mentioned, extract which raid dates they're available and their time window (start-end). Times can be in various formats (7pm, 19:00, 7-11, etc). Normalize to HH:MM (24h). If no time given, use 19:00-23:00.
+Match raider names flexibly (e.g. "Aeloryx" matches "Aeloryx"). If a raider isn't in the raider list, skip them.
+Map dates to the raid dates provided - e.g. "Fri" or "3/14" or "Fri 3/14" -> use the matching YYYY-MM-DD date from the raids list.
+If the text mentions an instance (e.g. "Kara"), match to the raid with that instance.
+
+Respond with ONLY valid JSON, no other text. Format:
+{"availability":[{"character_name":"ExactNameFromList","slots":[{"date":"YYYY-MM-DD","start_time":"HH:MM","end_time":"HH:MM"}]}]}
+Only include raiders who are in the raider list. Only include slots for dates that match a raid.`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.2,
+    });
+    const raw = completion.choices[0]?.message?.content?.trim();
+    if (!raw) {
+      res.status(502).json({ error: "AI returned empty response" });
+      return;
+    }
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(raw);
+    const result = Array.isArray(parsed.availability) ? parsed.availability : [];
+    res.json({ availability: result });
+  } catch (err) {
+    console.error("Smart Raid parse error:", err);
+    res.status(502).json({
+      error: err instanceof Error ? err.message : "Failed to parse availability. Check format and try again.",
+    });
+  }
+});
+
 // Smart Raid: AI-assisted party formation based on availability
 authRoutes.post("/me/smart-raid/form", requireAuth, async (req, res) => {
   const { guild_realm, guild_name, server_type, raids, availability } = req.body;
