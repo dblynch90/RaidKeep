@@ -12,6 +12,15 @@ import { RAID_ROLES } from "../constants/raid";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+/** Add hours to HH:MM, return HH:MM (handles overnight) */
+function addHours(time: string, hours: number): string {
+  const [h, m] = time.split(":").map(Number);
+  const total = h * 60 + m + hours * 60;
+  const nh = Math.floor(total / 60) % 24;
+  const nm = total % 60;
+  return `${String(nh).padStart(2, "0")}:${String(nm).padStart(2, "0")}`;
+}
+
 interface RaiderEntry {
   character_name: string;
   character_class: string;
@@ -36,6 +45,8 @@ interface RaidEntry {
   id: string;
   date: string;
   instance: string;
+  startTime: string;
+  durationHours: number;
 }
 
 interface FormedParty {
@@ -66,14 +77,15 @@ export function SmartRaid() {
   const canManage = perms.manage_raids ?? false;
 
   const addRaid = () => {
-    setRaids((prev) => [...prev, { id: crypto.randomUUID(), date: "", instance: "" }]);
+    setRaids((prev) => [...prev, { id: crypto.randomUUID(), date: "", instance: "", startTime: "19:00", durationHours: 4 }]);
   };
   const removeRaid = (id: string) => {
     setRaids((prev) => prev.filter((r) => r.id !== id));
   };
-  const updateRaid = (id: string, updates: Partial<Pick<RaidEntry, "date" | "instance">>) => {
+  const updateRaid = (id: string, updates: Partial<Pick<RaidEntry, "date" | "instance" | "startTime" | "durationHours">>) => {
     setRaids((prev) => prev.map((r) => (r.id === id ? { ...r, ...updates } : r)));
   };
+  const getRaidEndTime = (raid: RaidEntry) => addHours(raid.startTime || "19:00", raid.durationHours ?? 4);
 
   useEffect(() => {
     if (!isValid) {
@@ -117,8 +129,8 @@ export function SmartRaid() {
           return {
             raidId: raid.id,
             available: ex?.available ?? true,
-            startTime: ex?.startTime ?? "19:00",
-            endTime: ex?.endTime ?? "23:00",
+            startTime: ex?.startTime ?? raid.startTime ?? "19:00",
+            endTime: ex?.endTime ?? getRaidEndTime(raid),
           };
         });
         return {
@@ -160,7 +172,12 @@ export function SmartRaid() {
         guild_realm: realm,
         guild_name: guildName,
         server_type: serverType,
-        raids: validRaids.map((r) => ({ date: r.date, instance: r.instance.trim() })),
+        raids: validRaids.map((r) => ({
+          date: r.date,
+          instance: r.instance.trim(),
+          start_time: r.startTime || "19:00",
+          end_time: getRaidEndTime(r),
+        })),
         availability: availability.map((a) => ({
           character_name: a.character_name,
           character_class: a.character_class,
@@ -260,6 +277,26 @@ export function SmartRaid() {
                         className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 min-w-[140px]"
                       />
                     </div>
+                    <div>
+                      <label className="block text-slate-400 text-xs mb-1">Start</label>
+                      <input
+                        type="time"
+                        value={raid.startTime || "19:00"}
+                        onChange={(e) => updateRaid(raid.id, { startTime: e.target.value })}
+                        className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 [color-scheme:dark]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 text-xs mb-1">Duration (hrs)</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={12}
+                        value={raid.durationHours ?? 4}
+                        onChange={(e) => updateRaid(raid.id, { durationHours: Math.max(1, Math.min(12, parseInt(e.target.value, 10) || 1)) })}
+                        className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 w-16 [color-scheme:dark]"
+                      />
+                    </div>
                     <button
                       type="button"
                       onClick={() => removeRaid(raid.id)}
@@ -292,9 +329,12 @@ export function SmartRaid() {
                       <th className="text-left py-2 px-3 text-slate-400 font-medium">Raider</th>
                       {raids.map((raid) => {
                         const date = raid.date ? new Date(raid.date) : null;
+                        const start = raid.startTime || "19:00";
+                        const end = getRaidEndTime(raid);
                         return (
                           <th key={raid.id} className="text-left py-2 px-2 text-slate-400 font-medium text-xs">
                             {date ? `${DAY_NAMES[date.getDay()]} ${raid.date.slice(5)}` : "—"} {raid.instance ? `· ${raid.instance}` : ""}
+                            {date && <span className="block text-slate-500 font-normal">{start}–{end}</span>}
                           </th>
                         );
                       })}
