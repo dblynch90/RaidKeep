@@ -9,6 +9,7 @@ import { getClassColor } from "../utils/classColors";
 import { useGuildParams } from "../hooks/useGuildParams";
 import { guildRealmQueryString, guildQueryStringFromSlug } from "../utils/guildApi";
 import { RAID_ROLES } from "../constants/raid";
+import { getRaidsForVersion } from "../constants/raids";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -360,7 +361,7 @@ export function SmartRaid() {
             <Card className="p-5">
               <h2 className="text-slate-300 font-medium text-sm uppercase tracking-wider mb-4">Raids</h2>
               <p className="text-slate-500 text-sm mb-3">
-                Add each raid with a date and instance (e.g. Kara 10, SSC, TK).
+                Add each raid with a date and instance. Choose from raids for {serverType}.
               </p>
               <div className="space-y-3">
                 {raids.map((raid) => (
@@ -376,13 +377,26 @@ export function SmartRaid() {
                     </div>
                     <div>
                       <label className="block text-slate-400 text-xs mb-1">Instance</label>
-                      <input
-                        type="text"
-                        value={raid.instance}
-                        onChange={(e) => updateRaid(raid.id, { instance: e.target.value })}
-                        placeholder="e.g. Kara 10"
-                        className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 min-w-[140px]"
-                      />
+                      <div className="flex gap-2">
+                        <select
+                          value={getRaidsForVersion(serverType).includes(raid.instance) ? raid.instance : "Other"}
+                          onChange={(e) => updateRaid(raid.id, { instance: e.target.value === "Other" ? "" : e.target.value })}
+                          className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 min-w-[180px] [color-scheme:dark]"
+                        >
+                          {getRaidsForVersion(serverType).map((r) => (
+                            <option key={r} value={r}>{r}</option>
+                          ))}
+                        </select>
+                        {(!raid.instance || !getRaidsForVersion(serverType).includes(raid.instance)) && (
+                          <input
+                            type="text"
+                            value={raid.instance}
+                            onChange={(e) => updateRaid(raid.id, { instance: e.target.value })}
+                            placeholder="Custom raid"
+                            className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 min-w-[120px] placeholder-slate-500"
+                          />
+                        )}
+                      </div>
                     </div>
                     <div>
                       <label className="block text-slate-400 text-xs mb-1">Start</label>
@@ -470,55 +484,8 @@ export function SmartRaid() {
                     {parseError && <p className="text-amber-500 text-sm mt-2">{parseError}</p>}
                   </div>
                 )}
-                {(() => {
-                  const mid = Math.ceil(sortedAvailability.length / 2);
-                  const left = sortedAvailability.slice(0, mid);
-                  const right = sortedAvailability.slice(mid);
-                  const RaiderRow = ({ a }: { a: RaiderAvailability }) => (
-                    <tr className="border-b border-slate-700/60">
-                      <td className="py-2 px-3">
-                        <span className="font-medium" style={{ color: getClassColor(a.character_class) }}>
-                          {a.character_name}
-                        </span>
-                        <span className="text-slate-500 text-xs ml-1">
-                          {RAID_ROLES.find((r) => r.value === (a.raid_role ?? "").toLowerCase())?.label ?? a.raid_role ?? "—"}
-                        </span>
-                      </td>
-                      {a.slots.map((s) => (
-                        <td key={s.raidId} className="py-1 px-2">
-                          <div className="flex flex-col gap-1">
-                            <label className="flex items-center gap-1">
-                              <input
-                                type="checkbox"
-                                checked={s.available}
-                                onChange={(e) => setRaiderSlot(a.character_name, s.raidId, { available: e.target.checked })}
-                                className="rounded border-slate-600 bg-slate-700 text-sky-500"
-                              />
-                              <span className="text-xs text-slate-400">Available</span>
-                            </label>
-                            {s.available && (
-                              <div className="flex gap-1 items-center">
-                                <input
-                                  type="time"
-                                  value={s.startTime}
-                                  onChange={(e) => setRaiderSlot(a.character_name, s.raidId, { startTime: e.target.value })}
-                                  className="w-20 px-1 py-0.5 rounded text-xs bg-slate-700 border border-slate-600 [color-scheme:dark]"
-                                />
-                                <span className="text-slate-600">–</span>
-                                <input
-                                  type="time"
-                                  value={s.endTime}
-                                  onChange={(e) => setRaiderSlot(a.character_name, s.raidId, { endTime: e.target.value })}
-                                  className="w-20 px-1 py-0.5 rounded text-xs bg-slate-700 border border-slate-600 [color-scheme:dark]"
-                                />
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      ))}
-                    </tr>
-                  );
-                  const TableHeader = () => (
+                <table className="w-full border-collapse text-sm min-w-[600px]">
+                  <thead>
                     <tr className="border-b border-slate-600">
                       <th className="text-left py-2 px-3 text-slate-400 font-medium">Raider</th>
                       {raids.map((raid) => {
@@ -533,20 +500,54 @@ export function SmartRaid() {
                         );
                       })}
                     </tr>
-                  );
-                  return (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      <table className="w-full border-collapse text-sm min-w-[400px]">
-                        <thead><TableHeader /></thead>
-                        <tbody>{left.map((a) => <RaiderRow key={a.character_name} a={a} />)}</tbody>
-                      </table>
-                      <table className="w-full border-collapse text-sm min-w-[400px]">
-                        <thead><TableHeader /></thead>
-                        <tbody>{right.map((a) => <RaiderRow key={a.character_name} a={a} />)}</tbody>
-                      </table>
-                    </div>
-                  );
-                })()}
+                  </thead>
+                  <tbody>
+                    {sortedAvailability.map((a) => (
+                      <tr key={a.character_name} className="border-b border-slate-700/60">
+                        <td className="py-2 px-3">
+                          <span className="font-medium" style={{ color: getClassColor(a.character_class) }}>
+                            {a.character_name}
+                          </span>
+                          <span className="text-slate-500 text-xs ml-1">
+                            {RAID_ROLES.find((r) => r.value === (a.raid_role ?? "").toLowerCase())?.label ?? a.raid_role ?? "—"}
+                          </span>
+                        </td>
+                        {a.slots.map((s) => (
+                          <td key={s.raidId} className="py-1 px-2">
+                            <div className="flex flex-col gap-1">
+                              <label className="flex items-center gap-1">
+                                <input
+                                  type="checkbox"
+                                  checked={s.available}
+                                  onChange={(e) => setRaiderSlot(a.character_name, s.raidId, { available: e.target.checked })}
+                                  className="rounded border-slate-600 bg-slate-700 text-sky-500"
+                                />
+                                <span className="text-xs text-slate-400">Available</span>
+                              </label>
+                              {s.available && (
+                                <div className="flex gap-1 items-center">
+                                  <input
+                                    type="time"
+                                    value={s.startTime}
+                                    onChange={(e) => setRaiderSlot(a.character_name, s.raidId, { startTime: e.target.value })}
+                                    className="w-20 px-1 py-0.5 rounded text-xs bg-slate-700 border border-slate-600 [color-scheme:dark]"
+                                  />
+                                  <span className="text-slate-600">–</span>
+                                  <input
+                                    type="time"
+                                    value={s.endTime}
+                                    onChange={(e) => setRaiderSlot(a.character_name, s.raidId, { endTime: e.target.value })}
+                                    className="w-20 px-1 py-0.5 rounded text-xs bg-slate-700 border border-slate-600 [color-scheme:dark]"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </Card>
             )}
 
@@ -566,11 +567,11 @@ export function SmartRaid() {
 
             {formedParties && formedParties.length > 0 && (
               <Card className="p-5">
-                <h2 className="text-slate-300 font-medium text-sm uppercase tracking-wider mb-4">Formed Parties</h2>
+                <h2 className="text-slate-300 font-medium text-sm uppercase tracking-wider mb-4">Formed Teams</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {formedParties.map((p) => (
                     <div key={p.party_index} className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
-                      <h3 className="text-sky-400 font-medium mb-3">Party {p.party_index + 1}</h3>
+                      <h3 className="text-sky-400 font-medium mb-3">Team {p.party_index + 1}</h3>
                       <div className="space-y-1">
                         {p.slots
                           .sort((a, b) => a.slot_index - b.slot_index)
