@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { capitalizeRealm } from "../utils/realm";
+import { getSpecsForClass } from "../constants/specs";
 
 const API = "/api";
 
@@ -489,7 +490,12 @@ export function AdminGuildDetail() {
               <div className="flex flex-wrap gap-2 items-center p-3 rounded-lg bg-slate-800/50 mb-4">
                 <input value={newRosterEntry.character_name} onChange={(e) => setNewRosterEntry((x) => ({ ...x, character_name: e.target.value }))} placeholder="Name" className="px-2 py-1 rounded bg-slate-700 text-sm w-32" />
                 <input value={newRosterEntry.character_class} onChange={(e) => setNewRosterEntry((x) => ({ ...x, character_class: e.target.value }))} placeholder="Class" className="px-2 py-1 rounded bg-slate-700 text-sm w-24" />
-                <input value={newRosterEntry.primary_spec || ""} onChange={(e) => setNewRosterEntry((x) => ({ ...x, primary_spec: e.target.value }))} placeholder="Main spec" className="px-2 py-1 rounded bg-slate-700 text-sm w-24" />
+                <select value={newRosterEntry.primary_spec || ""} onChange={(e) => setNewRosterEntry((x) => ({ ...x, primary_spec: e.target.value }))} className="px-2 py-1 rounded bg-slate-700 text-sm w-28 [color-scheme:dark]">
+                  <option value="">Main spec</option>
+                  {getSpecsForClass(newRosterEntry.character_class || "", newRosterEntry.primary_spec).map((spec) => (
+                    <option key={spec} value={spec}>{spec}</option>
+                  ))}
+                </select>
                 <button onClick={addRosterEntry} className="px-2 py-1 rounded bg-sky-600 hover:bg-sky-500 text-white text-sm border border-sky-500/50">Add</button>
                 <button onClick={() => { setAddingRoster(false); setNewRosterEntry({ character_name: "", character_class: "Unknown" }); }} className="px-2 py-1 rounded bg-slate-600 text-slate-300 text-sm">Cancel</button>
               </div>
@@ -503,9 +509,19 @@ export function AdminGuildDetail() {
                     {editingRoster?.character_name === e.character_name ? (
                       <div className="flex flex-wrap gap-2 items-center">
                         <input value={editingRoster.character_class} onChange={(ev) => setEditingRoster((x) => x ? { ...x, character_class: ev.target.value } : null)} className="px-2 py-1 rounded bg-slate-700 text-sm w-24" placeholder="Class" />
-                        <input value={editingRoster.primary_spec || ""} onChange={(ev) => setEditingRoster((x) => x ? { ...x, primary_spec: ev.target.value } : null)} className="px-2 py-1 rounded bg-slate-700 text-sm w-24" placeholder="Main spec" />
+                        <select value={editingRoster.primary_spec || ""} onChange={(ev) => setEditingRoster((x) => x ? { ...x, primary_spec: ev.target.value } : null)} className="px-2 py-1 rounded bg-slate-700 text-sm w-28 [color-scheme:dark]">
+                          <option value="">Main spec</option>
+                          {getSpecsForClass(editingRoster.character_class || "", editingRoster.primary_spec).map((spec) => (
+                            <option key={spec} value={spec}>{spec}</option>
+                          ))}
+                        </select>
                         <input value={(editingRoster.professions || []).join(", ")} onChange={(ev) => setEditingRoster((x) => x ? { ...x, professions: ev.target.value.split(",").map((s) => s.trim()).filter(Boolean) } : null)} className="px-2 py-1 rounded bg-slate-700 text-sm w-40" placeholder="Professions (comma)" />
-                        <input value={editingRoster.off_spec || ""} onChange={(ev) => setEditingRoster((x) => x ? { ...x, off_spec: ev.target.value } : null)} className="px-2 py-1 rounded bg-slate-700 text-sm w-24" placeholder="Off spec" />
+                        <select value={editingRoster.off_spec || ""} onChange={(ev) => setEditingRoster((x) => x ? { ...x, off_spec: ev.target.value } : null)} className="px-2 py-1 rounded bg-slate-700 text-sm w-28 [color-scheme:dark]">
+                          <option value="">Off spec</option>
+                          {getSpecsForClass(editingRoster.character_class || "", editingRoster.off_spec).map((spec) => (
+                            <option key={spec} value={spec}>{spec}</option>
+                          ))}
+                        </select>
                         <input value={editingRoster.notes || ""} onChange={(ev) => setEditingRoster((x) => x ? { ...x, notes: ev.target.value } : null)} className="px-2 py-1 rounded bg-slate-700 text-sm w-32" placeholder="Notes" />
                         <input value={editingRoster.raid_role || ""} onChange={(ev) => setEditingRoster((x) => x ? { ...x, raid_role: ev.target.value } : null)} className="px-2 py-1 rounded bg-slate-700 text-sm w-20" placeholder="Role" />
                         <button onClick={() => updateRosterEntry(e, editingRoster)} className="px-2 py-1 rounded bg-sky-600 hover:bg-sky-500 text-white text-xs border border-sky-500/50">Save</button>

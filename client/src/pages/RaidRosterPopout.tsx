@@ -9,6 +9,7 @@ import { useGuildParams } from "../hooks/useGuildParams";
 import { guildQueryStringFromSlug, guildRealmQueryString } from "../utils/guildApi";
 import type { RaiderEntry, RaidTeam } from "../types/raid";
 import { DEFAULT_AVAILABILITY, RAID_ROLES, DAYS } from "../constants/raid";
+import { getSpecsForClass } from "../constants/specs";
 
 interface GuildMember {
   name: string;
@@ -459,13 +460,16 @@ export function RaidRosterPopout() {
                               <option key={opt.value || "_"} value={opt.value}>{opt.label}</option>
                             ))}
                           </select>
-                          <input
-                            type="text"
+                          <select
                             value={r.primary_spec ?? ""}
                             onChange={(e) => updateRaider(r.character_name, { primary_spec: e.target.value })}
-                            placeholder="Spec"
-                            className="h-7 w-20 px-1.5 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500/50 placeholder-slate-500"
-                          />
+                            className="h-7 min-w-[90px] px-1.5 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500/50 [color-scheme:dark]"
+                          >
+                            <option value="">—</option>
+                            {getSpecsForClass(r.character_class, r.primary_spec ?? undefined).map((spec) => (
+                              <option key={spec} value={spec}>{spec}</option>
+                            ))}
+                          </select>
                         </div>
                       ) : (
                         <span className="text-slate-400 text-sm">
@@ -485,13 +489,16 @@ export function RaidRosterPopout() {
                               <option key={opt.value || "_"} value={opt.value}>{opt.label}</option>
                             ))}
                           </select>
-                          <input
-                            type="text"
+                          <select
                             value={r.secondary_spec ?? ""}
                             onChange={(e) => updateRaider(r.character_name, { secondary_spec: e.target.value })}
-                            placeholder="Spec"
-                            className="h-7 w-20 px-1.5 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500/50 placeholder-slate-500"
-                          />
+                            className="h-7 min-w-[90px] px-1.5 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500/50 [color-scheme:dark]"
+                          >
+                            <option value="">—</option>
+                            {getSpecsForClass(r.character_class, r.secondary_spec ?? undefined).map((spec) => (
+                              <option key={spec} value={spec}>{spec}</option>
+                            ))}
+                          </select>
                         </div>
                       ) : (
                         <span className="text-slate-400 text-sm">
@@ -612,13 +619,16 @@ export function RaidRosterPopout() {
                               <option key={opt.value || "_"} value={opt.value}>{opt.label}</option>
                             ))}
                           </select>
-                          <input
-                            type="text"
+                          <select
                             value={r.primary_spec ?? ""}
                             onChange={(e) => updateRaider(r.character_name, { primary_spec: e.target.value })}
-                            placeholder="Spec"
-                            className="w-full h-8 px-2 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs placeholder-slate-500"
-                          />
+                            className="w-full h-8 px-2 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs [color-scheme:dark]"
+                          >
+                            <option value="">—</option>
+                            {getSpecsForClass(r.character_class, r.primary_spec ?? undefined).map((spec) => (
+                              <option key={spec} value={spec}>{spec}</option>
+                            ))}
+                          </select>
                         </div>
                       ) : (
                         <span className="text-slate-400">
@@ -639,13 +649,16 @@ export function RaidRosterPopout() {
                               <option key={opt.value || "_"} value={opt.value}>{opt.label}</option>
                             ))}
                           </select>
-                          <input
-                            type="text"
+                          <select
                             value={r.secondary_spec ?? ""}
                             onChange={(e) => updateRaider(r.character_name, { secondary_spec: e.target.value })}
-                            placeholder="Spec"
-                            className="w-full h-8 px-2 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs placeholder-slate-500"
-                          />
+                            className="w-full h-8 px-2 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs [color-scheme:dark]"
+                          >
+                            <option value="">—</option>
+                            {getSpecsForClass(r.character_class, r.secondary_spec ?? undefined).map((spec) => (
+                              <option key={spec} value={spec}>{spec}</option>
+                            ))}
+                          </select>
                         </div>
                       ) : (
                         <span className="text-slate-400">

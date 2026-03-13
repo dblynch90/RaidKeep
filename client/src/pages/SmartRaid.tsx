@@ -128,7 +128,7 @@ export function SmartRaid() {
           const ex = existing?.slots.find((s) => s.raidId === raid.id);
           return {
             raidId: raid.id,
-            available: ex?.available ?? true,
+            available: ex?.available ?? false,
             startTime: ex?.startTime ?? raid.startTime ?? "19:00",
             endTime: ex?.endTime ?? getRaidEndTime(raid),
           };
