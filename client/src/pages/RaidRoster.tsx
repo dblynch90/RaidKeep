@@ -778,8 +778,8 @@ export function RaidRoster() {
                               title="Primary spec"
                             >
                               <option value="">—</option>
-                              {getSpecsForClass(r.character_class, r.primary_spec ?? undefined).map((spec) => (
-                                <option key={spec} value={spec}>{spec}</option>
+                              {getSpecsForClass(r.character_class, r.primary_spec ?? undefined, serverType).map((spec) => (
+                                <option key={spec.value} value={spec.value}>{spec.label}</option>
                               ))}
                             </select>
                           </>
@@ -810,8 +810,8 @@ export function RaidRoster() {
                               title="Secondary spec"
                             >
                               <option value="">—</option>
-                              {getSpecsForClass(r.character_class, r.secondary_spec ?? undefined).map((spec) => (
-                                <option key={spec} value={spec}>{spec}</option>
+                              {getSpecsForClass(r.character_class, r.secondary_spec ?? undefined, serverType).map((spec) => (
+                                <option key={spec.value} value={spec.value}>{spec.label}</option>
                               ))}
                             </select>
                           </>

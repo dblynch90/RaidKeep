@@ -2439,26 +2439,33 @@ authRoutes.post("/me/smart-raid/form", requireAuth, async (req, res) => {
     .map((r) => `${r.date} ${r.instance}${r.start_time && r.end_time ? ` ${r.start_time}-${r.end_time}` : ""}`)
     .join("; ");
   const openai = new OpenAI({ apiKey });
-  const prompt = `You are a raid composition assistant for World of Warcraft. Given raids (date, instance, scheduled times) and raiders with their roles and availability windows, form optimal raid parties.
+  const prompt = `You are a raid composition assistant for World of Warcraft. Given raids (date, instance, scheduled times) and raiders with their level, class, spec, role, and availability windows, form optimal raid parties.
 
 Raids (date, instance, scheduled time): ${raidsStr}
 
-Raiders and their availability (character, class, role, available raid+time windows):
+Raiders and their availability (character, level, class, spec, role, available raid+time windows):
 ${raidersWithSlots
   .map(
     (a: {
       character_name: string;
       character_class: string;
       raid_role?: string;
+      primary_spec?: string;
+      secondary_spec?: string;
+      level?: number;
       slots: Array<{ date: string; instance?: string; start_time: string; end_time: string }>;
-    }) =>
-      `- ${a.character_name} (${a.character_class}, ${(a.raid_role || "dps").toLowerCase()}): ${a.slots
+    }) => {
+      const specStr = [a.primary_spec, a.secondary_spec].filter(Boolean).join("/") || "—";
+      const levelStr = a.level != null ? `L${a.level}` : "";
+      const parts = [a.character_name, levelStr, a.character_class, specStr, (a.raid_role || "dps").toLowerCase()].filter(Boolean);
+      return `- ${parts.join(" ")}: ${a.slots
         .map((s) => `${s.date} ${s.instance || ""} ${s.start_time}-${s.end_time}`.trim())
-        .join("; ")}`
+        .join("; ")}`;
+    }
   )
   .join("\n")}
 
-Infer raid size from instance name (e.g. "Kara 10" = 10-man, "SSC" or "TK" often 25-man). Form balanced parties: 10-man typically 2 tank, 2-3 heal, 5-6 dps; 25-man typically 2 tank, 4-6 heal, rest dps. Each raider can only be in one party. Prioritize:
+Infer raid size from instance name (e.g. "Kara 10" = 10-man, "SSC" or "TK" often 25-man). Form balanced parties: 10-man typically 2 tank, 2-3 heal, 5-6 dps; 25-man typically 2 tank, 4-6 heal, rest dps. Each raider can only be in one party. Use level, class, spec, and role to form optimal compositions. Prioritize:
 1. Role balance (tank, healer, dps)
 2. Raider availability overlapping with the raid's scheduled time
 3. Instance-appropriate party size

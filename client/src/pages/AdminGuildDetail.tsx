@@ -492,8 +492,8 @@ export function AdminGuildDetail() {
                 <input value={newRosterEntry.character_class} onChange={(e) => setNewRosterEntry((x) => ({ ...x, character_class: e.target.value }))} placeholder="Class" className="px-2 py-1 rounded bg-slate-700 text-sm w-24" />
                 <select value={newRosterEntry.primary_spec || ""} onChange={(e) => setNewRosterEntry((x) => ({ ...x, primary_spec: e.target.value }))} className="px-2 py-1 rounded bg-slate-700 text-sm w-28 [color-scheme:dark]">
                   <option value="">Main spec</option>
-                  {getSpecsForClass(newRosterEntry.character_class || "", newRosterEntry.primary_spec).map((spec) => (
-                    <option key={spec} value={spec}>{spec}</option>
+                  {getSpecsForClass(newRosterEntry.character_class || "", newRosterEntry.primary_spec, serverType).map((spec) => (
+                    <option key={spec.value} value={spec.value}>{spec.label}</option>
                   ))}
                 </select>
                 <button onClick={addRosterEntry} className="px-2 py-1 rounded bg-sky-600 hover:bg-sky-500 text-white text-sm border border-sky-500/50">Add</button>
@@ -511,15 +511,15 @@ export function AdminGuildDetail() {
                         <input value={editingRoster.character_class} onChange={(ev) => setEditingRoster((x) => x ? { ...x, character_class: ev.target.value } : null)} className="px-2 py-1 rounded bg-slate-700 text-sm w-24" placeholder="Class" />
                         <select value={editingRoster.primary_spec || ""} onChange={(ev) => setEditingRoster((x) => x ? { ...x, primary_spec: ev.target.value } : null)} className="px-2 py-1 rounded bg-slate-700 text-sm w-28 [color-scheme:dark]">
                           <option value="">Main spec</option>
-                          {getSpecsForClass(editingRoster.character_class || "", editingRoster.primary_spec).map((spec) => (
-                            <option key={spec} value={spec}>{spec}</option>
+                          {getSpecsForClass(editingRoster.character_class || "", editingRoster.primary_spec, serverType).map((spec) => (
+                            <option key={spec.value} value={spec.value}>{spec.label}</option>
                           ))}
                         </select>
                         <input value={(editingRoster.professions || []).join(", ")} onChange={(ev) => setEditingRoster((x) => x ? { ...x, professions: ev.target.value.split(",").map((s) => s.trim()).filter(Boolean) } : null)} className="px-2 py-1 rounded bg-slate-700 text-sm w-40" placeholder="Professions (comma)" />
                         <select value={editingRoster.off_spec || ""} onChange={(ev) => setEditingRoster((x) => x ? { ...x, off_spec: ev.target.value } : null)} className="px-2 py-1 rounded bg-slate-700 text-sm w-28 [color-scheme:dark]">
                           <option value="">Off spec</option>
-                          {getSpecsForClass(editingRoster.character_class || "", editingRoster.off_spec).map((spec) => (
-                            <option key={spec} value={spec}>{spec}</option>
+                          {getSpecsForClass(editingRoster.character_class || "", editingRoster.off_spec, serverType).map((spec) => (
+                            <option key={spec.value} value={spec.value}>{spec.label}</option>
                           ))}
                         </select>
                         <input value={editingRoster.notes || ""} onChange={(ev) => setEditingRoster((x) => x ? { ...x, notes: ev.target.value } : null)} className="px-2 py-1 rounded bg-slate-700 text-sm w-32" placeholder="Notes" />

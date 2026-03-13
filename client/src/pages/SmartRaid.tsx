@@ -27,12 +27,19 @@ interface RaiderEntry {
   raid_role?: string;
   raid_lead?: boolean;
   raid_assist?: boolean;
+  primary_spec?: string;
+  secondary_spec?: string;
+  off_spec?: string;
+  level?: number;
 }
 
 interface RaiderAvailability {
   character_name: string;
   character_class: string;
   raid_role?: string;
+  primary_spec?: string;
+  secondary_spec?: string;
+  level?: number;
   slots: Array<{
     raidId: string;
     available: boolean;
@@ -95,11 +102,14 @@ export function SmartRaid() {
     }
     const rosterQs = guildRealmQueryString({ realm, guildName, serverType });
     const permsQs = guildQueryStringFromSlug({ realmSlug, guildName, serverType });
+    const guildRosterQs = guildQueryStringFromSlug({ realmSlug, guildName, serverType });
     Promise.all([
       api.get<{ raiders: RaiderEntry[] }>(`/auth/me/raider-roster?${rosterQs}`).then((r) => r.raiders ?? []),
       api.get<{ permissions: GuildPermissions }>(`/auth/me/guild-permissions?${permsQs}`).then((r) => r.permissions ?? DEFAULT_PERMISSIONS),
+      api.get<{ members?: Array<{ name: string; class: string; level: number }> }>(`/auth/me/guild-roster?${guildRosterQs}`).then((r) => r.members ?? []).catch(() => []),
     ])
-      .then(([raidersList, permsData]) => {
+      .then(([raidersList, permsData, guildMembers]) => {
+        const levelByName = new Map(guildMembers.map((m) => [m.name.toLowerCase(), m.level]));
         // Deduplicate by character name (API can return same char from multiple users in fallback)
         const seen = new Set<string>();
         const unique = raidersList.filter((r) => {
@@ -107,7 +117,10 @@ export function SmartRaid() {
           if (seen.has(key)) return false;
           seen.add(key);
           return true;
-        });
+        }).map((r) => ({
+          ...r,
+          level: r.level ?? levelByName.get(r.character_name.toLowerCase()),
+        }));
         setRaiders(unique);
         setPermissions(permsData);
       })
@@ -137,6 +150,9 @@ export function SmartRaid() {
           character_name: r.character_name,
           character_class: r.character_class,
           raid_role: r.raid_role,
+          primary_spec: r.primary_spec,
+          secondary_spec: r.secondary_spec ?? r.off_spec,
+          level: r.level,
           slots,
         };
       });
@@ -182,6 +198,9 @@ export function SmartRaid() {
           character_name: a.character_name,
           character_class: a.character_class,
           raid_role: a.raid_role ?? "dps",
+          primary_spec: a.primary_spec,
+          secondary_spec: a.secondary_spec,
+          level: a.level,
           slots: a.slots
             .filter((s) => s.available) // only include availability entries
             .map((s) => {

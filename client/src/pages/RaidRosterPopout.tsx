@@ -466,8 +466,8 @@ export function RaidRosterPopout() {
                             className="h-7 min-w-[90px] px-1.5 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500/50 [color-scheme:dark]"
                           >
                             <option value="">—</option>
-                            {getSpecsForClass(r.character_class, r.primary_spec ?? undefined).map((spec) => (
-                              <option key={spec} value={spec}>{spec}</option>
+                            {getSpecsForClass(r.character_class, r.primary_spec ?? undefined, serverType).map((spec) => (
+                              <option key={spec.value} value={spec.value}>{spec.label}</option>
                             ))}
                           </select>
                         </div>
@@ -495,8 +495,8 @@ export function RaidRosterPopout() {
                             className="h-7 min-w-[90px] px-1.5 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs focus:ring-1 focus:ring-sky-500/50 [color-scheme:dark]"
                           >
                             <option value="">—</option>
-                            {getSpecsForClass(r.character_class, r.secondary_spec ?? undefined).map((spec) => (
-                              <option key={spec} value={spec}>{spec}</option>
+                            {getSpecsForClass(r.character_class, r.secondary_spec ?? undefined, serverType).map((spec) => (
+                              <option key={spec.value} value={spec.value}>{spec.label}</option>
                             ))}
                           </select>
                         </div>
@@ -625,8 +625,8 @@ export function RaidRosterPopout() {
                             className="w-full h-8 px-2 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs [color-scheme:dark]"
                           >
                             <option value="">—</option>
-                            {getSpecsForClass(r.character_class, r.primary_spec ?? undefined).map((spec) => (
-                              <option key={spec} value={spec}>{spec}</option>
+                            {getSpecsForClass(r.character_class, r.primary_spec ?? undefined, serverType).map((spec) => (
+                              <option key={spec.value} value={spec.value}>{spec.label}</option>
                             ))}
                           </select>
                         </div>
@@ -655,8 +655,8 @@ export function RaidRosterPopout() {
                             className="w-full h-8 px-2 rounded bg-slate-700/80 border border-slate-600 text-slate-200 text-xs [color-scheme:dark]"
                           >
                             <option value="">—</option>
-                            {getSpecsForClass(r.character_class, r.secondary_spec ?? undefined).map((spec) => (
-                              <option key={spec} value={spec}>{spec}</option>
+                            {getSpecsForClass(r.character_class, r.secondary_spec ?? undefined, serverType).map((spec) => (
+                              <option key={spec.value} value={spec.value}>{spec.label}</option>
                             ))}
                           </select>
                         </div>
