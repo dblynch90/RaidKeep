@@ -2396,9 +2396,14 @@ authRoutes.delete("/me/saved-raids/:id", requireAuth, (req, res) => {
 
 // Smart Raid: AI-assisted party formation based on availability
 authRoutes.post("/me/smart-raid/form", requireAuth, async (req, res) => {
-  const { guild_realm, guild_name, server_type, raid_dates, availability } = req.body;
-  if (!guild_realm || !guild_name || !availability || !Array.isArray(availability) || !raid_dates || !Array.isArray(raid_dates)) {
-    res.status(400).json({ error: "guild_realm, guild_name, raid_dates, and availability (array) required" });
+  const { guild_realm, guild_name, server_type, raids, availability } = req.body;
+  if (!guild_realm || !guild_name || !availability || !Array.isArray(availability) || !raids || !Array.isArray(raids)) {
+    res.status(400).json({ error: "guild_realm, guild_name, raids (array), and availability (array) required" });
+    return;
+  }
+  const raidList = raids as Array<{ date: string; instance: string }>;
+  if (raidList.some((r) => !r.date || !r.instance?.trim())) {
+    res.status(400).json({ error: "Each raid must have date and instance" });
     return;
   }
   const db = getDb();
@@ -2417,31 +2422,39 @@ authRoutes.post("/me/smart-raid/form", requireAuth, async (req, res) => {
 
   const raidersWithSlots = availability.filter((a: { slots?: unknown[] }) => a.slots && a.slots.length > 0);
   if (raidersWithSlots.length === 0) {
-    res.status(400).json({ error: "No raiders with availability. Set at least one raider as available for at least one date." });
+    res.status(400).json({ error: "No raiders with availability. Set at least one raider as available for at least one raid." });
     return;
   }
 
+  const raidsStr = raidList.map((r) => `${r.date} ${r.instance}`).join("; ");
   const openai = new OpenAI({ apiKey });
-  const prompt = `You are a raid composition assistant for World of Warcraft. Given raiders with their roles and availability windows, form optimal raid parties.
+  const prompt = `You are a raid composition assistant for World of Warcraft. Given raids (date + instance) and raiders with their roles and availability windows, form optimal raid parties.
 
-Raid dates: ${raid_dates.join(", ")}
+Raids: ${raidsStr}
 
-Raiders and their availability (character, class, role, available date+time windows):
+Raiders and their availability (character, class, role, available raid+time windows):
 ${raidersWithSlots
   .map(
-    (a: { character_name: string; character_class: string; raid_role?: string; slots: Array<{ date: string; start_time: string; end_time: string }> }) =>
-      `- ${a.character_name} (${a.character_class}, ${(a.raid_role || "dps").toLowerCase()}): ${a.slots.map((s: { date: string; start_time: string; end_time: string }) => `${s.date} ${s.start_time}-${s.end_time}`).join("; ")}`
+    (a: {
+      character_name: string;
+      character_class: string;
+      raid_role?: string;
+      slots: Array<{ date: string; instance?: string; start_time: string; end_time: string }>;
+    }) =>
+      `- ${a.character_name} (${a.character_class}, ${(a.raid_role || "dps").toLowerCase()}): ${a.slots
+        .map((s) => `${s.date} ${s.instance || ""} ${s.start_time}-${s.end_time}`.trim())
+        .join("; ")}`
   )
   .join("\n")}
 
-Form parties of 5 (1 tank, 1 healer, 3 dps per party when possible). Each raider can only be in one party. Prioritize:
+Infer raid size from instance name (e.g. "Kara 10" = 10-man, "SSC" or "TK" often 25-man). Form balanced parties: 10-man typically 2 tank, 2-3 heal, 5-6 dps; 25-man typically 2 tank, 4-6 heal, rest dps. Each raider can only be in one party. Prioritize:
 1. Role balance (tank, healer, dps)
 2. Overlapping availability - put raiders who can play at the same times together
-3. Fill parties to 5 when possible
+3. Instance-appropriate party size
 
 Respond with ONLY valid JSON, no other text. Format:
 {"parties":[{"party_index":0,"slots":[{"slot_index":0,"character_name":"Name","character_class":"Class","role":"Tank"},...]},{"party_index":1,"slots":[...]},...]}
-Each party has up to 5 slots. slot_index 0-4 within each party. role is Tank, Heal, or DPS.`;
+role is Tank, Heal, or DPS. slot_index 0-based within each party.`;
 
   try {
     const completion = await openai.chat.completions.create({

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Card } from "../components/Card";
 import { api } from "../api";
@@ -25,11 +25,17 @@ interface RaiderAvailability {
   character_class: string;
   raid_role?: string;
   slots: Array<{
-    date: string;
+    raidId: string;
     available: boolean;
     startTime: string;
     endTime: string;
   }>;
+}
+
+interface RaidEntry {
+  id: string;
+  date: string;
+  instance: string;
 }
 
 interface FormedParty {
@@ -50,8 +56,7 @@ export function SmartRaid() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [raids, setRaids] = useState<RaidEntry[]>([]);
   const [availability, setAvailability] = useState<RaiderAvailability[]>([]);
   const [forming, setForming] = useState(false);
   const [formedParties, setFormedParties] = useState<FormedParty[] | null>(null);
@@ -60,23 +65,15 @@ export function SmartRaid() {
   const perms = permissions ?? DEFAULT_PERMISSIONS;
   const canManage = perms.manage_raids ?? false;
 
-  /** Get all Fri/Sat/Sun dates in range */
-  const raidDates = useMemo(() => {
-    if (!startDate || !endDate) return [];
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    if (start > end) return [];
-    const dates: string[] = [];
-    const d = new Date(start);
-    while (d <= end) {
-      const day = d.getDay();
-      if (day === 5 || day === 6 || day === 0) {
-        dates.push(d.toISOString().slice(0, 10));
-      }
-      d.setDate(d.getDate() + 1);
-    }
-    return dates;
-  }, [startDate, endDate]);
+  const addRaid = () => {
+    setRaids((prev) => [...prev, { id: crypto.randomUUID(), date: "", instance: "" }]);
+  };
+  const removeRaid = (id: string) => {
+    setRaids((prev) => prev.filter((r) => r.id !== id));
+  };
+  const updateRaid = (id: string, updates: Partial<Pick<RaidEntry, "date" | "instance">>) => {
+    setRaids((prev) => prev.map((r) => (r.id === id ? { ...r, ...updates } : r)));
+  };
 
   useEffect(() => {
     if (!isValid) {
@@ -98,19 +95,19 @@ export function SmartRaid() {
       .finally(() => setLoading(false));
   }, [realm, guildName, serverType, realmSlug, isValid]);
 
-  /** Initialize/update availability when raiders or raidDates change */
+  /** Initialize/update availability when raiders or raids change */
   useEffect(() => {
-    if (raiders.length === 0 || raidDates.length === 0) {
+    if (raiders.length === 0 || raids.length === 0) {
       setAvailability([]);
       return;
     }
     setAvailability((prev) => {
       const next: RaiderAvailability[] = raiders.map((r) => {
         const existing = prev.find((a) => a.character_name.toLowerCase() === r.character_name.toLowerCase());
-        const slots = raidDates.map((date) => {
-          const ex = existing?.slots.find((s) => s.date === date);
+        const slots = raids.map((raid) => {
+          const ex = existing?.slots.find((s) => s.raidId === raid.id);
           return {
-            date,
+            raidId: raid.id,
             available: ex?.available ?? true,
             startTime: ex?.startTime ?? "19:00",
             endTime: ex?.endTime ?? "23:00",
@@ -125,39 +122,49 @@ export function SmartRaid() {
       });
       return next;
     });
-  }, [raiders, raidDates.join(",")]);
+  }, [raiders, raids.map((r) => r.id).join(",")]);
 
-  const setRaiderSlot = (characterName: string, date: string, updates: Partial<{ available: boolean; startTime: string; endTime: string }>) => {
+  const setRaiderSlot = (characterName: string, raidId: string, updates: Partial<{ available: boolean; startTime: string; endTime: string }>) => {
     setAvailability((prev) =>
       prev.map((a) => {
         if (a.character_name.toLowerCase() !== characterName.toLowerCase()) return a;
         return {
           ...a,
-          slots: a.slots.map((s) => (s.date === date ? { ...s, ...updates } : s)),
+          slots: a.slots.map((s) => (s.raidId === raidId ? { ...s, ...updates } : s)),
         };
       })
     );
   };
 
+  const validRaids = raids.filter((r) => r.date && r.instance.trim());
+
   const handleFormRaids = async () => {
-    if (!realm || !guildName || availability.length === 0 || raidDates.length === 0) {
-      setFormError("Set date range and ensure you have raiders.");
+    if (!realm || !guildName || availability.length === 0 || validRaids.length === 0) {
+      setFormError("Add at least one raid (date + instance) and ensure you have raiders.");
       return;
     }
     setForming(true);
     setFormError(null);
     setFormedParties(null);
     try {
+      const raidMap = new Map(raids.map((r) => [r.id, r]));
       const payload = {
         guild_realm: realm,
         guild_name: guildName,
         server_type: serverType,
-        raid_dates: raidDates,
+        raids: validRaids.map((r) => ({ date: r.date, instance: r.instance.trim() })),
         availability: availability.map((a) => ({
           character_name: a.character_name,
           character_class: a.character_class,
           raid_role: a.raid_role ?? "dps",
-          slots: a.slots.filter((s) => s.available).map((s) => ({ date: s.date, start_time: s.startTime, end_time: s.endTime })),
+          slots: a.slots
+            .filter((s) => s.available) // only include availability entries
+            .map((s) => {
+              const raid = raidMap.get(s.raidId);
+              if (!raid || !validRaids.some((vr) => vr.id === s.raidId)) return null;
+              return { date: raid.date, instance: raid.instance.trim(), start_time: s.startTime, end_time: s.endTime };
+            })
+            .filter(Boolean),
         })),
       };
       const res = await api.post<{ parties: FormedParty[] }>("/auth/me/smart-raid/form", payload);
@@ -210,7 +217,7 @@ export function SmartRaid() {
         <header className="mb-6">
           <h1 className="text-2xl font-semibold text-sky-400">Smart Raid</h1>
           <p className="text-slate-400 text-sm mt-1">
-            Set a date range and raider availability, then use AI to form optimal parties.
+            Add raids (date + instance), set raider availability, then use AI to form parties.
           </p>
         </header>
 
@@ -219,56 +226,67 @@ export function SmartRaid() {
         ) : (
           <div className="space-y-6">
             <Card className="p-5">
-              <h2 className="text-slate-300 font-medium text-sm uppercase tracking-wider mb-4">Date Range</h2>
+              <h2 className="text-slate-300 font-medium text-sm uppercase tracking-wider mb-4">Raids</h2>
               <p className="text-slate-500 text-sm mb-3">
-                Select a date range. Raid dates will include all Fridays, Saturdays, and Sundays in that range.
+                Add each raid with a date and instance (e.g. Kara 10, SSC, TK).
               </p>
-              <div className="flex flex-wrap gap-4">
-                <div>
-                  <label className="block text-slate-400 text-sm mb-1">Start Date</label>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 [color-scheme:dark]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-400 text-sm mb-1">End Date</label>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 [color-scheme:dark]"
-                  />
-                </div>
+              <div className="space-y-3">
+                {raids.map((raid) => (
+                  <div key={raid.id} className="flex flex-wrap gap-3 items-end">
+                    <div>
+                      <label className="block text-slate-400 text-xs mb-1">Date</label>
+                      <input
+                        type="date"
+                        value={raid.date}
+                        onChange={(e) => updateRaid(raid.id, { date: e.target.value })}
+                        className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 [color-scheme:dark]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 text-xs mb-1">Instance</label>
+                      <input
+                        type="text"
+                        value={raid.instance}
+                        onChange={(e) => updateRaid(raid.id, { instance: e.target.value })}
+                        placeholder="e.g. Kara 10"
+                        className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-100 min-w-[140px]"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeRaid(raid.id)}
+                      className="px-2 py-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-700/50"
+                      title="Remove raid"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addRaid}
+                  className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm"
+                >
+                  + Add raid
+                </button>
               </div>
-              {raidDates.length > 0 && (
-                <p className="text-slate-400 text-sm mt-3">
-                  {raidDates.length} raid date{raidDates.length !== 1 ? "s" : ""}:{" "}
-                  {raidDates.map((d) => {
-                    const date = new Date(d);
-                    return `${DAY_NAMES[date.getDay()]} ${d}`;
-                  }).join(", ")}
-                </p>
-              )}
             </Card>
 
-            {raidDates.length > 0 && raiders.length > 0 && (
+            {raids.length > 0 && raiders.length > 0 && (
               <Card className="p-5 overflow-x-auto">
                 <h2 className="text-slate-300 font-medium text-sm uppercase tracking-wider mb-4">Raider Availability</h2>
                 <p className="text-slate-500 text-sm mb-4">
-                  For each raider and each date, set whether they are available and their time window.
+                  For each raider and each raid, set whether they are available and their time window.
                 </p>
                 <table className="w-full border-collapse text-sm min-w-[600px]">
                   <thead>
                     <tr className="border-b border-slate-600">
                       <th className="text-left py-2 px-3 text-slate-400 font-medium">Raider</th>
-                      {raidDates.map((d) => {
-                        const date = new Date(d);
+                      {raids.map((raid) => {
+                        const date = raid.date ? new Date(raid.date) : null;
                         return (
-                          <th key={d} className="text-left py-2 px-2 text-slate-400 font-medium text-xs">
-                            {DAY_NAMES[date.getDay()]} {d.slice(5)}
+                          <th key={raid.id} className="text-left py-2 px-2 text-slate-400 font-medium text-xs">
+                            {date ? `${DAY_NAMES[date.getDay()]} ${raid.date.slice(5)}` : "—"} {raid.instance ? `· ${raid.instance}` : ""}
                           </th>
                         );
                       })}
@@ -286,13 +304,13 @@ export function SmartRaid() {
                           </span>
                         </td>
                         {a.slots.map((s) => (
-                          <td key={s.date} className="py-1 px-2">
+                          <td key={s.raidId} className="py-1 px-2">
                             <div className="flex flex-col gap-1">
                               <label className="flex items-center gap-1">
                                 <input
                                   type="checkbox"
                                   checked={s.available}
-                                  onChange={(e) => setRaiderSlot(a.character_name, s.date, { available: e.target.checked })}
+                                  onChange={(e) => setRaiderSlot(a.character_name, s.raidId, { available: e.target.checked })}
                                   className="rounded border-slate-600 bg-slate-700 text-sky-500"
                                 />
                                 <span className="text-xs text-slate-400">Available</span>
@@ -302,14 +320,14 @@ export function SmartRaid() {
                                   <input
                                     type="time"
                                     value={s.startTime}
-                                    onChange={(e) => setRaiderSlot(a.character_name, s.date, { startTime: e.target.value })}
+                                    onChange={(e) => setRaiderSlot(a.character_name, s.raidId, { startTime: e.target.value })}
                                     className="w-20 px-1 py-0.5 rounded text-xs bg-slate-700 border border-slate-600 [color-scheme:dark]"
                                   />
                                   <span className="text-slate-600">–</span>
                                   <input
                                     type="time"
                                     value={s.endTime}
-                                    onChange={(e) => setRaiderSlot(a.character_name, s.date, { endTime: e.target.value })}
+                                    onChange={(e) => setRaiderSlot(a.character_name, s.raidId, { endTime: e.target.value })}
                                     className="w-20 px-1 py-0.5 rounded text-xs bg-slate-700 border border-slate-600 [color-scheme:dark]"
                                   />
                                 </div>
@@ -324,7 +342,7 @@ export function SmartRaid() {
               </Card>
             )}
 
-            {raidDates.length > 0 && raiders.length > 0 && (
+            {validRaids.length > 0 && raiders.length > 0 && (
               <div>
                 <button
                   type="button"
@@ -367,10 +385,10 @@ export function SmartRaid() {
               </Card>
             )}
 
-            {raidDates.length === 0 && !loading && (
-              <p className="text-slate-500">Set a start and end date to see raid dates and set availability.</p>
+            {raids.length === 0 && !loading && (
+              <p className="text-slate-500">Add raids (date + instance) to set availability and form parties.</p>
             )}
-            {raidDates.length > 0 && raiders.length === 0 && (
+            {raids.length > 0 && raiders.length === 0 && (
               <p className="text-amber-500">No raiders in roster. Add raiders in Raid Roster first.</p>
             )}
           </div>
