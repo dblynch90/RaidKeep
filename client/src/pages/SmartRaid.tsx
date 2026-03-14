@@ -254,7 +254,13 @@ export function SmartRaid() {
         text: pasteText.trim(),
       });
       const parsed = res.availability ?? [];
-      const dateToRaidId = new Map(validRaids.map((r) => [r.date, r.id]));
+      const dateToRaidIds = new Map<string, string[]>();
+      for (const r of validRaids) {
+        if (!r.date) continue;
+        const ids = dateToRaidIds.get(r.date) ?? [];
+        ids.push(r.id);
+        dateToRaidIds.set(r.date, ids);
+      }
       const raiderNames = new Map(availability.map((a) => [a.character_name.toLowerCase(), a.character_name]));
       const parsedByChar = new Map<string, Map<string, { startTime: string; endTime: string }>>();
       for (const p of parsed) {
@@ -263,12 +269,13 @@ export function SmartRaid() {
         const key = canonName.toLowerCase();
         const slotMap = parsedByChar.get(key) ?? new Map();
         for (const slot of p.slots) {
-          const raidId = dateToRaidId.get(slot.date);
-          if (raidId) {
-            slotMap.set(raidId, {
-              startTime: slot.start_time || "19:00",
-              endTime: slot.end_time || "23:00",
-            });
+          const raidIds = dateToRaidIds.get(slot.date) ?? [];
+          const parsedSlot = {
+            startTime: slot.start_time || "19:00",
+            endTime: slot.end_time || "23:00",
+          };
+          for (const raidId of raidIds) {
+            slotMap.set(raidId, parsedSlot);
           }
         }
         parsedByChar.set(key, slotMap);
