@@ -2663,7 +2663,9 @@ ${raidersWithSlots
       level?: number;
       slots: Array<{ date: string; instance?: string; start_time: string; end_time: string }>;
     }) => {
-      const specStr = [a.primary_spec, a.secondary_spec].filter(Boolean).join("/") || "—";
+      const specStr = a.primary_spec && a.secondary_spec
+        ? `${a.primary_spec} (primary) / ${a.secondary_spec} (off)`
+        : [a.primary_spec, a.secondary_spec].filter(Boolean).join("/") || "—";
       const levelStr = a.level != null ? `L${a.level}` : "";
       const parts = [a.character_name, levelStr, a.character_class, specStr, (a.raid_role || "dps").toLowerCase()].filter(Boolean);
       return `- ${parts.join(" ")}: ${a.slots
@@ -2673,10 +2675,15 @@ ${raidersWithSlots
   )
   .join("\n")}
 
-When a PREFERRED COMPOSITION is given for a raid, assign raiders to match those slots exactly (role and spec when specified). When no preferred composition is given, infer raid size from instance name (e.g. "Kara 10" = 10-man, "SSC" or "TK" often 25-man) and form balanced teams: 10-man typically 2 tank, 2-3 heal, 5-6 dps; 25-man typically 2 tank, 4-6 heal, rest dps. A raider can be in multiple teams for DIFFERENT raids, but if two raids are the same instance in the same week, a raider can only be in one of them. Prioritize:
+When a PREFERRED COMPOSITION is given for a raid, assign raiders to match those slots exactly (role and spec when specified). When no preferred composition is given, infer raid size from instance name (e.g. "Kara 10" = 10-man, "SSC" or "TK" often 25-man) and form balanced teams: 10-man typically 2 tank, 2-3 heal, 5-6 dps; 25-man typically 2 tank, 4-6 heal, rest dps. A raider can be in multiple teams for DIFFERENT raids, but if two raids are the same instance in the same week, a raider can only be in one of them.
+
+CRITICAL - Primary spec over off-spec: Always prefer assigning raiders to slots that match their primary spec. Only assign a raider to a slot requiring their off-spec when no suitable primary-spec raider is available. When multiple raiders could fill a slot, choose the one whose primary spec matches over one who would use off-spec.
+
+Prioritize:
 1. Matching preferred composition when provided (role and spec)
-2. Raider availability overlapping with the raid's scheduled time
-3. Role balance when no preferred composition
+2. Primary spec over off-spec (never use off-spec if a primary-spec raider can fill the slot)
+3. Raider availability overlapping with the raid's scheduled time
+4. Role balance when no preferred composition
 
 Respond with ONLY valid JSON, no other text. Return one party per raid in order (party_index 0 = raid 0, etc). Format:
 {"parties":[{"party_index":0,"slots":[{"slot_index":0,"character_name":"Name","character_class":"Class","role":"Tank"},...]},{"party_index":1,"slots":[...]},...]}
