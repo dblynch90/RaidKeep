@@ -125,10 +125,58 @@ function getSpecMap(serverType: string): Record<string, SpecOption[]> {
   return tbc ? TBC_SPECS : RETAIL_SPECS;
 }
 
+/** Get class names for a server type (for composition building). */
+export function getClassesForVersion(serverType?: string): string[] {
+  const specMap = getSpecMap(serverType ?? "Retail");
+  return Object.keys(specMap).sort((a, b) => a.localeCompare(b));
+}
+
 /** Find class key (case-insensitive) */
 function findClassKey(className: string, specMap: Record<string, SpecOption[]>): string | undefined {
   const lower = className.toLowerCase();
   return Object.keys(specMap).find((k) => k.toLowerCase() === lower);
+}
+
+/** Specs that fulfill each role. "Any" means any spec in that role. */
+const TANK_SPECS = ["Protection", "Guardian", "Blood", "Brewmaster", "Vengeance"] as const;
+const HEALER_SPECS = ["Holy", "Discipline", "Restoration", "Mistweaver", "Preservation"] as const;
+/** TBC: Feral tanks, no Blood/Brewmaster/Vengeance/Preservation. Discipline is mostly DPS in TBC but included. */
+const TBC_TANK_SPECS = ["Protection", "Guardian", "Feral"] as const;
+const TBC_HEALER_SPECS = ["Holy", "Discipline", "Restoration"] as const;
+
+/**
+ * Get specs that fulfill a role, for composition building.
+ * @param role - tank, healer, or dps
+ * @param serverType - "Retail" or "TBC Anniversary" etc.
+ */
+export function getSpecsForRole(role: string, serverType?: string): SpecOption[] {
+  const tbc = ["TBC Anniversary", "TBC", "TBC Classic", "Classic"].includes(serverType ?? "Retail");
+  const roleLower = role.toLowerCase();
+  if (roleLower === "tank") {
+    const specs = tbc ? TBC_TANK_SPECS : TANK_SPECS;
+    return specs.map((s) => ({ label: s, value: s }));
+  }
+  if (roleLower === "healer") {
+    const specs = tbc ? TBC_HEALER_SPECS : HEALER_SPECS;
+    return specs.map((s) => ({ label: s, value: s }));
+  }
+  if (roleLower === "dps") {
+    const tankSpecs = new Set(tbc ? TBC_TANK_SPECS : TANK_SPECS);
+    const healerSpecs = new Set(tbc ? TBC_HEALER_SPECS : HEALER_SPECS);
+    const specMap = getSpecMap(serverType ?? "Retail");
+    const seen = new Set<string>();
+    const dps: SpecOption[] = [];
+    for (const opts of Object.values(specMap)) {
+      for (const s of opts) {
+        if (!tankSpecs.has(s.value as never) && !healerSpecs.has(s.value as never) && !seen.has(s.value)) {
+          seen.add(s.value);
+          dps.push(s);
+        }
+      }
+    }
+    return dps.sort((a, b) => a.label.localeCompare(b.label));
+  }
+  return [];
 }
 
 /**

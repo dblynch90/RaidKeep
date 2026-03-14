@@ -11,6 +11,7 @@ import { useGuildParams } from "../hooks/useGuildParams";
 import { guildRealmQueryString, guildQueryStringFromSlug } from "../utils/guildApi";
 import { RAID_ROLES } from "../constants/raid";
 import { getRaidsForVersion } from "../constants/raids";
+import { getSpecsForRole, getSpecsForClass, getClassesForVersion } from "../constants/specs";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -89,6 +90,8 @@ export function SmartRaid() {
   const [parseError, setParseError] = useState<string | null>(null);
   const [orderBy, setOrderBy] = useState<"name" | "class" | "role">("name");
   const [dragOverPartyIndex, setDragOverPartyIndex] = useState<number | null>(null);
+  const [compositions, setCompositions] = useState<Record<string, Array<{ role: string; spec: string; character_class: string }>>>({});
+  const [savingComp, setSavingComp] = useState<string | null>(null);
 
   const perms = permissions ?? DEFAULT_PERMISSIONS;
   const canManage = perms.manage_raids ?? false;
@@ -137,6 +140,22 @@ export function SmartRaid() {
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
       .finally(() => setLoading(false));
   }, [realm, guildName, serverType, realmSlug, isValid]);
+
+  useEffect(() => {
+    if (!isValid || !realm || !guildName || !canManage) return;
+    const qs = new URLSearchParams({ realm, guild_name: guildName, server_type: serverType });
+    api.get<{ compositions: Array<{ raid_instance: string; slots: Array<{ slot_index: number; role: string; spec: string | null }> }> }>(`/auth/me/smart-raid/compositions?${qs}`)
+      .then((r) => {
+        const map: Record<string, Array<{ role: string; spec: string; character_class: string }>> = {};
+        for (const c of r.compositions ?? []) {
+          map[c.raid_instance] = (c.slots ?? [])
+            .sort((a, b) => a.slot_index - b.slot_index)
+            .map((s) => ({ role: s.role || "dps", spec: s.spec || "", character_class: (s as { character_class?: string }).character_class || "" }));
+        }
+        setCompositions(map);
+      })
+      .catch(() => setCompositions({}));
+  }, [realm, guildName, serverType, isValid, canManage]);
 
   /** Initialize/update availability when raiders or raids change */
   useEffect(() => {
@@ -304,6 +323,48 @@ export function SmartRaid() {
     []
   );
 
+  const updateCompositionSlot = useCallback(
+    (instance: string, slotIndex: number, updates: Partial<{ role: string; spec: string; character_class: string }>) => {
+      setCompositions((prev) => {
+        const slots = [...(prev[instance] ?? [])];
+        if (!slots[slotIndex]) return prev;
+        slots[slotIndex] = { ...slots[slotIndex], ...updates };
+        return { ...prev, [instance]: slots };
+      });
+    },
+    []
+  );
+  const addCompositionSlot = useCallback((instance: string) => {
+    setCompositions((prev) => {
+      const slots = [...(prev[instance] ?? []), { role: "dps", spec: "", character_class: "" }];
+      return { ...prev, [instance]: slots };
+    });
+  }, []);
+  const removeCompositionSlot = useCallback((instance: string, slotIndex: number) => {
+    setCompositions((prev) => {
+      const slots = (prev[instance] ?? []).filter((_, i) => i !== slotIndex);
+      return { ...prev, [instance]: slots };
+    });
+  }, []);
+  const saveComposition = useCallback(
+    async (instance: string) => {
+      if (!realm || !guildName) return;
+      setSavingComp(instance);
+      try {
+        await api.put("/auth/me/smart-raid/compositions", {
+          guild_realm: realm,
+          guild_name: guildName,
+          server_type: serverType,
+          raid_instance: instance,
+          slots: compositions[instance] ?? [],
+        });
+      } finally {
+        setSavingComp(null);
+      }
+    },
+    [realm, guildName, serverType, compositions]
+  );
+
   const handleFormRaids = async () => {
     if (!realm || !guildName || availability.length === 0 || validRaids.length === 0) {
       setFormError("Add at least one raid (date + instance) and ensure you have raiders.");
@@ -324,6 +385,11 @@ export function SmartRaid() {
           start_time: r.startTime || "19:00",
           end_time: getRaidEndTime(r),
         })),
+        compositions: Object.fromEntries(
+          [...new Set(validRaids.map((r) => r.instance.trim()))]
+            .filter((inst) => (compositions[inst]?.length ?? 0) > 0)
+            .map((inst) => [inst, compositions[inst] ?? []])
+        ),
         availability: availability.map((a) => ({
           character_name: a.character_name,
           character_class: a.character_class,
@@ -478,6 +544,89 @@ export function SmartRaid() {
                 </button>
               </div>
             </Card>
+
+            {validRaids.length > 0 && (
+              <Card className="p-5">
+                <h2 className="text-slate-300 font-medium text-sm uppercase tracking-wider mb-2">Preferred Compositions</h2>
+                <p className="text-slate-500 text-sm mb-4">
+                  Define class, role, and spec for each slot. The AI will use this when forming raids. Leave empty for any.
+                </p>
+                {[...new Set(validRaids.map((r) => r.instance.trim()))].map((instance) => {
+                  const slots = compositions[instance] ?? [];
+                  return (
+                    <div key={instance} className="mb-6 last:mb-0">
+                      <h3 className="text-sky-400 font-medium text-sm mb-2">{instance}</h3>
+                      <div className="space-y-2">
+                        {slots.map((slot, idx) => (
+                          <div key={idx} className="flex flex-wrap gap-2 items-center">
+                            <span className="text-slate-500 text-xs w-8">#{idx + 1}</span>
+                            <select
+                              value={slot.character_class}
+                              onChange={(e) => updateCompositionSlot(instance, idx, { character_class: e.target.value, spec: "" })}
+                              className="px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm [color-scheme:dark] min-w-[120px]"
+                            >
+                              <option value="">Any class</option>
+                              {getClassesForVersion(serverType).map((cls) => (
+                                <option key={cls} value={cls}>{cls}</option>
+                              ))}
+                            </select>
+                            <select
+                              value={slot.role}
+                              onChange={(e) => updateCompositionSlot(instance, idx, { role: e.target.value })}
+                              className="px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm [color-scheme:dark] min-w-[80px]"
+                            >
+                              {RAID_ROLES.filter((r) => r.value).map((opt) => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))}
+                            </select>
+                            <select
+                              value={slot.spec}
+                              onChange={(e) => updateCompositionSlot(instance, idx, { spec: e.target.value })}
+                              className="px-2 py-1.5 rounded bg-slate-700 border border-slate-600 text-slate-200 text-sm [color-scheme:dark] min-w-[140px]"
+                            >
+                              <option value="">Any spec</option>
+                              {(slot.character_class
+                                ? getSpecsForClass(slot.character_class, slot.spec, serverType)
+                                : getSpecsForRole(slot.role || "dps", serverType)
+                              ).map((s) => (
+                                <option key={s.value} value={s.value}>{s.label}</option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => removeCompositionSlot(instance, idx)}
+                              className="px-2 py-1 rounded text-slate-400 hover:text-red-400 hover:bg-slate-700/50 text-sm"
+                              title="Remove slot"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                        <div className="flex gap-2 items-center">
+                          <button
+                            type="button"
+                            onClick={() => addCompositionSlot(instance)}
+                            className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm"
+                          >
+                            + Add slot
+                          </button>
+                          {slots.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => saveComposition(instance)}
+                              disabled={savingComp === instance}
+                              className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-sm"
+                            >
+                              {savingComp === instance ? "Saving..." : "Save"}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </Card>
+            )}
 
             {raids.length > 0 && raiders.length > 0 && (
               <Card className="p-5 overflow-x-auto">

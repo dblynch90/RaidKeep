@@ -2403,6 +2403,94 @@ authRoutes.delete("/me/saved-raids/:id", requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// Smart Raid: preferred compositions per raid instance
+authRoutes.get("/me/smart-raid/compositions", requireAuth, (req, res) => {
+  const realm = (req.query.realm as string)?.trim();
+  const guildName = (req.query.guild_name as string)?.trim();
+  const serverType = ((req.query.server_type as string) || "Retail").trim();
+  if (!realm || !guildName) {
+    res.status(400).json({ error: "realm and guild_name required" });
+    return;
+  }
+  const db = getDb();
+  const userId = req.session!.user!.id;
+  const realmSlug = realm.toLowerCase().replace(/\s+/g, "-");
+  const perms = getEffectiveGuildPermissions(db, userId, realmSlug, guildName, serverType);
+  if (!perms?.manage_raids) {
+    res.status(403).json({ error: "You do not have permission" });
+    return;
+  }
+  const rows = db
+    .prepare(
+      `SELECT c.id, c.raid_instance, c.created_at,
+        (SELECT json_group_array(json_object('slot_index', s.slot_index, 'role', s.role, 'spec', s.spec, 'character_class', s.character_class))
+         FROM smart_raid_composition_slots s WHERE s.composition_id = c.id ORDER BY s.slot_index) as slots_json
+       FROM smart_raid_compositions c
+       WHERE c.guild_realm_slug = ? AND c.guild_name = ? AND c.server_type = ?`
+    )
+    .all(realmSlug, guildName, serverType) as Array<{ id: number; raid_instance: string; created_at: string; slots_json: string | null }>;
+  const compositions = rows.map((r) => ({
+    id: r.id,
+    raid_instance: r.raid_instance,
+    created_at: r.created_at,
+    slots: (r.slots_json ? JSON.parse(r.slots_json) : []) as Array<{ slot_index: number; role: string; spec: string | null; character_class: string | null }>,
+  }));
+  res.json({ compositions });
+});
+
+authRoutes.put("/me/smart-raid/compositions", requireAuth, (req, res) => {
+  const { guild_realm, guild_name, server_type, raid_instance, slots } = req.body;
+  if (!guild_realm || !guild_name || !raid_instance || typeof raid_instance !== "string" || !raid_instance.trim()) {
+    res.status(400).json({ error: "guild_realm, guild_name, and raid_instance required" });
+    return;
+  }
+  const db = getDb();
+  const userId = req.session!.user!.id;
+  const realmSlug = String(guild_realm).toLowerCase().replace(/\s+/g, "-");
+  const serverType = (server_type || "Retail").toString().trim();
+  const perms = getEffectiveGuildPermissions(db, userId, realmSlug, guild_name, serverType);
+  if (!perms?.manage_raids) {
+    res.status(403).json({ error: "You do not have permission" });
+    return;
+  }
+  const slotList = Array.isArray(slots)
+    ? (slots as Array<{ role?: string; spec?: string; character_class?: string }>)
+        .map((s, i) => ({
+          slot_index: i,
+          role: (s?.role || "dps").toString().toLowerCase(),
+          spec: s?.spec ? String(s.spec).trim() || null : null,
+          character_class: s?.character_class ? String(s.character_class).trim() || null : null,
+        }))
+        .filter((s) => ["tank", "healer", "dps"].includes(s.role))
+    : [];
+  db.transaction(() => {
+    const existing = db
+      .prepare(
+        "SELECT id FROM smart_raid_compositions WHERE guild_realm_slug = ? AND guild_name = ? AND server_type = ? AND raid_instance = ?"
+      )
+      .get(realmSlug, guild_name, serverType, raid_instance.trim()) as { id: number } | undefined;
+    let compId: number;
+    if (existing) {
+      compId = existing.id;
+      db.prepare("DELETE FROM smart_raid_composition_slots WHERE composition_id = ?").run(compId);
+    } else {
+      const ins = db
+        .prepare(
+          "INSERT INTO smart_raid_compositions (guild_realm_slug, guild_name, server_type, raid_instance) VALUES (?, ?, ?, ?)"
+        )
+        .run(realmSlug, guild_name, serverType, raid_instance.trim());
+      compId = ins.lastInsertRowid as number;
+    }
+    const slotStmt = db.prepare(
+      "INSERT INTO smart_raid_composition_slots (composition_id, slot_index, role, spec, character_class) VALUES (?, ?, ?, ?, ?)"
+    );
+    for (const s of slotList) {
+      slotStmt.run(compId, s.slot_index, s.role, s.spec, s.character_class);
+    }
+  })();
+  res.json({ ok: true });
+});
+
 // Smart Raid: Parse pasted availability text and return structured data
 authRoutes.post("/me/smart-raid/parse-availability", requireAuth, async (req, res) => {
   const { guild_realm, guild_name, server_type, raids, raiders, text } = req.body;
@@ -2481,12 +2569,13 @@ Only include raiders who are in the raider list. Only include slots for dates th
 
 // Smart Raid: AI-assisted party formation based on availability
 authRoutes.post("/me/smart-raid/form", requireAuth, async (req, res) => {
-  const { guild_realm, guild_name, server_type, raids, availability } = req.body;
+  const { guild_realm, guild_name, server_type, raids, availability, compositions } = req.body;
   if (!guild_realm || !guild_name || !availability || !Array.isArray(availability) || !raids || !Array.isArray(raids)) {
     res.status(400).json({ error: "guild_realm, guild_name, raids (array), and availability (array) required" });
     return;
   }
   const raidList = raids as Array<{ date: string; instance: string; start_time?: string; end_time?: string }>;
+  const compMap = (compositions && typeof compositions === "object") ? compositions as Record<string, Array<{ role?: string; spec?: string; character_class?: string }>> : {};
   if (raidList.some((r) => !r.date || !r.instance?.trim())) {
     res.status(400).json({ error: "Each raid must have date and instance" });
     return;
@@ -2536,13 +2625,29 @@ authRoutes.post("/me/smart-raid/form", requireAuth, async (req, res) => {
   const raidsStr = raidList
     .map((r, i) => `[${i}] ${r.date} ${r.instance}${r.start_time && r.end_time ? ` ${r.start_time}-${r.end_time}` : ""}`)
     .join("; ");
+  const compStr = raidList
+    .map((r, i) => {
+      const slots = compMap[r?.instance?.trim() ?? ""];
+      if (!Array.isArray(slots) || slots.length === 0) return null;
+      const slotDescs = slots.map((s, si) => {
+        const cls = s?.character_class ? ` ${s.character_class}` : "";
+        const role = (s?.role || "dps").toString();
+        const spec = s?.spec ? ` ${s.spec}` : "";
+        return `slot ${si}:${cls} ${role}${spec}`;
+      });
+      return `Raid [${i}] (${r.instance}): form exactly these slots in order: ${slotDescs.join("; ")}`;
+    })
+    .filter(Boolean);
+  const preferredCompStr = compStr.length > 0
+    ? `\n\nPREFERRED COMPOSITIONS (follow exactly when assigning):\n${compStr.join("\n")}`
+    : "";
   const conflictStr = raidConflicts.length > 0
     ? `\n\nCRITICAL: A raider cannot do the same instance twice in one week (Tuesday reset). These raid pairs conflict - assign each raider to at most one per pair:\n${raidConflicts.join("\n")}`
     : "";
 
   const openai = new OpenAI({ apiKey });
   const prompt = `You are a raid composition assistant for World of Warcraft. Given raids (date, instance, scheduled times) and raiders with their availability, form ONE team per raid. Each raid gets exactly one team. Team i corresponds to raid [i].
-${conflictStr}
+${preferredCompStr}${conflictStr}
 
 Raids (index, date, instance, scheduled time): ${raidsStr}
 
@@ -2568,10 +2673,10 @@ ${raidersWithSlots
   )
   .join("\n")}
 
-Infer raid size from instance name (e.g. "Kara 10" = 10-man, "SSC" or "TK" often 25-man). Form balanced teams: 10-man typically 2 tank, 2-3 heal, 5-6 dps; 25-man typically 2 tank, 4-6 heal, rest dps. A raider can be in multiple teams for DIFFERENT raids, but if two raids are the same instance in the same week, a raider can only be in one of them. Prioritize:
-1. Role balance (tank, healer, dps)
+When a PREFERRED COMPOSITION is given for a raid, assign raiders to match those slots exactly (role and spec when specified). When no preferred composition is given, infer raid size from instance name (e.g. "Kara 10" = 10-man, "SSC" or "TK" often 25-man) and form balanced teams: 10-man typically 2 tank, 2-3 heal, 5-6 dps; 25-man typically 2 tank, 4-6 heal, rest dps. A raider can be in multiple teams for DIFFERENT raids, but if two raids are the same instance in the same week, a raider can only be in one of them. Prioritize:
+1. Matching preferred composition when provided (role and spec)
 2. Raider availability overlapping with the raid's scheduled time
-3. Instance-appropriate team size
+3. Role balance when no preferred composition
 
 Respond with ONLY valid JSON, no other text. Return one party per raid in order (party_index 0 = raid 0, etc). Format:
 {"parties":[{"party_index":0,"slots":[{"slot_index":0,"character_name":"Name","character_class":"Class","role":"Tank"},...]},{"party_index":1,"slots":[...]},...]}

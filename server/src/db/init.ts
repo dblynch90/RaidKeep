@@ -303,6 +303,42 @@ export function initDb() {
   `);
   db.exec("CREATE INDEX IF NOT EXISTS idx_raid_team_members_team ON raid_team_members(team_id)");
 
+  // Smart Raid: preferred compositions per guild per raid instance
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS smart_raid_compositions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_realm_slug TEXT NOT NULL,
+      guild_name TEXT NOT NULL,
+      server_type TEXT NOT NULL DEFAULT 'Retail',
+      raid_instance TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(guild_realm_slug, guild_name, server_type, raid_instance)
+    )
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_smart_raid_compositions_guild ON smart_raid_compositions(guild_realm_slug, guild_name, server_type)");
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS smart_raid_composition_slots (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      composition_id INTEGER NOT NULL REFERENCES smart_raid_compositions(id) ON DELETE CASCADE,
+      slot_index INTEGER NOT NULL,
+      role TEXT NOT NULL,
+      spec TEXT,
+      UNIQUE(composition_id, slot_index)
+    )
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_smart_raid_composition_slots_comp ON smart_raid_composition_slots(composition_id)");
+
+  // Migration: add character_class to smart_raid_composition_slots
+  try {
+    const slotCols = db.prepare("PRAGMA table_info(smart_raid_composition_slots)").all() as Array<{ name: string }>;
+    if (!slotCols.some((c) => c.name === "character_class")) {
+      db.exec("ALTER TABLE smart_raid_composition_slots ADD COLUMN character_class TEXT");
+    }
+  } catch {
+    /* ignore */
+  }
+
   // Migration: add portrait_url to battle_net_characters
   try {
     const bnCols = db.prepare("PRAGMA table_info(battle_net_characters)").all() as Array<{ name: string }>;
