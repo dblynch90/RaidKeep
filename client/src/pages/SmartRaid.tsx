@@ -92,6 +92,8 @@ export function SmartRaid() {
   const [dragOverPartyIndex, setDragOverPartyIndex] = useState<number | null>(null);
   const [compositions, setCompositions] = useState<Record<string, Array<{ role: string; spec: string; character_class: string }>>>({});
   const [savingComp, setSavingComp] = useState<string | null>(null);
+  const [showCompositions, setShowCompositions] = useState(false);
+  const [extraCompInstances, setExtraCompInstances] = useState<string[]>([]);
 
   const perms = permissions ?? DEFAULT_PERMISSIONS;
   const canManage = perms.manage_raids ?? false;
@@ -454,11 +456,20 @@ export function SmartRaid() {
           />
         )}
 
-        <header className="mb-6">
-          <h1 className="text-2xl font-semibold text-sky-400">Smart Raid</h1>
-          <p className="text-slate-400 text-sm mt-1">
-            Add raids (date + instance), set raider availability, then use AI to form parties.
-          </p>
+        <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-sky-400">Smart Raid</h1>
+            <p className="text-slate-400 text-sm mt-1">
+              Add raids (date + instance), set raider availability, then use AI to form parties.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowCompositions((v) => !v)}
+            className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-sm font-medium"
+          >
+            {showCompositions ? "Hide Compositions" : "Build Compositions"}
+          </button>
         </header>
 
         {loading ? (
@@ -545,13 +556,41 @@ export function SmartRaid() {
               </div>
             </Card>
 
-            {validRaids.length > 0 && (
+            {showCompositions && (
               <Card className="p-5">
                 <h2 className="text-slate-300 font-medium text-sm uppercase tracking-wider mb-2">Preferred Compositions</h2>
                 <p className="text-slate-500 text-sm mb-4">
                   Define class, role, and spec for each slot. The AI will use this when forming raids. Leave empty for any.
                 </p>
-                {[...new Set(validRaids.map((r) => r.instance.trim()))].map((instance) => {
+                <div className="mb-4 flex flex-wrap gap-2 items-center">
+                  <span className="text-slate-400 text-sm">Add composition for:</span>
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const inst = e.target.value;
+                      if (inst && !extraCompInstances.includes(inst)) {
+                        setExtraCompInstances((prev) => [...prev, inst]);
+                        if (!(inst in compositions)) setCompositions((c) => ({ ...c, [inst]: [] }));
+                      }
+                      e.target.value = "";
+                    }}
+                    className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 text-sm [color-scheme:dark]"
+                  >
+                    <option value="">— Select instance —</option>
+                    {getRaidsForVersion(serverType)
+                      .filter((r) => r !== "Other")
+                      .map((r) => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                  </select>
+                </div>
+                {[
+                  ...new Set([
+                    ...validRaids.map((r) => r.instance.trim()),
+                    ...Object.keys(compositions),
+                    ...extraCompInstances,
+                  ].filter(Boolean)),
+                ].map((instance) => {
                   const slots = compositions[instance] ?? [];
                   return (
                     <div key={instance} className="mb-6 last:mb-0">
@@ -618,6 +657,16 @@ export function SmartRaid() {
                               className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-sm"
                             >
                               {savingComp === instance ? "Saving..." : "Save"}
+                            </button>
+                          )}
+                          {extraCompInstances.includes(instance) && (
+                            <button
+                              type="button"
+                              onClick={() => setExtraCompInstances((prev) => prev.filter((i) => i !== instance))}
+                              className="px-2 py-1 rounded text-slate-400 hover:text-red-400 text-sm"
+                              title="Remove from list"
+                            >
+                              Remove
                             </button>
                           )}
                         </div>
