@@ -2609,6 +2609,7 @@ authRoutes.post("/me/smart-raid/form", requireAuth, async (req, res) => {
     return d.toISOString().slice(0, 10);
   };
   const raidConflicts: string[] = [];
+  const conflictGroups: number[][] = []; // each group = raid indices that conflict (same instance, same week)
   for (let i = 0; i < raidList.length; i++) {
     for (let j = i + 1; j < raidList.length; j++) {
       const a = raidList[i];
@@ -2618,9 +2619,17 @@ authRoutes.post("/me/smart-raid/form", requireAuth, async (req, res) => {
       const instB = b.instance.trim().toLowerCase();
       if (instA === instB && getWowWeekKey(a.date) === getWowWeekKey(b.date)) {
         raidConflicts.push(`Raids ${i} and ${j} (both ${a.instance} in same week)`);
+        let group = conflictGroups.find((g) => g.includes(i) || g.includes(j));
+        if (!group) {
+          group = [];
+          conflictGroups.push(group);
+        }
+        if (!group.includes(i)) group.push(i);
+        if (!group.includes(j)) group.push(j);
       }
     }
   }
+  for (const g of conflictGroups) g.sort((a, b) => a - b);
 
   const raidsStr = raidList
     .map((r, i) => `[${i}] ${r.date} ${r.instance}${r.start_time && r.end_time ? ` ${r.start_time}-${r.end_time}` : ""}`)
@@ -2642,7 +2651,7 @@ authRoutes.post("/me/smart-raid/form", requireAuth, async (req, res) => {
     ? `\n\nPREFERRED COMPOSITIONS (follow exactly when assigning):\n${compStr.join("\n")}`
     : "";
   const conflictStr = raidConflicts.length > 0
-    ? `\n\nCRITICAL: A raider cannot do the same instance twice in one week (Tuesday reset). These raid pairs conflict - assign each raider to at most one per pair:\n${raidConflicts.join("\n")}`
+    ? `\n\nCRITICAL - ONE RAID PER CHARACTER PER WEEK: Each raider can only be in ONE team per instance per week (Tuesday–Tuesday). If Karazhan runs Sat and Sun same week, Moorecowbell can be in EITHER Sat OR Sun, NOT BOTH. These conflict:\n${raidConflicts.join("\n")}\nAssign each raider to at most ONE raid in each conflicting group.`
     : "";
 
   const openai = new OpenAI({ apiKey });
@@ -2675,7 +2684,7 @@ ${raidersWithSlots
   )
   .join("\n")}
 
-When a PREFERRED COMPOSITION is given for a raid, assign raiders to match those slots exactly (role and spec when specified). When no preferred composition is given, infer raid size from instance name (e.g. "Kara 10" = 10-man, "SSC" or "TK" often 25-man) and form balanced teams: 10-man typically 2 tank, 2-3 heal, 5-6 dps; 25-man typically 2 tank, 4-6 heal, rest dps. A raider can be in multiple teams for DIFFERENT raids, but if two raids are the same instance in the same week, a raider can only be in one of them.
+When a PREFERRED COMPOSITION is given for a raid, assign raiders to match those slots exactly (role and spec when specified). When no preferred composition is given, infer raid size from instance name (e.g. "Kara 10" = 10-man, "SSC" or "TK" often 25-man) and form balanced teams: 10-man typically 2 tank, 2-3 heal, 5-6 dps; 25-man typically 2 tank, 4-6 heal, rest dps. A raider can be in multiple teams for DIFFERENT raid instances or different weeks. But if raids are the SAME instance in the SAME week (e.g. Karazhan Sat + Karazhan Sun), each raider must appear in ONLY ONE of those teams. Never assign the same character to two teams for the same instance in the same week.
 
 CRITICAL - Primary spec over off-spec: Always prefer assigning raiders to slots that match their primary spec. Only assign a raider to a slot requiring their off-spec when no suitable primary-spec raider is available. When multiple raiders could fill a slot, choose the one whose primary spec matches over one who would use off-spec.
 
@@ -2702,7 +2711,47 @@ role is Tank, Heal, or DPS. slot_index 0-based within each party.`;
     }
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(raw);
-    const rawParties = Array.isArray(parsed.parties) ? parsed.parties : [];
+    let rawParties = Array.isArray(parsed.parties) ? parsed.parties : [];
+
+    // Enforce: each raider in at most one raid per conflict group (same instance, same week)
+    if (conflictGroups.length > 0) {
+      const partiesByIndex = new Map<number, { party_index: number; slots: Array<{ slot_index: number; character_name: string; character_class: string; role: string }> }>();
+      for (const p of rawParties) {
+        const idx = p.party_index;
+        if (partiesByIndex.has(idx)) continue;
+        partiesByIndex.set(idx, {
+          party_index: idx,
+          slots: (p.slots ?? []).map((s: { slot_index?: number; character_name?: string; character_class?: string; role?: string }) => ({
+            slot_index: s.slot_index ?? 0,
+            character_name: s.character_name ?? "",
+            character_class: s.character_class ?? "",
+            role: s.role ?? "DPS",
+          })),
+        });
+      }
+      for (const group of conflictGroups) {
+        const assignedInGroup = new Set<string>(); // character_name lowercase -> raid index where they're kept
+        for (const raidIdx of group) {
+          const party = partiesByIndex.get(raidIdx);
+          if (!party) continue;
+          const newSlots: typeof party.slots = [];
+          for (const s of party.slots) {
+            const key = (s.character_name || "").toLowerCase();
+            if (!key) continue;
+            const alreadyIn = assignedInGroup.has(key);
+            if (alreadyIn) continue; // skip: already assigned to an earlier raid in this group
+            assignedInGroup.add(key);
+            newSlots.push(s);
+          }
+          // Re-index slot_index
+          party.slots = newSlots.map((s, i) => ({ ...s, slot_index: i }));
+        }
+      }
+      rawParties = [...partiesByIndex.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([, p]) => p);
+    }
+
     // Enrich each party with raid metadata for display (Raid Name - Time Slot)
     const parties = rawParties.map((p: { party_index: number; slots: unknown[] }) => {
       const raid = raidList[p.party_index];
