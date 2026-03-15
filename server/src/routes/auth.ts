@@ -2536,13 +2536,15 @@ ${text.trim()}
 """
 
 Parse the text. For each raider mentioned, extract which raid dates they're available and their time window (start-end). Times can be in various formats (7pm, 19:00, 7-11, etc). Normalize to HH:MM (24h). If the person just says yes or available without specifying times, use that raid's scheduled start_time as their start_time and the raid's end_time as their end_time.
-Match raider names flexibly (e.g. "Aeloryx" matches "Aeloryx"). If a raider isn't in the raider list, skip them.
+
+IMPORTANT - Nicknames and partial names: People often paste nicknames or shortened names (e.g. "Beefy" for "Beefygeek", "Aelo" for "Aeloryx", "Corn" for "Cornpaup"). Match nicknames, abbreviations, and partial names to the full character name from the raider list. Always return the EXACT character_name from the raider list, not the nickname as typed. If a pasted name could match multiple raiders, pick the best fit. If it clearly doesn't match any raider, skip them.
+
 Map dates to the raid dates provided - e.g. "Fri" or "3/14" or "Fri 3/14" -> use the matching YYYY-MM-DD date from the raids list.
 If the text mentions an instance (e.g. "Kara"), match to the raid with that instance.
 
 Respond with ONLY valid JSON, no other text. Format:
 {"availability":[{"character_name":"ExactNameFromList","slots":[{"date":"YYYY-MM-DD","start_time":"HH:MM","end_time":"HH:MM"}]}]}
-Only include raiders who are in the raider list. Only include slots for dates that match a raid.`;
+Always use the exact character_name from the raider list. Only include raiders who match the list. Only include slots for dates that match a raid.`;
 
   try {
     const completion = await openai.chat.completions.create({
@@ -2557,7 +2559,38 @@ Only include raiders who are in the raider list. Only include slots for dates th
     }
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(raw);
-    const result = Array.isArray(parsed.availability) ? parsed.availability : [];
+    const rawResult = Array.isArray(parsed.availability) ? parsed.availability : [];
+    const rosterSet = new Set(raiderList.map((r: { character_name: string }) => r.character_name.toLowerCase()));
+    const rosterNames = raiderList.map((r: { character_name: string }) => r.character_name) as string[];
+
+    const resolveToRoster = (name: string): string | null => {
+      const n = (name || "").trim();
+      if (!n) return null;
+      const lower = n.toLowerCase();
+      if (rosterSet.has(lower)) return rosterNames.find((r) => r.toLowerCase() === lower) ?? null;
+      for (const roster of rosterNames) {
+        const rLower = roster.toLowerCase();
+        if (rLower.startsWith(lower) || lower.startsWith(rLower)) return roster;
+        if (rLower.includes(lower) || lower.includes(rLower)) return roster;
+      }
+      return null;
+    };
+
+    const byChar = new Map<string, Array<{ date: string; start_time: string; end_time: string }>>();
+    for (const a of rawResult as Array<{ character_name: string; slots?: Array<{ date: string; start_time: string; end_time: string }> }>) {
+      const resolved = resolveToRoster(a.character_name);
+      if (!resolved) continue;
+      const existing = byChar.get(resolved) ?? [];
+      const seen = new Set(existing.map((s) => s.date));
+      for (const s of a.slots ?? []) {
+        if (!seen.has(s.date)) {
+          seen.add(s.date);
+          existing.push(s);
+        }
+      }
+      byChar.set(resolved, existing);
+    }
+    const result = [...byChar.entries()].map(([character_name, slots]) => ({ character_name, slots }));
     res.json({ availability: result });
   } catch (err) {
     console.error("Smart Raid parse error:", err);
