@@ -2719,7 +2719,7 @@ authRoutes.post("/me/smart-raid/form", requireAuth, async (req, res) => {
     })
     .filter(Boolean);
   const preferredCompStr = compStr.length > 0
-    ? `\n\nPREFERRED COMPOSITIONS (follow exactly when assigning):\n${compStr.join("\n")}`
+    ? `\n\nPREFERRED COMPOSITIONS (use as a suggestion; filling the raid is more important than matching this exactly):\n${compStr.join("\n")}`
     : "";
   const conflictStr = raidConflicts.length > 0
     ? `\n\nCRITICAL - ONE RAID PER CHARACTER PER WEEK: Each raider can only be in ONE team per instance per week (Tuesday–Tuesday). If Karazhan runs Sat and Sun same week, Moorecowbell can be in EITHER Sat OR Sun, NOT BOTH. These conflict:\n${raidConflicts.join("\n")}\nAssign each raider to at most ONE raid in each conflicting group.`
@@ -2755,18 +2755,19 @@ ${raidersWithSlots
   )
   .join("\n")}
 
-When a PREFERRED COMPOSITION is given for a raid, assign raiders to match those slots exactly (role and spec when specified). When no preferred composition is given, infer raid size from instance name (e.g. "Kara 10" = 10-man, "SSC" or "TK" often 25-man) and form balanced teams: 10-man typically 2 tank, 2-3 heal, 5-6 dps; 25-man typically 2 tank, 4-6 heal, rest dps. A raider can be in multiple teams for DIFFERENT raid instances or different weeks. But if raids are the SAME instance in the SAME week (e.g. Karazhan Sat + Karazhan Sun), each raider must appear in ONLY ONE of those teams. Never assign the same character to two teams for the same instance in the same week.
+Your main goal is to fill every raid with a full team. Preferred compositions are a suggestion—try to match role/spec when you can, but if you cannot fill slots while sticking to the preferred comp (e.g. not enough tanks or healers), still fill the raid with available raiders and adjust (e.g. add DPS slots, use off-spec, or deviate from the preferred layout). When no preferred composition is given, infer raid size from instance name (e.g. "Kara 10" = 10-man, "SSC" or "TK" often 25-man) and form balanced teams: 10-man typically 2 tank, 2-3 heal, 5-6 dps; 25-man typically 2 tank, 4-6 heal, rest dps. A raider can be in multiple teams for DIFFERENT raid instances or different weeks. But if raids are the SAME instance in the SAME week (e.g. Karazhan Sat + Karazhan Sun), each raider must appear in ONLY ONE of those teams. Never assign the same character to two teams for the same instance in the same week.
 
 Fill roles in this order: first assign all Tank slots, then all Healer slots, then DPS. Do not assign DPS until every Tank and Healer slot is filled.
 
 CRITICAL - Primary spec over off-spec: Always prefer assigning raiders to slots that match their primary spec. Only assign a raider to a slot requiring their off-spec when no suitable primary-spec raider is available. When multiple raiders could fill a slot, choose the one whose primary spec matches over one who would use off-spec.
 
 Prioritize:
-1. Fill Tank slots first, then Healer slots, then DPS (never leave tank/heal slots empty while filling DPS)
-2. Matching preferred composition when provided (role and spec)
-3. Primary spec over off-spec (never use off-spec if a primary-spec raider can fill the slot)
-4. Raider availability overlapping with the raid's scheduled time
-5. Role balance when no preferred composition
+1. Fill every slot—never leave a raid short-handed; use available raiders even if it means deviating from preferred composition
+2. Fill Tank slots first, then Healer slots, then DPS (never leave tank/heal slots empty while filling DPS)
+3. When possible, match preferred composition (role and spec) as a preference, but not at the cost of empty slots
+4. Primary spec over off-spec (never use off-spec if a primary-spec raider can fill the slot)
+5. Raider availability overlapping with the raid's scheduled time
+6. Role balance when no preferred composition
 
 Respond with ONLY valid JSON, no other text. Return one party per raid in order (party_index 0 = raid 0, etc). Format:
 {"parties":[{"party_index":0,"slots":[{"slot_index":0,"character_name":"Name","character_class":"Class","role":"Tank"},...]},{"party_index":1,"slots":[...]},...]}
