@@ -2537,7 +2537,7 @@ ${text.trim()}
 
 Parse the text. For each raider mentioned, extract which raid dates they're available and their time window (start-end). Times can be in various formats (7pm, 19:00, 7-11, etc). Normalize to HH:MM (24h). If the person just says yes or available without specifying times, use that raid's scheduled start_time as their start_time and the raid's end_time as their end_time.
 
-IMPORTANT - Nicknames and partial names: People often paste nicknames or shortened names (e.g. "Beefy" for "Beefygeek", "Aelo" for "Aeloryx", "Corn" for "Cornpaup"). Match nicknames, abbreviations, and partial names to the full character name from the raider list. Always return the EXACT character_name from the raider list, not the nickname as typed. If a pasted name could match multiple raiders, pick the best fit. If it clearly doesn't match any raider, skip them.
+IMPORTANT - Nicknames and partial names: People often paste nicknames, abbreviations, or shortened names. Infer which roster character each refers to (prefix matches, common shortenings, etc.). Always return the EXACT character_name from the raider list, not the nickname as typed. If a pasted name could match multiple raiders, pick the best fit. If it clearly doesn't match any raider, skip them.
 
 Map dates to the raid dates provided - e.g. "Fri" or "3/14" or "Fri 3/14" -> use the matching YYYY-MM-DD date from the raids list.
 If the text mentions an instance (e.g. "Kara"), match to the raid with that instance.
