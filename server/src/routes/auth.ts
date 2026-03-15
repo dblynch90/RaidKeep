@@ -2535,12 +2535,19 @@ Pasted text:
 ${text.trim()}
 """
 
-Parse the text. For each raider mentioned, extract which raid dates they're available and their time window (start-end). Times can be in various formats (7pm, 19:00, 7-11, etc). Normalize to HH:MM (24h). If the person just says yes or available without specifying times, use that raid's scheduled start_time as their start_time and the raid's end_time as their end_time.
+The pasted text may be in various formats: free-form lines, or a table with columns for Friday/Saturday/Sunday. Parse whichever format you see.
 
-IMPORTANT - Nicknames and partial names: People often paste nicknames, abbreviations, or shortened names. Infer which roster character each refers to (prefix matches, common shortenings, etc.). Always return the EXACT character_name from the raider list, not the nickname as typed. If a pasted name could match multiple raiders, pick the best fit. If it clearly doesn't match any raider, skip them.
+For each raider mentioned, extract which raid dates they're available and their time window (start-end). Map day names to actual dates: Friday->raid dates that fall on Friday, Saturday->Saturday, Sunday->Sunday. Use the YYYY-MM-DD from the raids list for each.
 
-Map dates to the raid dates provided - e.g. "Fri" or "3/14" or "Fri 3/14" -> use the matching YYYY-MM-DD date from the raids list.
-If the text mentions an instance (e.g. "Kara"), match to the raid with that instance.
+Time formats to recognize and normalize to HH:MM (24h):
+- "YES", "yes", empty with availability = use that raid's start_time and end_time
+- "3PM+", "4PM+", "5PM+", "6PM+", "7PM+", "9PM+" = start at that hour, end = raid end
+- "noon+", "12PM+" = start 12:00, end = raid end
+- "6PM - 10PM", "3PM - 10PM" = explicit start and end
+- "YES (not late)", "YES PM" = use raid times (or 18:00-22:00 if unclear)
+- "NO" or empty = not available, do not include that date for that raider
+
+IMPORTANT - Nicknames: Infer which roster character each name refers to. Use prefix matches, common shortenings, and context. Always return the EXACT character_name from the raider list.
 
 Respond with ONLY valid JSON, no other text. Format:
 {"availability":[{"character_name":"ExactNameFromList","slots":[{"date":"YYYY-MM-DD","start_time":"HH:MM","end_time":"HH:MM"}]}]}
