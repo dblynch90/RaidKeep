@@ -2551,7 +2551,7 @@ IMPORTANT - Nicknames: Infer which roster character each name refers to. Use pre
 
 Respond with ONLY valid JSON, no other text. Format:
 {"availability":[{"character_name":"ExactNameFromList","slots":[{"date":"YYYY-MM-DD","start_time":"HH:MM","end_time":"HH:MM"}]}]}
-Always use the exact character_name from the raider list. Only include raiders who match the list. Only include slots for dates that match a raid.`;
+Always use the exact character_name from the raider list. Include every raider who appears in the pasted list and has any availability (do not skip rows). Only include slots for dates that match a raid.`;
 
   try {
     const completion = await openai.chat.completions.create({
@@ -2585,23 +2585,31 @@ Always use the exact character_name from the raider list. Only include raiders w
       return dp[m][n];
     };
 
+    const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, "").replace(/[^a-z0-9]/g, "");
+
     const resolveToRoster = (name: string): string | null => {
       const n = (name || "").trim();
       if (!n) return null;
       const lower = n.toLowerCase();
       if (rosterSet.has(lower)) return rosterNames.find((r) => r.toLowerCase() === lower) ?? null;
-      for (const roster of rosterNames) {
-        const rLower = roster.toLowerCase();
-        if (rLower.startsWith(lower) || lower.startsWith(rLower)) return roster;
-        if (rLower.includes(lower) || lower.includes(rLower)) return roster;
+      const norm = normalize(n);
+      if (norm.length >= 3) {
+        for (const roster of rosterNames) {
+          const rLower = roster.toLowerCase();
+          const rNorm = normalize(roster);
+          if (rNorm.startsWith(norm) || norm.startsWith(rNorm)) return roster;
+          if (rNorm.includes(norm) || norm.includes(rNorm)) return roster;
+        }
       }
-      const len = lower.length;
+      const len = norm.length;
       let best: { roster: string; dist: number } | null = null;
+      const maxLenDiff = len >= 5 ? 5 : 3;
+      const maxDist = len >= 6 ? 3 : 2;
       for (const roster of rosterNames) {
-        const rLower = roster.toLowerCase();
-        if (Math.abs(rLower.length - len) > 3) continue;
-        const d = editDistance(lower, rLower);
-        if (d <= 2 && (!best || d < best.dist)) best = { roster, dist: d };
+        const rNorm = normalize(roster);
+        if (Math.abs(rNorm.length - len) > maxLenDiff) continue;
+        const d = editDistance(norm, rNorm);
+        if (d <= maxDist && (!best || d < best.dist)) best = { roster, dist: d };
       }
       return best?.roster ?? null;
     };
