@@ -2570,6 +2570,21 @@ Always use the exact character_name from the raider list. Only include raiders w
     const rosterSet = new Set(raiderList.map((r: { character_name: string }) => r.character_name.toLowerCase()));
     const rosterNames = raiderList.map((r: { character_name: string }) => r.character_name) as string[];
 
+    const editDistance = (a: string, b: string): number => {
+      const m = a.length;
+      const n = b.length;
+      const dp: number[][] = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
+      for (let i = 0; i <= m; i++) dp[i][0] = i;
+      for (let j = 0; j <= n; j++) dp[0][j] = j;
+      for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+          const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+          dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+        }
+      }
+      return dp[m][n];
+    };
+
     const resolveToRoster = (name: string): string | null => {
       const n = (name || "").trim();
       if (!n) return null;
@@ -2580,7 +2595,15 @@ Always use the exact character_name from the raider list. Only include raiders w
         if (rLower.startsWith(lower) || lower.startsWith(rLower)) return roster;
         if (rLower.includes(lower) || lower.includes(rLower)) return roster;
       }
-      return null;
+      const len = lower.length;
+      let best: { roster: string; dist: number } | null = null;
+      for (const roster of rosterNames) {
+        const rLower = roster.toLowerCase();
+        if (Math.abs(rLower.length - len) > 3) continue;
+        const d = editDistance(lower, rLower);
+        if (d <= 2 && (!best || d < best.dist)) best = { roster, dist: d };
+      }
+      return best?.roster ?? null;
     };
 
     const byChar = new Map<string, Array<{ date: string; start_time: string; end_time: string }>>();
